@@ -23,6 +23,7 @@ export interface EditingSuggestion {
 
 export interface SceneEditSuggestion {
   sceneId: string;
+  visualConfirmation?: string;  // Gemini 描述看到的影片內容（用於驗證）
   inPoint: number;              // 入點 (秒)
   outPoint: number;             // 出點 (秒)
   transition: string;           // 轉場效果

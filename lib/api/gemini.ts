@@ -109,7 +109,10 @@ function buildEditingAnalysisPrompt(storyboard: Storyboard): string {
 分鏡表格:
 ${JSON.stringify(storyboard.scenes, null, 2)}
 
-請分析這些影片並提供詳細的剪輯建議。
+請**觀看每段影片的實際內容**後，提供詳細的剪輯建議。
+
+⚠️ **重要**：你必須在每個場景建議中包含 \`visualConfirmation\` 欄位，
+簡短描述你在該影片中實際看到的內容（1-2 句話），以確認你真的觀看了影片。
 
 ## 重要限制：
 ⚠️ 你的建議將直接轉換為 Blender VSE Python 腳本，因此：
@@ -142,6 +145,7 @@ ${JSON.stringify(storyboard.scenes, null, 2)}
   "scenes": [
     {
       "sceneId": "場景的 ID（必須與分鏡表格中的 id 欄位完全一致）",
+      "visualConfirmation": "我看到產品在黑色背景中緩慢旋轉，前半秒靜止，後段光線漸暗",
       "inPoint": 0.5,  // 入點（秒），建議剪掉開頭靜止或不穩定的部分
       "outPoint": 4.8, // 出點（秒），保留動作最精彩的部分
       "transition": "crossfade", // 到下一個場景的轉場，只能用: crossfade, wipe, cut
@@ -152,10 +156,11 @@ ${JSON.stringify(storyboard.scenes, null, 2)}
 }
 
 ## 剪輯原則：
-1. **入出點**：去除開頭結尾的靜止幀，保留動作最流暢的部分
-2. **轉場**：預設用 crossfade，快節奏用 cut，特殊過渡用 wipe
-3. **效果**：控制在 2-3 個，避免過度使用
-4. **色彩**：如需統一色調，對所有場景都添加 color_correction
+1. **視覺確認**：必須基於實際看到的影片內容提供建議，不要只根據文字描述猜測
+2. **入出點**：去除開頭結尾的靜止幀，保留動作最流暢的部分
+3. **轉場**：預設用 crossfade，快節奏用 cut，特殊過渡用 wipe
+4. **效果**：控制在 2-3 個，避免過度使用
+5. **色彩**：如需統一色調，對所有場景都添加 color_correction
 
 請根據影片內容分析並輸出 JSON。`;
 }

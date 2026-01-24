@@ -164,6 +164,11 @@ export function VideoAnalyzer({ storyboard, onAnalysisComplete }: VideoAnalyzerP
                                             <p className="text-zinc-300">
                                                 場景: {scene.sceneId}
                                             </p>
+                                            {scene.visualConfirmation && (
+                                                <p className="text-green-400 text-xs mt-1 italic">
+                                                    ✓ AI 確認: {scene.visualConfirmation}
+                                                </p>
+                                            )}
                                             <p className="text-zinc-500">
                                                 入點: {scene.inPoint}s | 出點: {scene.outPoint}s
                                             </p>
