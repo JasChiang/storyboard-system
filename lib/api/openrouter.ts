@@ -1,5 +1,6 @@
-import { PromptTemplate, StoryboardGenerationResponse } from '../types/storyboard';
+import { PromptTemplate, StoryboardGenerationResponse, ProjectReference } from '../types/storyboard';
 import { OpenRouterResponse } from '../types/api-responses';
+import { buildSystemPrompt } from '../prompts/prompt-builder';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -11,8 +12,12 @@ export interface OpenRouterConfig {
 export async function generateStoryboardScript(
   userPrompt: string,
   template: PromptTemplate,
-  config: OpenRouterConfig
+  config: OpenRouterConfig,
+  references?: ProjectReference[]
 ): Promise<StoryboardGenerationResponse> {
+  // 使用 prompt builder 構建包含參考圖資訊的系統提示詞
+  const systemPrompt = buildSystemPrompt(template, references);
+
   const response = await fetch(OPENROUTER_API_URL, {
     method: 'POST',
     headers: {
@@ -26,7 +31,7 @@ export async function generateStoryboardScript(
       messages: [
         {
           role: 'system',
-          content: template.systemPrompt + '\n\n你必須以 JSON 格式回應，遵循以下結構：' + JSON.stringify(template.outputSchema, null, 2)
+          content: systemPrompt + '\n\n你必須以 JSON 格式回應，遵循以下結構：' + JSON.stringify(template.outputSchema, null, 2)
         },
         {
           role: 'user',

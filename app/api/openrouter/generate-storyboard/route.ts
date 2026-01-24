@@ -4,7 +4,7 @@ import { TEMPLATES } from '@/lib/prompts';
 
 export async function POST(request: NextRequest) {
   try {
-    const { userPrompt, templateId, apiKey } = await request.json();
+    const { userPrompt, templateId, apiKey, references } = await request.json();
 
     // 驗證必要參數
     if (!userPrompt || !apiKey) {
@@ -17,8 +17,8 @@ export async function POST(request: NextRequest) {
     // 獲取模板
     const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
 
-    // 調用 OpenRouter API
-    const result = await generateStoryboardScript(userPrompt, template, { apiKey });
+    // 調用 OpenRouter API（傳遞 references）
+    const result = await generateStoryboardScript(userPrompt, template, { apiKey }, references);
 
     return NextResponse.json({
       success: true,

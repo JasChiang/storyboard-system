@@ -6,7 +6,7 @@ import { useProjectStore } from '@/stores/project-store';
 import { apiKeyStorage } from '@/lib/db/local-storage';
 import { StoryPromptInput } from '@/components/storyboard/StoryPromptInput';
 import { StoryboardTable } from '@/components/storyboard/StoryboardTable';
-import { Scene, Storyboard, StoryboardGenerationResponse } from '@/lib/types/storyboard';
+import { Scene, Storyboard, StoryboardGenerationResponse, ProjectReference } from '@/lib/types/storyboard';
 import { ArrowLeft, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ export default function StoryboardPage() {
     }
   }, [projectId, setCurrentProject]);
 
-  const handleGenerate = async (prompt: string, templateId: string) => {
+  const handleGenerate = async (prompt: string, templateId: string, references: ProjectReference[]) => {
     if (!apiKey) {
       alert('請先設定 OpenRouter API 金鑰');
       setShowApiKeyInput(true);
@@ -44,12 +44,12 @@ export default function StoryboardPage() {
 
     try {
       console.log('發送請求到:', '/api/openrouter/generate-storyboard');
-      console.log('請求參數:', { prompt: prompt.substring(0, 50) + '...', templateId });
+      console.log('請求參數:', { prompt: prompt.substring(0, 50) + '...', templateId, refsCount: references.length });
 
       const response = await fetch('/api/openrouter/generate-storyboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userPrompt: prompt, templateId, apiKey }),
+        body: JSON.stringify({ userPrompt: prompt, templateId, apiKey, references }),
       });
 
       if (!response.ok) {
@@ -74,7 +74,7 @@ export default function StoryboardPage() {
         id: `scene-${Date.now()}-${index}`,
       }));
 
-      // 建立 Storyboard
+      // 建立 Storyboard（包含參考圖）
       const storyboard: Storyboard = {
         id: `storyboard-${Date.now()}`,
         projectId,
@@ -82,6 +82,7 @@ export default function StoryboardPage() {
         originalPrompt: prompt,
         templateUsed: result.templateUsed,
         scenes,
+        projectReferences: references.length > 0 ? references : undefined,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

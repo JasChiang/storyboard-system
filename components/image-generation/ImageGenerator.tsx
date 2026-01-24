@@ -1,17 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Settings2 } from 'lucide-react';
+import { Sparkles, Settings2, Image as ImageIcon } from 'lucide-react';
 import { ReferenceUploader } from './ReferenceUploader';
 import { ImagePreview } from './ImagePreview';
-import type { Scene } from '@/lib/types/storyboard';
+import type { Scene, ProjectReference } from '@/lib/types/storyboard';
 
 interface ImageGeneratorProps {
     scene: Scene;
     onImageGenerated: (imageUrl: string, prompt: string) => void;
+    projectReferences?: ProjectReference[];
 }
 
-export function ImageGenerator({ scene, onImageGenerated }: ImageGeneratorProps) {
+export function ImageGenerator({ scene, onImageGenerated, projectReferences = [] }: ImageGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [referenceImage, setReferenceImage] = useState<string | null>(
         scene.referenceImage || null
@@ -21,11 +22,42 @@ export function ImageGenerator({ scene, onImageGenerated }: ImageGeneratorProps)
     const [customPrompt, setCustomPrompt] = useState('');
     const [promptMode, setPromptMode] = useState<'append' | 'replace' | 'prepend'>('append');
     const [showAdvanced, setShowAdvanced] = useState(false);
+    // 專案參考圖選擇狀態
+    const [selectedProjectRefs, setSelectedProjectRefs] = useState<string[]>(
+        projectReferences.map(r => r.id)  // 預設全選
+    );
+
+    // 獲取選中的專案參考圖 URL
+    const getSelectedReferenceUrls = (): string[] => {
+        const urls: string[] = [];
+        projectReferences.forEach(r => {
+            if (selectedProjectRefs.includes(r.id)) {
+                urls.push(r.url);
+            }
+        });
+        if (referenceImage) {
+            urls.push(referenceImage);
+        }
+        return urls;
+    };
 
     // 構建圖片生成 prompt
     const buildImagePrompt = () => {
         const parts = [];
 
+        // 1. 加入專案參考圖的描述作為上下文
+        if (selectedProjectRefs.length > 0) {
+            const selectedRefs = projectReferences.filter(r => selectedProjectRefs.includes(r.id));
+            if (selectedRefs.length > 0) {
+                parts.push('Context from references:');
+                selectedRefs.forEach(ref => {
+                    const nameTag = ref.name ? `<${ref.name}>` : ref.type;
+                    parts.push(`${nameTag}: ${ref.description}`);
+                });
+            }
+        }
+
+        // 2. 加入主要場景描述和自訂提示詞
         if (!customPrompt) {
             // 沒有自訂內容，直接使用場景描述
             parts.push(scene.description);
@@ -51,9 +83,9 @@ export function ImageGenerator({ scene, onImageGenerated }: ImageGeneratorProps)
             }
         }
 
-        // 如果有參考圖，加強保持外觀特徵的指令
+        // 3. 如果有場景參考圖，加強保持外觀特徵的指令
         if (referenceImage) {
-            parts.push('Maintain the exact appearance, facial features, clothing, and style from the reference image.');
+            parts.push('Maintain the exact appearance, facial features, clothing, and style from the uploaded reference image.');
             parts.push('保持參考圖中的外觀、面部特徵、服裝和風格。');
         }
 
@@ -249,7 +281,58 @@ export function ImageGenerator({ scene, onImageGenerated }: ImageGeneratorProps)
                 )}
             </div>
 
-            {/* 參考圖上傳 */}
+            {/* 專案參考圖（來自分鏡階段） */}
+            {projectReferences.length > 0 && (
+                <div className="space-y-3">
+                    <label className="block text-sm font-medium text-zinc-300">
+                        專案參考圖
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                        {projectReferences.map((ref) => (
+                            <button
+                                key={ref.id}
+                                onClick={() => {
+                                    if (selectedProjectRefs.includes(ref.id)) {
+                                        setSelectedProjectRefs(prev => prev.filter(id => id !== ref.id));
+                                    } else {
+                                        setSelectedProjectRefs(prev => [...prev, ref.id]);
+                                    }
+                                }}
+                                disabled={isGenerating}
+                                className={`
+                                    relative rounded-lg overflow-hidden border-2 transition-all
+                                    ${selectedProjectRefs.includes(ref.id)
+                                        ? 'border-purple-500 ring-2 ring-purple-500/30'
+                                        : 'border-zinc-700 opacity-60 hover:opacity-80'
+                                    }
+                                    disabled:cursor-not-allowed
+                                `}
+                            >
+                                <img
+                                    src={ref.url}
+                                    alt={ref.description}
+                                    className="w-full h-16 object-cover"
+                                />
+                                <div className="absolute bottom-0 left-0 right-0 p-1 bg-black/70">
+                                    <p className="text-[10px] text-zinc-300 truncate">
+                                        {ref.name ? `<${ref.name}>` : ref.type}
+                                    </p>
+                                </div>
+                                {selectedProjectRefs.includes(ref.id) && (
+                                    <div className="absolute top-1 right-1 w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center">
+                                        <span className="text-white text-[10px]">✓</span>
+                                    </div>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-xs text-zinc-500">
+                        點擊選擇/取消要使用的參考圖（已選 {selectedProjectRefs.length}/{projectReferences.length}）
+                    </p>
+                </div>
+            )}
+
+            {/* 額外參考圖上傳 */}
             <ReferenceUploader
                 value={referenceImage}
                 onChange={setReferenceImage}

@@ -200,6 +200,7 @@ export default function ImagesPage() {
                     onImageGenerated={(url, prompt) =>
                       handleImageGenerated(selectedScene.id, url, prompt)
                     }
+                    projectReferences={currentProject.storyboard?.projectReferences}
                   />
                 </div>
               ) : (

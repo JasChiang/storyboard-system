@@ -32,8 +32,19 @@ export interface Storyboard {
   originalPrompt: string;        // 用戶原始輸入
   templateUsed: string;          // 使用的提示詞模板
   scenes: Scene[];
+  projectReferences?: ProjectReference[];  // 專案級參考圖
   createdAt: string;
   updatedAt: string;
+}
+
+// 專案級參考圖
+export interface ProjectReference {
+  id: string;
+  url: string;                   // Fal Storage URL
+  description: string;           // 描述（手動輸入或 AI 生成）
+  type: 'character' | 'product' | 'environment' | 'style';
+  name?: string;                 // 角色名稱 或 商品名稱
+  descriptionSource: 'manual' | 'ai';  // 描述來源
 }
 
 // 提示詞模板
