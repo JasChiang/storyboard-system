@@ -86,7 +86,7 @@ cp .env.local.example .env.local
 | `FAL_IMAGE_MODEL` | 圖片生成模型 | `fal-ai/nano-banana-pro` |
 | `FAL_VIDEO_KLING_MODEL` | Kling 影片模型 | `fal-ai/kling-video/v2.6/pro/image-to-video` |
 | `FAL_VIDEO_SEEDANCE_MODEL` | Seedance 影片模型 | `fal-ai/bytedance/seedance/v1.5/pro/image-to-video` |
-| `GEMINI_MODEL` | 影片分析模型 | `gemini-2.0-flash-exp` |
+| `GEMINI_MODEL` | 影片分析模型 | `gemini-1.5-flash` |
 
 **範例**：
 ```bash
@@ -96,8 +96,11 @@ OPENROUTER_MODEL=openai/gpt-4o
 # 使用 Flux Pro 生成圖片
 FAL_IMAGE_MODEL=fal-ai/flux-pro/v1.1
 
-# 使用 Gemini 1.5 Pro 分析影片
+# 使用 Gemini 1.5 Pro 分析影片（更高品質，但配額較低）
 GEMINI_MODEL=gemini-1.5-pro
+
+# 使用 Gemini 1.5 Flash 分析影片（推薦，配額較高）
+GEMINI_MODEL=gemini-1.5-flash
 ```
 
 > 參考模型列表：
@@ -187,6 +190,36 @@ storyboard-system/
 - 生成剪輯建議（入出點、轉場、特效）
 - 下載 Blender Python 腳本
 - 在 Blender 中執行自動剪輯
+
+## ⚠️ 常見問題排除
+
+### Gemini API 配額超限 (429 錯誤)
+
+**錯誤訊息**：`You exceeded your current quota` 或 `429 Too Many Requests`
+
+**解決方案**：
+
+1. **更換模型**（推薦）：在 `.env.local` 中修改 `GEMINI_MODEL`：
+   ```bash
+   # 改用 Gemini 1.5 Flash（較高配額）
+   GEMINI_MODEL=gemini-1.5-flash
+   
+   # 或使用 Gemini 1.5 Pro（最佳品質）
+   GEMINI_MODEL=gemini-1.5-pro
+   ```
+
+2. **等待配額重置**：
+   - 免費版：每分鐘 15 次請求，每日 1,500 次請求
+   - 通常等待 1 分鐘即可恢復
+
+3. **升級 API 方案**：
+   - 前往 [Google AI Studio](https://aistudio.google.com/app/apikey)
+   - 查看配額使用情況並考慮升級
+
+**配額建議**：
+- `gemini-1.5-flash`：最佳性價比，配額充足
+- `gemini-1.5-pro`：品質最佳，但配額較嚴格
+- `gemini-2.0-flash-exp`：實驗性功能，配額限制最嚴格（不推薦）
 
 ## 🎨 設計特色
 

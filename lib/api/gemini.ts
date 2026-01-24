@@ -63,63 +63,101 @@ export async function analyzeVideosForEditing(
   storyboard: Storyboard,
   config: GeminiConfig
 ): Promise<EditingSuggestion> {
-  const genAI = new GoogleGenerativeAI(config.apiKey);
-  const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
-  const model = genAI.getGenerativeModel({ model: modelName });
+  try {
+    const genAI = new GoogleGenerativeAI(config.apiKey);
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
+    const model = genAI.getGenerativeModel({ model: modelName });
 
-  // 構建影片內容參考
-  const videoParts = uploadedFiles.map(file => ({
-    fileData: {
-      mimeType: file.mimeType,
-      fileUri: file.uri,
+    // 構建影片內容參考
+    const videoParts = uploadedFiles.map(file => ({
+      fileData: {
+        mimeType: file.mimeType,
+        fileUri: file.uri,
+      }
+    }));
+
+    const prompt = buildEditingAnalysisPrompt(storyboard);
+
+    const result = await model.generateContent([
+      ...videoParts,
+      { text: prompt }
+    ]);
+
+    const responseText = result.response.text();
+    return parseEditingSuggestion(responseText);
+  } catch (error: any) {
+    // 處理配額超限錯誤
+    if (error?.message?.includes('quota') || error?.message?.includes('429')) {
+      throw new Error(
+        `Gemini API 配額已超限。建議解決方案：\n` +
+        `1. 在 .env.local 中將 GEMINI_MODEL 改為 gemini-1.5-flash\n` +
+        `2. 或使用 gemini-1.5-pro (更高配額)\n` +
+        `3. 或等待配額重置（通常為每日/每分鐘限制）\n\n` +
+        `原始錯誤: ${error.message}`
+      );
     }
-  }));
 
-  const prompt = buildEditingAnalysisPrompt(storyboard);
-
-  const result = await model.generateContent([
-    ...videoParts,
-    { text: prompt }
-  ]);
-
-  const responseText = result.response.text();
-  return parseEditingSuggestion(responseText);
+    // 其他錯誤直接拋出
+    throw error;
+  }
 }
 
 function buildEditingAnalysisPrompt(storyboard: Storyboard): string {
-  return `你是專業的影片剪輯師。我提供了一系列分鏡影片和對應的分鏡表格。
+  return `你是專業的影片剪輯師，專精於 Blender Video Sequence Editor (VSE) 剪輯。
+我提供了一系列分鏡影片和對應的分鏡表格。
 
 分鏡表格:
 ${JSON.stringify(storyboard.scenes, null, 2)}
 
-請分析這些影片並提供詳細的剪輯建議，包括：
-1. 每個場景的建議入點 (in point) 和出點 (out point) - 以秒為單位
-2. 場景之間的轉場效果建議 (crossfade, wipe, cut, etc.)
-3. 需要添加的視覺效果 (glow, blur, color_correction, etc.)
-4. 音頻處理建議
-5. 整體節奏和時間線建議
+請分析這些影片並提供詳細的剪輯建議。
 
-請以 JSON 格式輸出，結構如下：
+## 重要限制：
+⚠️ 你的建議將直接轉換為 Blender VSE Python 腳本，因此：
+1. **只能建議 Blender VSE 原生支援的效果**
+2. **不要建議需要外部素材或插件的效果**
+3. **不要建議需要進階節點或 3D 工作區的效果**
+
+## 可用的轉場效果 (Transitions):
+- crossfade: 淡入淡出（最常用）
+- wipe: 擦除轉場
+- cut: 直接切換（實際上會用快速的 crossfade）
+
+## 可用的視覺效果 (Effects):
+**可直接實現：**
+- color_correction: 調色（調整飽和度、色彩倍數）
+- glow: 發光/光暈效果（適合強調亮部）
+- blur: 模糊/高斯模糊
+- transform: 變換（縮放、位移，需手動設置關鍵影格）
+
+**不要建議以下效果（無法在 VSE 中實現）：**
+- ❌ sharpen, 3d_animation, motion_graphics
+- ❌ logo_overlay, text_overlay, ui_animation
+- ❌ 任何需要外部素材的效果
+
+## 輸出要求：
+
+請以 JSON 格式輸出剪輯建議，結構如下：
 {
-  "summary": "整體剪輯建議摘要",
+  "summary": "整體剪輯建議摘要（2-3句話說明影片風格和節奏）",
   "scenes": [
     {
-      "sceneId": "場景ID",
-      "inPoint": 0.5,
-      "outPoint": 4.8,
-      "transition": "crossfade",
-      "effects": ["glow", "color_correction"]
+      "sceneId": "場景的 ID（必須與分鏡表格中的 id 欄位完全一致）",
+      "inPoint": 0.5,  // 入點（秒），建議剪掉開頭靜止或不穩定的部分
+      "outPoint": 4.8, // 出點（秒），保留動作最精彩的部分
+      "transition": "crossfade", // 到下一個場景的轉場，只能用: crossfade, wipe, cut
+      "effects": ["color_correction", "glow"] // 只能用上述「可直接實現」的效果
     }
   ],
-  "timeline": [
-    {
-      "time": 10.5,
-      "type": "transition",
-      "description": "從場景 1 淡入場景 2"
-    }
-  ],
-  "audioNotes": "音頻處理建議"
-}`;
+  "audioNotes": "音頻處理建議（背景音樂風格、旁白節奏、需要的音效類型）"
+}
+
+## 剪輯原則：
+1. **入出點**：去除開頭結尾的靜止幀，保留動作最流暢的部分
+2. **轉場**：預設用 crossfade，快節奏用 cut，特殊過渡用 wipe
+3. **效果**：控制在 2-3 個，避免過度使用
+4. **色彩**：如需統一色調，對所有場景都添加 color_correction
+
+請根據影片內容分析並輸出 JSON。`;
 }
 
 function parseEditingSuggestion(responseText: string): EditingSuggestion {
