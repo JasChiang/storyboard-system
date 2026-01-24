@@ -19,17 +19,36 @@ export function ImageGenerator({ scene, onImageGenerated }: ImageGeneratorProps)
     const [aspectRatio, setAspectRatio] = useState<string>('16:9');
     const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('2K');
     const [customPrompt, setCustomPrompt] = useState('');
+    const [promptMode, setPromptMode] = useState<'append' | 'replace' | 'prepend'>('append');
     const [showAdvanced, setShowAdvanced] = useState(false);
 
     // 構建圖片生成 prompt
     const buildImagePrompt = () => {
         const parts = [];
 
-        if (customPrompt) {
-            parts.push(customPrompt);
-        } else {
-            // 只使用靜態場景描述，不包含運鏡指令
+        if (!customPrompt) {
+            // 沒有自訂內容，直接使用場景描述
             parts.push(scene.description);
+        } else {
+            // 有自訂內容，根據模式處理
+            switch (promptMode) {
+                case 'replace':
+                    // 只使用自訂內容
+                    parts.push(customPrompt);
+                    break;
+
+                case 'append':
+                    // 場景描述 + 自訂內容
+                    parts.push(scene.description);
+                    parts.push(customPrompt);
+                    break;
+
+                case 'prepend':
+                    // 自訂內容 + 場景描述
+                    parts.push(customPrompt);
+                    parts.push(scene.description);
+                    break;
+            }
         }
 
         // 如果有參考圖，加強保持外觀特徵的指令
@@ -38,7 +57,31 @@ export function ImageGenerator({ scene, onImageGenerated }: ImageGeneratorProps)
             parts.push('保持參考圖中的外觀、面部特徵、服裝和風格。');
         }
 
-        return parts.join(' ');
+        return parts.join('. ');
+    };
+
+    // 獲取模式說明
+    const getModeDescription = () => {
+        switch (promptMode) {
+            case 'append':
+                return '場景描述 + 自訂內容（適合微調細節）';
+            case 'replace':
+                return '只使用自訂內容（完全重新定義）';
+            case 'prepend':
+                return '自訂內容 + 場景描述（強調重點）';
+        }
+    };
+
+    // 獲取佔位符提示
+    const getPlaceholder = () => {
+        switch (promptMode) {
+            case 'append':
+                return '例如：高品質產品攝影, 柔和側光, 8K 解析度';
+            case 'replace':
+                return '例如：A futuristic smartphone floating in space, neon lighting';
+            case 'prepend':
+                return '例如：Cinematic style, dramatic lighting, professional photography';
+        }
     };
 
     const handleGenerate = async () => {
@@ -150,15 +193,41 @@ export function ImageGenerator({ scene, onImageGenerated }: ImageGeneratorProps)
                 onRegenerate={handleGenerate}
             />
 
-            {/* 自訂 Prompt */}
-            <div className="space-y-2">
-                <label className="block text-sm font-medium text-zinc-300">
-                    自訂提示詞 (選填)
-                </label>
+            {/* 自訂提示詞區塊 */}
+            <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-zinc-300">
+                        自訂提示詞 (選填)
+                    </label>
+
+                    {/* 模式選擇 */}
+                    <select
+                        value={promptMode}
+                        onChange={(e) => setPromptMode(e.target.value as 'append' | 'replace' | 'prepend')}
+                        disabled={isGenerating || !customPrompt}
+                        className="px-3 py-1 bg-zinc-900 border border-zinc-700 rounded-lg
+                                 text-xs text-zinc-200 focus:outline-none focus:border-purple-500
+                                 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <option value="append">增強模式</option>
+                        <option value="replace">覆蓋模式</option>
+                        <option value="prepend">優先模式</option>
+                    </select>
+                </div>
+
+                {/* 模式說明 */}
+                {customPrompt && (
+                    <div className="p-2 bg-zinc-900/50 rounded border border-zinc-800">
+                        <p className="text-xs text-zinc-400">
+                            {getModeDescription()}
+                        </p>
+                    </div>
+                )}
+
                 <textarea
                     value={customPrompt}
                     onChange={(e) => setCustomPrompt(e.target.value)}
-                    placeholder="預設使用場景描述，也可自訂..."
+                    placeholder={getPlaceholder()}
                     className="w-full px-3 py-2 bg-zinc-900/50 border border-zinc-700 rounded-lg
                    text-sm text-zinc-200 placeholder-zinc-600
                    focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500
@@ -166,6 +235,18 @@ export function ImageGenerator({ scene, onImageGenerated }: ImageGeneratorProps)
                     rows={3}
                     disabled={isGenerating}
                 />
+
+                {/* 即時預覽最終 Prompt */}
+                {customPrompt && (
+                    <div className="p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                        <label className="text-xs text-blue-300 font-medium block mb-1">
+                            最終提示詞預覽：
+                        </label>
+                        <p className="text-xs text-zinc-300 italic leading-relaxed">
+                            "{buildImagePrompt()}"
+                        </p>
+                    </div>
+                )}
             </div>
 
             {/* 參考圖上傳 */}

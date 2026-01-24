@@ -60,7 +60,21 @@ export async function generateStoryboardScript(
   console.log('收到的回應內容（前 200 字）:', content.substring(0, 200));
 
   try {
-    return JSON.parse(content);
+    // 移除可能的 markdown 程式碼區塊標記
+    let cleanedContent = content.trim();
+
+    // 如果內容被 ```json 和 ``` 包裹，移除這些標記
+    if (cleanedContent.startsWith('```json')) {
+      cleanedContent = cleanedContent.replace(/^```json\s*/, '');
+    } else if (cleanedContent.startsWith('```')) {
+      cleanedContent = cleanedContent.replace(/^```\s*/, '');
+    }
+
+    if (cleanedContent.endsWith('```')) {
+      cleanedContent = cleanedContent.replace(/\s*```$/, '');
+    }
+
+    return JSON.parse(cleanedContent.trim());
   } catch (error) {
     console.error('JSON 解析失敗，完整內容:', content);
     throw new Error('AI 回傳的內容不是有效的 JSON 格式。請檢查 console 查看完整內容。');
