@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkQueueStatus } from '@/lib/api/fal';
+import { checkQueueStatus, getImageResult, getVideoResult } from '@/lib/api/fal';
 
 export async function POST(request: NextRequest) {
     try {
@@ -12,30 +12,14 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 先檢查狀態
+        // 使用 SDK 檢查狀態
         const status = await checkQueueStatus(requestId, endpoint, { apiKey });
 
         if (status.status === 'COMPLETED') {
-            // 當狀態為 COMPLETED 時，需要使用 response_url 獲取實際結果
-            if (!status.response_url) {
-                throw new Error('Status is COMPLETED but no response_url provided');
-            }
-
-            // 使用 response_url 獲取完整結果
-            const resultResponse = await fetch(status.response_url, {
-                headers: {
-                    'Authorization': `Key ${apiKey}`,
-                }
-            });
-
-            if (!resultResponse.ok) {
-                const errorText = await resultResponse.text();
-                console.error('Failed to fetch result:', resultResponse.status, errorText);
-                throw new Error(`Failed to fetch result: ${errorText}`);
-            }
-
-            const result = await resultResponse.json();
-            console.log('Result data:', JSON.stringify(result, null, 2));
+            // 直接使用 SDK 獲取結果
+            const result = type === 'image'
+                ? await getImageResult(requestId, endpoint, { apiKey })
+                : await getVideoResult(requestId, endpoint, { apiKey });
 
             return NextResponse.json({
                 status: 'COMPLETED',

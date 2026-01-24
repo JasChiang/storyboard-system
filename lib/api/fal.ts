@@ -1,3 +1,4 @@
+import { fal } from '@fal-ai/client';
 import {
   FalQueueResponse,
   FalStatusResponse,
@@ -5,52 +6,43 @@ import {
   FalVideoResult
 } from '../types/api-responses';
 
-const FAL_API_URL = 'https://queue.fal.run';
-const FAL_STORAGE_URL = 'https://fal.media/files/upload';
-
 export interface FalConfig {
   apiKey: string;
 }
 
-// 上傳文件到 Fal Storage
+// 配置 Fal SDK
+function configureFal(apiKey: string) {
+  fal.config({
+    credentials: apiKey,
+  });
+}
+
+// 上傳文件到 Fal Storage（SDK 會自動處理）
 export async function uploadFile(
   file: File,
   config: FalConfig
 ): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', file);
+  configureFal(config.apiKey);
 
-  const response = await fetch(FAL_STORAGE_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Key ${config.apiKey}`,
-    },
-    body: formData
-  });
+  // Fal SDK 會自動上傳文件並返回 URL
+  const url = await fal.storage.upload(file);
+  console.log('Upload result:', url);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Upload failed:', response.status, errorText);
-    throw new Error(`Fal upload error (${response.status}): ${errorText}`);
-  }
-
-  const result = await response.json();
-  console.log('Upload result:', result);
-
-  // Fal Storage 返回格式: { file_url: "https://..." }
-  return result.file_url || result.url;
+  return url;
 }
 
 // Nano Banana Pro 圖片生成
 export async function generateImage(
   prompt: string,
   options: {
-    referenceImage?: string;  // base64 或 URL
+    referenceImage?: string;  // base64 或 URL，或者 File 對象
     aspectRatio?: string;
     resolution?: '1K' | '2K' | '4K';
   },
   config: FalConfig
 ): Promise<FalQueueResponse> {
+  configureFal(config.apiKey);
+
   // 從環境變數讀取模型名稱，預設為 nano-banana-pro
   const baseModel = process.env.FAL_IMAGE_MODEL || 'fal-ai/nano-banana-pro';
 
@@ -59,7 +51,7 @@ export async function generateImage(
     ? `${baseModel}/edit`
     : baseModel;
 
-  const payload: Record<string, unknown> = {
+  const input: Record<string, unknown> = {
     prompt,
     num_images: 1,
     aspect_ratio: options.aspectRatio || '16:9',
@@ -67,29 +59,29 @@ export async function generateImage(
   };
 
   if (options.referenceImage) {
-    // /edit endpoint 需要 image_urls (複數，陣列格式)
-    payload.image_urls = [options.referenceImage];
+    // SDK 會自動處理 File 對象或 URL
+    input.image_urls = [options.referenceImage];
   }
 
   console.log('Generating image with endpoint:', endpoint);
-  console.log('Payload:', JSON.stringify(payload, null, 2));
+  console.log('Input:', JSON.stringify(input, null, 2));
 
-  const response = await fetch(`${FAL_API_URL}/${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Key ${config.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload)
-  });
+  try {
+    // 使用 SDK 提交請求
+    const result = await fal.queue.submit(endpoint, {
+      input,
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Generate image failed:', response.status, errorText);
-    throw new Error(`Fal API error (${response.status}): ${errorText}`);
+    console.log('Queue submit result:', result);
+
+    return {
+      request_id: result.request_id,
+      status: 'IN_QUEUE',
+    };
+  } catch (error) {
+    console.error('Generate image failed:', error);
+    throw error;
   }
-
-  return response.json();
 }
 
 // Kling 2.6 Pro 影片生成
@@ -103,28 +95,24 @@ export async function generateVideoKling(
   },
   config: FalConfig
 ): Promise<FalQueueResponse> {
+  configureFal(config.apiKey);
+
   const endpoint = process.env.FAL_VIDEO_KLING_MODEL || 'fal-ai/kling-video/v2.6/pro/image-to-video';
 
-  const response = await fetch(`${FAL_API_URL}/${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Key ${config.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  const result = await fal.queue.submit(endpoint, {
+    input: {
       image_url: imageUrl,
       prompt,
       duration: options.duration || 5,
       aspect_ratio: options.aspectRatio || '16:9',
       sound: options.enableSound || false,
-    })
+    }
   });
 
-  if (!response.ok) {
-    throw new Error(`Fal API error: ${await response.text()}`);
-  }
-
-  return response.json();
+  return {
+    request_id: result.request_id,
+    status: 'IN_QUEUE',
+  };
 }
 
 // Seedance 1.5 Pro 影片生成
@@ -137,27 +125,23 @@ export async function generateVideoSeedance(
   },
   config: FalConfig
 ): Promise<FalQueueResponse> {
+  configureFal(config.apiKey);
+
   const endpoint = process.env.FAL_VIDEO_SEEDANCE_MODEL || 'fal-ai/bytedance/seedance/v1.5/pro/image-to-video';
 
-  const response = await fetch(`${FAL_API_URL}/${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Key ${config.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
+  const result = await fal.queue.submit(endpoint, {
+    input: {
       image_url: imageUrl,
       prompt,
       duration: options.duration || 5,
       audio: options.enableAudio || false,
-    })
+    }
   });
 
-  if (!response.ok) {
-    throw new Error(`Fal API error: ${await response.text()}`);
-  }
-
-  return response.json();
+  return {
+    request_id: result.request_id,
+    status: 'IN_QUEUE',
+  };
 }
 
 // 檢查任務狀態
@@ -166,62 +150,66 @@ export async function checkQueueStatus(
   endpoint: string,
   config: FalConfig
 ): Promise<FalStatusResponse> {
-  const url = `${FAL_API_URL}/${endpoint}/requests/${requestId}/status`;
-  console.log('Checking status at:', url);
+  configureFal(config.apiKey);
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Key ${config.apiKey}`,
-    }
-  });
+  console.log('Checking status for:', requestId, 'on endpoint:', endpoint);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Status check failed:', response.status, errorText);
-    throw new Error(`Fal API error: ${response.status}: ${errorText}`);
+  try {
+    const status: any = await fal.queue.status(endpoint, {
+      requestId,
+      logs: true,
+    });
+
+    console.log('Status response:', JSON.stringify(status, null, 2));
+
+    return {
+      status: status.status as 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED',
+      response_url: status.response_url,
+      logs: status.logs?.map((log: any) => log.message),
+      error: status.error,
+      metrics: status.metrics,
+    };
+  } catch (error) {
+    console.error('Status check failed:', error);
+    throw error;
   }
-
-  const result = await response.json();
-  console.log('Status response:', JSON.stringify(result, null, 2));
-  return result;
 }
 
-// 獲取結果
+// 獲取圖片結果
 export async function getImageResult(
   requestId: string,
   endpoint: string,
   config: FalConfig
 ): Promise<FalImageResult> {
-  const response = await fetch(`${FAL_API_URL}/${endpoint}/requests/${requestId}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Key ${config.apiKey}`,
-    }
-  });
+  configureFal(config.apiKey);
 
-  if (!response.ok) {
-    throw new Error(`Fal API error: ${await response.text()}`);
+  console.log('Getting result for:', requestId, 'on endpoint:', endpoint);
+
+  try {
+    const result = await fal.queue.result(endpoint, {
+      requestId,
+    });
+
+    console.log('Result data:', JSON.stringify(result, null, 2));
+
+    return result.data as FalImageResult;
+  } catch (error) {
+    console.error('Get result failed:', error);
+    throw error;
   }
-
-  return response.json();
 }
 
+// 獲取影片結果
 export async function getVideoResult(
   requestId: string,
   endpoint: string,
   config: FalConfig
 ): Promise<FalVideoResult> {
-  const response = await fetch(`${FAL_API_URL}/${endpoint}/requests/${requestId}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Key ${config.apiKey}`,
-    }
+  configureFal(config.apiKey);
+
+  const result = await fal.queue.result(endpoint, {
+    requestId,
   });
 
-  if (!response.ok) {
-    throw new Error(`Fal API error: ${await response.text()}`);
-  }
-
-  return response.json();
+  return result.data as FalVideoResult;
 }

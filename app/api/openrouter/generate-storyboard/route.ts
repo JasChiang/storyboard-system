@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateStoryboardScript } from '@/lib/api/openrouter';
-import { TEMPLATES } from '@/lib/prompts/storyboard-templates';
+import { TEMPLATES } from '@/lib/prompts';
 
 export async function POST(request: NextRequest) {
   try {

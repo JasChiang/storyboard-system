@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { TEMPLATES } from '@/lib/prompts/storyboard-templates';
+import { TEMPLATES } from '@/lib/prompts';
 import { Loader2 } from 'lucide-react';
 
 interface StoryPromptInputProps {

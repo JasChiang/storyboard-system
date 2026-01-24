@@ -17,7 +17,10 @@ interface VideoGeneratorProps {
 export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [model, setModel] = useState<VideoModel>('kling');
-    const [motionPrompt, setMotionPrompt] = useState(scene.motionPrompt || '');
+    // 優先使用 AI 生成的運鏡指令，如果沒有則使用已儲存的 motionPrompt
+    const [motionPrompt, setMotionPrompt] = useState(
+        scene.motionPrompt || scene.cameraMovement || ''
+    );
     const [showAdvanced, setShowAdvanced] = useState(false);
 
     // Kling 選項

@@ -28,13 +28,17 @@ export function ImageGenerator({ scene, onImageGenerated }: ImageGeneratorProps)
         if (customPrompt) {
             parts.push(customPrompt);
         } else {
+            // 只使用靜態場景描述，不包含運鏡指令
             parts.push(scene.description);
-            if (scene.cameraMovement && scene.cameraMovement !== '無') {
-                parts.push(`Camera: ${scene.cameraMovement}`);
-            }
         }
 
-        return parts.join('. ');
+        // 如果有參考圖，加強保持外觀特徵的指令
+        if (referenceImage) {
+            parts.push('Maintain the exact appearance, facial features, clothing, and style from the reference image.');
+            parts.push('保持參考圖中的外觀、面部特徵、服裝和風格。');
+        }
+
+        return parts.join(' ');
     };
 
     const handleGenerate = async () => {

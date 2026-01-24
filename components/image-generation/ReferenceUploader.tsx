@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { X, Image as ImageIcon } from 'lucide-react';
+import { fal } from '@fal-ai/client';
 
 interface ReferenceUploaderProps {
     value: string | null;
@@ -24,7 +25,7 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
             return;
         }
 
-        // 檢查檔案大小 (例如限制 10MB)
+        // 檢查檔案大小 (限制 10MB)
         if (file.size > 10 * 1024 * 1024) {
             alert('圖片檔案過大，請上傳小於 10MB 的圖片');
             return;
@@ -37,35 +38,32 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
             const apiKey = localStorage.getItem('fal_api_key');
             if (!apiKey) {
                 alert('請先在設定中輸入 Fal AI API Key');
+                setIsUploading(false);
                 return;
             }
 
-            // 先創建本地預覽
+            // 配置 SDK
+            fal.config({
+                credentials: apiKey,
+            });
+
+            // 創建本地預覽
             const localPreview = URL.createObjectURL(file);
             setPreview(localPreview);
 
-            // 上傳到 Fal Storage
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('apiKey', apiKey);
+            console.log('開始上傳到 Fal Storage...');
 
-            const response = await fetch('/api/fal/upload-file', {
-                method: 'POST',
-                body: formData,
-            });
+            // 直接使用 SDK 上傳到 Fal Storage
+            const uploadedUrl = await fal.storage.upload(file);
 
-            const data = await response.json();
+            console.log('上傳成功:', uploadedUrl);
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Upload failed');
-            }
-
-            // 釋放本地預覽 URL
+            // 釋放本地預覽
             URL.revokeObjectURL(localPreview);
 
-            // 使用上傳後的 URL
-            setPreview(data.url);
-            onChange(data.url);
+            // 設置上傳後的 URL
+            setPreview(uploadedUrl);
+            onChange(uploadedUrl);
         } catch (error) {
             console.error('Upload error:', error);
             alert(error instanceof Error ? error.message : '上傳失敗');
@@ -104,7 +102,7 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
                             <div className="flex flex-col items-center gap-2">
                                 <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                <p className="text-sm text-white">上傳中...</p>
+                                <p className="text-sm text-white">上傳到 Fal Storage...</p>
                             </div>
                         </div>
                     )}
@@ -144,6 +142,9 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
                                 </p>
                                 <p className="text-xs text-zinc-600 mt-1">
                                     PNG, JPG, WEBP (最大 10MB)
+                                </p>
+                                <p className="text-xs text-zinc-500 mt-2">
+                                    上傳到 Fal Storage
                                 </p>
                             </>
                         )}

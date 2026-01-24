@@ -36,11 +36,9 @@ export function BatchImageGenerator({ scenes, onBatchComplete }: BatchImageGener
     };
 
     const buildImagePrompt = (scene: Scene) => {
-        const parts = [scene.description];
-        if (scene.cameraMovement && scene.cameraMovement !== '無') {
-            parts.push(`Camera: ${scene.cameraMovement}`);
-        }
-        return parts.join('. ');
+        // 只使用靜態的場景描述，不包含運鏡指令
+        // 運鏡指令應該用於影片生成，而非靜態圖片
+        return scene.description;
     };
 
     const generateSingleImage = async (scene: Scene, apiKey: string) => {
