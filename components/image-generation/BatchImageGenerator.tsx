@@ -68,11 +68,9 @@ export function BatchImageGenerator({ scenes, onBatchComplete }: BatchImageGener
                 throw new Error(data.error || 'Generation failed');
             }
 
-            // 輪詢狀態
+            // 輪詢狀態 - 使用 API 回傳的 endpoint
             const requestId = data.request_id;
-            const endpoint = scene.referenceImage
-                ? 'fal-ai/nano-banana-pro/edit'
-                : 'fal-ai/nano-banana-pro';
+            const endpoint = data.endpoint; // 從後端回傳的正確 endpoint
 
             const imageUrl = await pollStatus(requestId, endpoint, apiKey);
 

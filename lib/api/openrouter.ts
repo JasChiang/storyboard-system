@@ -24,31 +24,45 @@ export async function generateStoryboardScript(
     body: JSON.stringify({
       model: config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet',
       messages: [
-        { role: 'system', content: template.systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'storyboard_output',
-          strict: true,
-          schema: template.outputSchema
+        {
+          role: 'system',
+          content: template.systemPrompt + '\n\n你必須以 JSON 格式回應，遵循以下結構：' + JSON.stringify(template.outputSchema, null, 2)
+        },
+        {
+          role: 'user',
+          content: userPrompt + '\n\n請以 JSON 格式回應，不要包含任何其他文字。'
         }
-      }
+      ],
+      response_format: { type: 'json_object' }
     })
   });
 
+  console.log('OpenRouter 回應狀態:', response.status);
+
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`OpenRouter API error: ${error}`);
+    let errorDetails = '';
+    try {
+      const errorData = await response.json();
+      errorDetails = errorData.error?.message || JSON.stringify(errorData);
+    } catch {
+      errorDetails = await response.text();
+    }
+    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
   }
 
   const data: OpenRouterResponse = await response.json();
   const content = data.choices[0]?.message?.content;
 
   if (!content) {
-    throw new Error('No response from OpenRouter');
+    throw new Error('OpenRouter 沒有回傳任何內容');
   }
 
-  return JSON.parse(content);
+  console.log('收到的回應內容（前 200 字）:', content.substring(0, 200));
+
+  try {
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('JSON 解析失敗，完整內容:', content);
+    throw new Error('AI 回傳的內容不是有效的 JSON 格式。請檢查 console 查看完整內容。');
+  }
 }

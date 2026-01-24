@@ -3,6 +3,8 @@
 import { Project } from '@/lib/types/project';
 import { Clapperboard, Calendar, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 interface ProjectCardProps {
   project: Project;
@@ -35,47 +37,56 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
 
   return (
     <Link href={`/project/${project.id}`}>
-      <div className="group relative bg-white dark:bg-slate-800 rounded-xl shadow-md hover:shadow-xl transition-all border border-slate-200 dark:border-slate-700 p-6 cursor-pointer">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <Clapperboard className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+      <div className="group relative overflow-hidden rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm transition-all hover:bg-muted/50 hover:shadow-lg hover:border-primary/20">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5 opacity-0 transition-opacity group-hover:opacity-100" />
+
+        <div className="relative p-6">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 transition-colors group-hover:bg-primary/20",
+                "text-primary"
+              )}>
+                <Clapperboard className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold tracking-tight text-foreground group-hover:text-primary transition-colors">
+                  {project.name}
+                </h3>
+                <span className={cn(
+                  "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium mt-1",
+                  statusColors[project.status]
+                )}>
+                  {statusLabels[project.status]}
+                </span>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                {project.name}
-              </h3>
-              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium mt-1 ${statusColors[project.status]}`}>
-                {statusLabels[project.status]}
-              </span>
-            </div>
+
+            <button
+              onClick={handleDelete}
+              className="opacity-0 group-hover:opacity-100 -mr-2 -mt-2 p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+              title="刪除專案"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
 
-          <button
-            onClick={handleDelete}
-            className="opacity-0 group-hover:opacity-100 p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-opacity"
-            title="刪除專案"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-
-        {project.description && (
-          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 line-clamp-2">
-            {project.description}
-          </p>
-        )}
-
-        <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-          <div className="flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            <span>{new Date(project.createdAt).toLocaleDateString('zh-TW')}</span>
-          </div>
-          {project.storyboard && (
-            <div>
-              {project.storyboard.scenes.length} 個場景
-            </div>
+          {project.description && (
+            <p className="text-sm text-muted-foreground mb-4 line-clamp-2 min-h-[2.5rem]">
+              {project.description}
+            </p>
           )}
+
+          <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-auto">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>{new Date(project.createdAt).toLocaleDateString('zh-TW')}</span>
+            </div>
+
+            <div className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-1 rounded-md">
+              {project.storyboard?.scenes.length || 0} 個場景
+            </div>
+          </div>
         </div>
       </div>
     </Link>

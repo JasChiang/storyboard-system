@@ -69,11 +69,9 @@ export function ImageGenerator({ scene, onImageGenerated }: ImageGeneratorProps)
                 throw new Error(data.error || 'Generation failed');
             }
 
-            // 輪詢檢查狀態
+            // 輪詢檢查狀態 - 使用 API 回傳的 endpoint
             const requestId = data.request_id;
-            const endpoint = referenceImage
-                ? 'fal-ai/nano-banana-pro/edit'
-                : 'fal-ai/nano-banana-pro';
+            const endpoint = data.endpoint; // 從後端回傳的正確 endpoint
 
             await pollStatus(requestId, endpoint, apiKey, prompt);
         } catch (error) {

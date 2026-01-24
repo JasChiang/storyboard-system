@@ -6,9 +6,39 @@ import {
 } from '../types/api-responses';
 
 const FAL_API_URL = 'https://queue.fal.run';
+const FAL_STORAGE_URL = 'https://fal.media/files/upload';
 
 export interface FalConfig {
   apiKey: string;
+}
+
+// 上傳文件到 Fal Storage
+export async function uploadFile(
+  file: File,
+  config: FalConfig
+): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(FAL_STORAGE_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${config.apiKey}`,
+    },
+    body: formData
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Upload failed:', response.status, errorText);
+    throw new Error(`Fal upload error (${response.status}): ${errorText}`);
+  }
+
+  const result = await response.json();
+  console.log('Upload result:', result);
+
+  // Fal Storage 返回格式: { file_url: "https://..." }
+  return result.file_url || result.url;
 }
 
 // Nano Banana Pro 圖片生成
@@ -37,8 +67,12 @@ export async function generateImage(
   };
 
   if (options.referenceImage) {
-    payload.image_url = options.referenceImage;
+    // /edit endpoint 需要 image_urls (複數，陣列格式)
+    payload.image_urls = [options.referenceImage];
   }
+
+  console.log('Generating image with endpoint:', endpoint);
+  console.log('Payload:', JSON.stringify(payload, null, 2));
 
   const response = await fetch(`${FAL_API_URL}/${endpoint}`, {
     method: 'POST',
@@ -50,7 +84,9 @@ export async function generateImage(
   });
 
   if (!response.ok) {
-    throw new Error(`Fal API error: ${await response.text()}`);
+    const errorText = await response.text();
+    console.error('Generate image failed:', response.status, errorText);
+    throw new Error(`Fal API error (${response.status}): ${errorText}`);
   }
 
   return response.json();
@@ -130,17 +166,25 @@ export async function checkQueueStatus(
   endpoint: string,
   config: FalConfig
 ): Promise<FalStatusResponse> {
-  const response = await fetch(`${FAL_API_URL}/${endpoint}/requests/${requestId}/status`, {
+  const url = `${FAL_API_URL}/${endpoint}/requests/${requestId}/status`;
+  console.log('Checking status at:', url);
+
+  const response = await fetch(url, {
+    method: 'GET',
     headers: {
       'Authorization': `Key ${config.apiKey}`,
     }
   });
 
   if (!response.ok) {
-    throw new Error(`Fal API error: ${await response.text()}`);
+    const errorText = await response.text();
+    console.error('Status check failed:', response.status, errorText);
+    throw new Error(`Fal API error: ${response.status}: ${errorText}`);
   }
 
-  return response.json();
+  const result = await response.json();
+  console.log('Status response:', JSON.stringify(result, null, 2));
+  return result;
 }
 
 // 獲取結果
@@ -150,6 +194,7 @@ export async function getImageResult(
   config: FalConfig
 ): Promise<FalImageResult> {
   const response = await fetch(`${FAL_API_URL}/${endpoint}/requests/${requestId}`, {
+    method: 'GET',
     headers: {
       'Authorization': `Key ${config.apiKey}`,
     }
@@ -168,6 +213,7 @@ export async function getVideoResult(
   config: FalConfig
 ): Promise<FalVideoResult> {
   const response = await fetch(`${FAL_API_URL}/${endpoint}/requests/${requestId}`, {
+    method: 'GET',
     headers: {
       'Authorization': `Key ${config.apiKey}`,
     }

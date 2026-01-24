@@ -43,6 +43,9 @@ export default function StoryboardPage() {
     setIsGenerating(true);
 
     try {
+      console.log('發送請求到:', '/api/openrouter/generate-storyboard');
+      console.log('請求參數:', { prompt: prompt.substring(0, 50) + '...', templateId });
+
       const response = await fetch('/api/openrouter/generate-storyboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -50,8 +53,16 @@ export default function StoryboardPage() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.details || '生成失敗');
+        let errorMessage = '生成失敗';
+        try {
+          const error = await response.json();
+          errorMessage = error.details || error.error || '生成失敗';
+        } catch {
+          // 如果回應不是 JSON，嘗試讀取純文字
+          const text = await response.text();
+          errorMessage = text || `請求失敗 (${response.status})`;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();

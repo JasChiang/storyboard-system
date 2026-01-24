@@ -13,6 +13,8 @@ export interface FalStatusResponse {
   metrics?: {
     inference_time?: number;
   };
+  // 當狀態是 COMPLETED 時，結果會直接在這裡
+  data?: FalImageResult | FalVideoResult;
 }
 
 // Fal AI 圖片生成結果

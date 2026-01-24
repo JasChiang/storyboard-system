@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Clapperboard, Plus } from "lucide-react";
+import { Clapperboard, Plus, Sparkles, Film, Image as ImageIcon, Wand2 } from "lucide-react";
 import { useProjectStore } from '@/stores/project-store';
 import { ProjectCard } from '@/components/project/ProjectCard';
 import { CreateProjectDialog } from '@/components/project/CreateProjectDialog';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils'; // Assuming global util
 
 export default function Home() {
   const { projects, loadProjects, createProject, deleteProject } = useProjectStore();
@@ -20,82 +21,100 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <header className="border-b border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Clapperboard className="w-8 h-8 text-blue-600" />
-              <h1 className="text-2xl font-bold">分鏡圖系統</h1>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Background Decor */}
+      <div className="pointer-events-none fixed inset-0 flex justify-center overflow-hidden">
+        <div className="h-[500px] w-[500px] bg-blue-500/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 rounded-full mix-blend-multiply dark:mix-blend-color-dodge animate-pulse duration-1000" />
+        <div className="h-[500px] w-[500px] bg-purple-500/20 rounded-full blur-[100px] -translate-y-1/2 -translate-x-1/2 rounded-full mix-blend-multiply dark:mix-blend-color-dodge animate-pulse delay-700 duration-1000" />
+      </div>
+
+      <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-white/50 backdrop-blur-xl dark:bg-black/50 supports-[backdrop-filter]:bg-white/20">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg shadow-lg shadow-indigo-500/20">
+              <Clapperboard className="w-5 h-5 text-white" />
             </div>
-            <Button
-              onClick={() => setIsCreateDialogOpen(true)}
-              size="sm"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              新專案
-            </Button>
+            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-400">
+              Storyboard System
+            </h1>
           </div>
+          <Button
+            onClick={() => setIsCreateDialogOpen(true)}
+            size="sm"
+            className="shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all font-medium"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            新專案
+          </Button>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-6xl mx-auto">
+      <main className="container mx-auto px-4 py-12 relative z-10">
+        <div className="max-w-7xl mx-auto">
           {projects.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="max-w-2xl mx-auto">
-                <div className="mb-8">
-                  <Clapperboard className="w-24 h-24 mx-auto text-slate-300 dark:text-slate-700" />
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <div className="relative mb-12 group">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl blur-2xl opacity-20 group-hover:opacity-30 transition-opacity" />
+                <div className="relative p-8 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800">
+                  <Clapperboard className="w-20 h-20 text-slate-900 dark:text-white" />
                 </div>
-                <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  AI 驅動的分鏡圖製作系統
-                </h2>
-                <p className="text-lg text-slate-600 dark:text-slate-400 mb-8">
-                  從文字到影片，一站式分鏡腳本製作工作流
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-                  <FeatureCard
-                    icon="📝"
-                    title="分鏡腳本生成"
-                    description="使用 AI 將故事轉換為專業的分鏡腳本表格"
-                  />
-                  <FeatureCard
-                    icon="🎨"
-                    title="分鏡圖片生成"
-                    description="透過 Fal AI 自動生成高品質分鏡圖片"
-                  />
-                  <FeatureCard
-                    icon="🎬"
-                    title="影片生成"
-                    description="使用 Kling 或 Seedance 將圖片轉為動態影片"
-                  />
-                  <FeatureCard
-                    icon="✂️"
-                    title="自動剪輯腳本"
-                    description="AI 分析影片並生成 Blender 自動剪輯腳本"
-                  />
-                </div>
-
-                <Button
-                  onClick={() => setIsCreateDialogOpen(true)}
-                  size="lg"
-                >
-                  <Plus className="w-5 h-5 mr-2" />
-                  開始新專案
-                </Button>
               </div>
+
+              <h2 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight">
+                AI 驅動的分鏡圖製作系統
+              </h2>
+              <p className="text-xl text-muted-foreground mb-12 max-w-2xl leading-relaxed">
+                從文字到影片的一站式工作流。體驗 AI 帶來的極速創作快感。
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-5xl mb-16">
+                <FeatureCard
+                  icon={<Wand2 className="w-6 h-6 text-purple-500" />}
+                  title="智能腳本"
+                  description="AI 把故事瞬間轉化為專業分鏡表"
+                  delay={0}
+                />
+                <FeatureCard
+                  icon={<ImageIcon className="w-6 h-6 text-blue-500" />}
+                  title="圖像生成"
+                  description="Fal AI 繪製高品質場景圖"
+                  delay={100}
+                />
+                <FeatureCard
+                  icon={<Film className="w-6 h-6 text-indigo-500" />}
+                  title="動態影片"
+                  description="Kling/Seedance 賦予畫面生命"
+                  delay={200}
+                />
+                <FeatureCard
+                  icon={<Sparkles className="w-6 h-6 text-amber-500" />}
+                  title="自動剪輯"
+                  description="Blender 腳本自動生成與合成"
+                  delay={300}
+                />
+              </div>
+
+              <Button
+                onClick={() => setIsCreateDialogOpen(true)}
+                size="lg"
+                className="h-14 px-8 text-lg rounded-full shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:scale-105 transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 border-0"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                開始創作
+              </Button>
             </div>
           ) : (
-            <div>
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold">我的專案</h2>
-                <p className="text-slate-600 dark:text-slate-400 mt-1">
-                  共 {projects.length} 個專案
-                </p>
+            <div className="space-y-8 animate-fade-in">
+              <div className="flex items-end justify-between border-b border-border/40 pb-6">
+                <div>
+                  <h2 className="text-3xl font-bold tracking-tight text-foreground">我的專案</h2>
+                  <p className="text-muted-foreground mt-2">
+                    管理您的分鏡創作 ({projects.length})
+                  </p>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {projects.map((project) => (
                   <ProjectCard
                     key={project.id}
@@ -118,12 +137,17 @@ export default function Home() {
   );
 }
 
-function FeatureCard({ icon, title, description }: { icon: string; title: string; description: string }) {
+function FeatureCard({ icon, title, description, delay }: { icon: React.ReactNode; title: string; description: string; delay: number }) {
   return (
-    <div className="p-6 bg-white dark:bg-slate-800 rounded-xl shadow-md hover:shadow-lg transition-shadow border border-slate-200 dark:border-slate-700">
-      <div className="text-4xl mb-3">{icon}</div>
-      <h3 className="text-xl font-semibold mb-2">{title}</h3>
-      <p className="text-slate-600 dark:text-slate-400">{description}</p>
+    <div
+      className="p-6 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-white/20 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left group"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className="mb-4 bg-white dark:bg-slate-800 w-12 h-12 rounded-xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
+        {icon}
+      </div>
+      <h3 className="text-lg font-semibold mb-2 text-slate-900 dark:text-slate-100">{title}</h3>
+      <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{description}</p>
     </div>
   );
 }
