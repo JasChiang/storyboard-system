@@ -111,7 +111,7 @@ export async function analyzeVideosForEditing(
       }
     }));
 
-    const prompt = buildEditingAnalysisPrompt(storyboard);
+    const prompt = buildEditingAnalysisPrompt(storyboard, uploadedFiles);
 
     // 使用新 SDK 的 models API
     const result = await ai.models.generateContent({
@@ -146,7 +146,17 @@ export async function analyzeVideosForEditing(
   }
 }
 
-function buildEditingAnalysisPrompt(storyboard: Storyboard): string {
+function buildEditingAnalysisPrompt(storyboard: Storyboard, uploadedFiles: UploadedFile[]): string {
+  // 建立影片與場景的對應關係
+  const scenesWithVideos = storyboard.scenes.filter(s => s.generatedVideo);
+  const videoSceneMapping = uploadedFiles.map((file, index) => {
+    const scene = scenesWithVideos[index];
+    return scene ? `Video ${index + 1} → 場景 ID: ${scene.id} (Scene ${scene.sceneNumber})` : null;
+  }).filter(Boolean).join('\n');
+
+  const scenesWithoutVideos = storyboard.scenes.filter(s => !s.generatedVideo);
+  const noVideoSceneIds = scenesWithoutVideos.map(s => s.id).join(', ');
+
   return `# Role
 你是一位精通 Blender Python API (bpy) 的資深影片剪輯師，特別熟悉 **Blender 5.0+** 的最新 API 架構與 Video Sequence Editor (VSE) 自動化流程。
 
@@ -156,16 +166,24 @@ function buildEditingAnalysisPrompt(storyboard: Storyboard): string {
 ## 分鏡表格參考:
 ${JSON.stringify(storyboard.scenes, null, 2)}
 
-# ⚠️ 視覺分析要求 (VISUAL GROUNDING)
-我傳送了 ${storyboard.scenes.length} 個影片檔案給你，它們的順序**嚴格對應**上面的分鏡表格順序 (Video 1 = Scene 1, Video 2 = Scene 2, ...)。
+# ⚠️ 重要：影片與場景對應關係
+我**實際傳送了 ${uploadedFiles.length} 個影片檔案**給你，對應關係如下：
+${videoSceneMapping}
+
+${scenesWithoutVideos.length > 0 ? `
+⚠️ **以下場景沒有影片**（尚未生成），請勿為這些場景提供 visualConfirmation：
+${noVideoSceneIds}
+` : ''}
 
 **請注意：影片實際內容可能與分鏡表格的文字描述不符。**
 當兩者不一致時，**必須以你實際看到的影片畫面為準**。
 
-你必須在每個場景建議的 \`visualConfirmation\` 欄位中：
+你必須**只對有影片的場景**在 \`visualConfirmation\` 欄位中：
 1. 描述你**實際上**看到的畫面細節（如：顏色、動作、人物特徵、背景）。
 2. **不要**照抄表格中的描述，如果畫面跟描述不同，請如實寫出差異。
 3. 如果影片只有幾秒鐘或不完整，也請如實描述。
+
+**對於沒有影片的場景，請將 visualConfirmation 設為 null 或省略該欄位。**
 
 這對於確認剪輯點非常重要，因為我們不能剪輯不存在的畫面。
 
@@ -213,7 +231,7 @@ ${JSON.stringify(storyboard.scenes, null, 2)}
 - 複雜的節點合成效果
 
 # 輸出格式
-請以 JSON 格式輸出，結構如下：
+請以 JSON 格式輸出，**只包含有影片的場景**，結構如下：
 \`\`\`json
 {
   "summary": "整體剪輯建議摘要（2-3句話說明影片風格和節奏建議）",
@@ -235,7 +253,7 @@ ${JSON.stringify(storyboard.scenes, null, 2)}
 \`\`\`
 
 # 剪輯原則
-1. **視覺確認**：必須基於實際看到的影片內容提供建議
+1. **視覺確認**：必須基於實際看到的影片內容提供建議，**不要編造沒有影片的場景內容**
 2. **入出點**：考慮 AI 生成影片常見的開頭/結尾瑕疵
 3. **轉場時長**：預設 0.5 秒，快節奏可用 0.3 秒
 4. **效果控制**：每個場景控制在 1-2 個效果 + 1-2 個修飾器
