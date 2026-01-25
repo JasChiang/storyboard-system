@@ -66,7 +66,7 @@ export async function analyzeVideosForEditing(
 ): Promise<EditingSuggestion> {
   try {
     const ai = new GoogleGenAI({ apiKey: config.apiKey });
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
     // 構建影片內容參考
     const videoParts = uploadedFiles.map(file => ({

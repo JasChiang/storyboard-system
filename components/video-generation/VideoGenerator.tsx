@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Film, Settings2 } from 'lucide-react';
 import { ModelSelector } from './ModelSelector';
 import { MotionPromptEditor } from './MotionPromptEditor';
@@ -31,6 +31,12 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
     // Seedance 選項
     const [seedanceDuration, setSeedanceDuration] = useState(5);
     const [seedanceEnableAudio, setSeedanceEnableAudio] = useState(false);
+
+    // 當場景變化時，同步更新 motionPrompt
+    useEffect(() => {
+        const newMotionPrompt = scene.motionPrompt || scene.cameraMovement || '';
+        setMotionPrompt(newMotionPrompt);
+    }, [scene.id, scene.motionPrompt, scene.cameraMovement]);
 
     const handleGenerate = async () => {
         // 檢查是否有生成的圖片

@@ -35,7 +35,7 @@ export async function uploadFile(
 export async function generateImage(
   prompt: string,
   options: {
-    referenceImage?: string;  // base64 或 URL，或者 File 對象
+    referenceImage?: string | string[];  // base64 或 URL，或者 File 對象 (支援單張或多張)
     aspectRatio?: string;
     resolution?: '1K' | '2K' | '4K';
   },
@@ -47,7 +47,10 @@ export async function generateImage(
   const baseModel = process.env.FAL_IMAGE_MODEL || 'fal-ai/nano-banana-pro';
 
   // 如果有參考圖，使用 edit endpoint
-  const endpoint = options.referenceImage
+  const hasReference = options.referenceImage &&
+    (Array.isArray(options.referenceImage) ? options.referenceImage.length > 0 : true);
+
+  const endpoint = hasReference
     ? `${baseModel}/edit`
     : baseModel;
 
@@ -60,7 +63,10 @@ export async function generateImage(
 
   if (options.referenceImage) {
     // SDK 會自動處理 File 對象或 URL
-    input.image_urls = [options.referenceImage];
+    // 支援單張或多張圖片
+    input.image_urls = Array.isArray(options.referenceImage)
+      ? options.referenceImage
+      : [options.referenceImage];
   }
 
   console.log('Generating image with endpoint:', endpoint);

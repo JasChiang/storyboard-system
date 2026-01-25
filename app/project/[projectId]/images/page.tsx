@@ -217,6 +217,7 @@ export default function ImagesPage() {
           <div className="max-w-3xl mx-auto">
             <BatchImageGenerator
               scenes={scenes}
+              projectReferences={currentProject.storyboard?.projectReferences}
               onBatchComplete={handleBatchComplete}
             />
 

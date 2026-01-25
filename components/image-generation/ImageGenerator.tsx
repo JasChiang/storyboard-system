@@ -135,7 +135,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     prompt,
-                    referenceImage,
+                    referenceImage: getSelectedReferenceUrls(), // 傳送所有選取的參考圖 URL
                     aspectRatio,
                     resolution,
                     apiKey,

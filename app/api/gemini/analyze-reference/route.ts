@@ -48,19 +48,22 @@ export async function POST(request: NextRequest) {
         }
 
         // Call Gemini Vision
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+        const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
-        const result = await model.generateContent([
-            {
-                inlineData: {
-                    mimeType,
-                    data: base64Data,
+        const result = await ai.models.generateContent({
+            model: modelName,
+            contents: [
+                {
+                    inlineData: {
+                        mimeType,
+                        data: base64Data,
+                    },
                 },
-            },
-            { text: systemPrompt },
-        ]);
+                { text: systemPrompt },
+            ]
+        });
 
-        const description = result.response.text();
+        const description = result.text;
 
         if (!description) {
             return NextResponse.json(
@@ -96,6 +99,7 @@ function buildAnalysisPrompt(type: string, angle: string): string {
     const angleInstructions: Record<string, string> = {
         front: '正面視角的',
         side: '側面視角的',
+        three_quarter: '3/4 側面視角的',
         back: '背面視角的',
         top: '頂部俯視的',
         other: '',

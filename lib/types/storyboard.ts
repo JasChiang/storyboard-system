@@ -51,7 +51,7 @@ export interface ProjectReference {
   descriptionSource: 'manual' | 'ai';  // 描述來源
 
   // Multi-Angle Support (多視角支援)
-  angle?: 'front' | 'side' | 'back' | 'top' | 'other';  // 視角標籤
+  angle?: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';  // 視角標籤
   aiDescription?: string;        // Vision AI 自動生成的詳細描述
 }
 

@@ -21,6 +21,7 @@ const TYPE_OPTIONS = [
 const ANGLE_OPTIONS = [
     { value: 'front', label: '正面', emoji: '⬛' },
     { value: 'side', label: '側面', emoji: '◼️' },
+    { value: 'three_quarter', label: '3/4 側', emoji: '📐' },
     { value: 'back', label: '背面', emoji: '⬜' },
     { value: 'top', label: '頂部', emoji: '🔼' },
     { value: 'other', label: '其他', emoji: '⚪' },

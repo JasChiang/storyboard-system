@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
-import type { Scene } from '@/lib/types/storyboard';
+import type { Scene, ProjectReference } from '@/lib/types/storyboard';
 
 interface BatchImageGeneratorProps {
     scenes: Scene[];
+    projectReferences?: ProjectReference[];
     onBatchComplete: (results: Map<string, { url: string; prompt: string }>) => void;
 }
 
@@ -17,7 +18,7 @@ interface GenerationStatus {
     error?: string;
 }
 
-export function BatchImageGenerator({ scenes, onBatchComplete }: BatchImageGeneratorProps) {
+export function BatchImageGenerator({ scenes, projectReferences = [], onBatchComplete }: BatchImageGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [statuses, setStatuses] = useState<Map<string, GenerationStatus>>(new Map());
     const [aspectRatio, setAspectRatio] = useState<string>('16:9');
@@ -36,9 +37,27 @@ export function BatchImageGenerator({ scenes, onBatchComplete }: BatchImageGener
     };
 
     const buildImagePrompt = (scene: Scene) => {
+        const parts = [];
+
+        // 1. 加入專案參考圖的描述作為上下文
+        if (projectReferences.length > 0) {
+            parts.push('Context from references:');
+            projectReferences.forEach(ref => {
+                const nameTag = ref.name ? `<${ref.name}>` : ref.type;
+                parts.push(`${nameTag}: ${ref.description}`);
+            });
+        }
+
+        // 2. 加入主要場景描述
         // 只使用靜態的場景描述，不包含運鏡指令
-        // 運鏡指令應該用於影片生成，而非靜態圖片
-        return scene.description;
+        parts.push(scene.description);
+
+        if (scene.referenceImage || projectReferences.length > 0) {
+            parts.push('Maintain the exact appearance, facial features, clothing, and style from the uploaded reference image.');
+            parts.push('保持參考圖中的外觀、面部特徵、服裝和風格。');
+        }
+
+        return parts.join('. ');
     };
 
     const generateSingleImage = async (scene: Scene, apiKey: string) => {
@@ -53,7 +72,10 @@ export function BatchImageGenerator({ scenes, onBatchComplete }: BatchImageGener
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     prompt,
-                    referenceImage: scene.referenceImage || null,
+                    referenceImage: [
+                        ...(scene.referenceImage ? [scene.referenceImage] : []),
+                        ...projectReferences.map(r => r.url)
+                    ], // 結合場景個別參考圖與專案級參考圖
                     aspectRatio,
                     resolution,
                     apiKey,
