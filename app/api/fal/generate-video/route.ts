@@ -36,11 +36,14 @@ export async function POST(request: NextRequest) {
                 { apiKey }
             );
         } else if (model === 'seedance') {
+            const { aspectRatio, resolution } = body;
             result = await generateVideoSeedance(
                 imageUrl,
                 prompt,
                 {
                     duration,
+                    aspectRatio,
+                    resolution,
                     enableAudio,
                 },
                 { apiKey }

@@ -30,6 +30,8 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
 
     // Seedance 選項
     const [seedanceDuration, setSeedanceDuration] = useState(5);
+    const [seedanceAspectRatio, setSeedanceAspectRatio] = useState<'21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16'>('16:9');
+    const [seedanceResolution, setSeedanceResolution] = useState<'480p' | '720p' | '1080p'>('720p');
     const [seedanceEnableAudio, setSeedanceEnableAudio] = useState(false);
 
     // 當場景變化時，同步更新 motionPrompt
@@ -65,7 +67,8 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                     prompt: motionPrompt,
                     model,
                     duration: model === 'kling' ? klingDuration : seedanceDuration,
-                    aspectRatio: model === 'kling' ? klingAspectRatio : undefined,
+                    aspectRatio: model === 'kling' ? klingAspectRatio : seedanceAspectRatio,
+                    resolution: model === 'seedance' ? seedanceResolution : undefined,
                     enableSound: model === 'kling' ? klingEnableSound : undefined,
                     enableAudio: model === 'seedance' ? seedanceEnableAudio : undefined,
                     apiKey,
@@ -248,6 +251,45 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                             </>
                         ) : (
                             <>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                            長寬比
+                                        </label>
+                                        <select
+                                            value={seedanceAspectRatio}
+                                            onChange={(e) => setSeedanceAspectRatio(e.target.value as '21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16')}
+                                            disabled={isGenerating}
+                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                                        >
+                                            <option value="21:9">21:9 (電影)</option>
+                                            <option value="16:9">16:9 (橫向)</option>
+                                            <option value="4:3">4:3 (傳統)</option>
+                                            <option value="1:1">1:1 (正方形)</option>
+                                            <option value="3:4">3:4 (直向)</option>
+                                            <option value="9:16">9:16 (直向全螢幕)</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                            解析度
+                                        </label>
+                                        <select
+                                            value={seedanceResolution}
+                                            onChange={(e) => setSeedanceResolution(e.target.value as '480p' | '720p' | '1080p')}
+                                            disabled={isGenerating}
+                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                                        >
+                                            <option value="480p">480p (快速)</option>
+                                            <option value="720p">720p (平衡)</option>
+                                            <option value="1080p">1080p (高畫質)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
                                 <div className="space-y-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                         影片長度 (4-12 秒)

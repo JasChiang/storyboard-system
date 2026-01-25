@@ -111,7 +111,7 @@ export async function generateVideoKling(
       prompt,
       duration: options.duration || 5,
       aspect_ratio: options.aspectRatio || '16:9',
-      sound: options.enableSound || false,
+      generate_audio: options.enableSound ?? false,
     }
   });
 
@@ -127,6 +127,8 @@ export async function generateVideoSeedance(
   prompt: string,
   options: {
     duration?: number;  // 4-12 秒
+    aspectRatio?: '21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
+    resolution?: '480p' | '720p' | '1080p';
     enableAudio?: boolean;
   },
   config: FalConfig
@@ -139,8 +141,10 @@ export async function generateVideoSeedance(
     input: {
       image_url: imageUrl,
       prompt,
-      duration: options.duration || 5,
-      audio: options.enableAudio || false,
+      duration: String(options.duration || 5),  // API 要求字串格式
+      aspect_ratio: options.aspectRatio || '16:9',
+      resolution: options.resolution || '720p',
+      generate_audio: options.enableAudio ?? false,
     }
   });
 
