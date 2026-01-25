@@ -5,11 +5,11 @@ export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData();
         const file = formData.get('video') as File;
-        const apiKey = formData.get('apiKey') as string;
+        const apiKey = (formData.get('apiKey') as string) || process.env.GEMINI_API_KEY;
 
         if (!file || !apiKey) {
             return NextResponse.json(
-                { error: 'Missing required fields' },
+                { error: 'Missing required fields (video or apiKey)' },
                 { status: 400 }
             );
         }

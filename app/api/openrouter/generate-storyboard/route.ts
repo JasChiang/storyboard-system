@@ -4,12 +4,14 @@ import { TEMPLATES } from '@/lib/prompts';
 
 export async function POST(request: NextRequest) {
   try {
-    const { userPrompt, templateId, apiKey, references } = await request.json();
+    const body = await request.json();
+    const { userPrompt, templateId, references } = body;
+    const apiKey = body.apiKey || process.env.OPENROUTER_API_KEY;
 
     // 驗證必要參數
     if (!userPrompt || !apiKey) {
       return NextResponse.json(
-        { error: '缺少必要參數' },
+        { error: '缺少必要參數 (userPrompt or apiKey)' },
         { status: 400 }
       );
     }

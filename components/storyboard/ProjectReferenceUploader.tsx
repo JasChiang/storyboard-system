@@ -54,15 +54,30 @@ export function ProjectReferenceUploader({
 
         try {
             const apiKey = localStorage.getItem('fal_api_key');
-            if (!apiKey) {
-                alert('請先在設定中輸入 Fal AI API Key');
-                setIsUploading(false);
-                return;
+            let uploadedUrl = '';
+
+            if (apiKey) {
+                // 有本地 Key，使用客戶端上傳
+                fal.config({ credentials: apiKey });
+                uploadedUrl = await fal.storage.upload(file);
+            } else {
+                // 無本地 Key，嘗試使用伺服器端代理上傳
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/api/fal/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || '上傳失敗，請檢查伺服器 FAL_KEY 設定或在設定中輸入 API Key');
+                }
+
+                const data = await response.json();
+                uploadedUrl = data.url;
             }
-
-            fal.config({ credentials: apiKey });
-
-            const uploadedUrl = await fal.storage.upload(file);
 
             // 創建新的參考圖（待填寫描述）
             const newRef: ProjectReference = {
@@ -93,11 +108,8 @@ export function ProjectReferenceUploader({
         setIsDescribing(true);
 
         try {
-            const apiKey = localStorage.getItem('gemini_api_key');
-            if (!apiKey) {
-                alert('請先在設定中輸入 Gemini API Key');
-                return;
-            }
+            const apiKey = localStorage.getItem('gemini_api_key') || '';
+            // 移除前端阻擋，讓後端環境變數作為備援
 
             // Convert URL to base64 if needed
             const imageBase64 = await fetch(editingRef.url)

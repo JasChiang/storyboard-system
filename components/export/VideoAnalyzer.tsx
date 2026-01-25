@@ -23,11 +23,8 @@ export function VideoAnalyzer({ storyboard, onAnalysisComplete }: VideoAnalyzerP
         setError(null);
 
         try {
-            const apiKey = localStorage.getItem('gemini_api_key');
-            if (!apiKey) {
-                alert('請先在設定中輸入 Gemini API Key');
-                return;
-            }
+            const apiKey = localStorage.getItem('gemini_api_key') || '';
+            // 移除前端阻擋，讓後端環境變數作為備援
 
             // 注意：此功能需要將影片上傳到 Gemini
             // 由於影片已經是 URL，我們直接使用 URL 進行分析

@@ -5,15 +5,17 @@ import type { Storyboard } from '@/lib/types/storyboard';
 
 export async function POST(request: NextRequest) {
     try {
-        const { uploadedFiles, storyboard, apiKey } = await request.json() as {
+        const body = await request.json() as {
             uploadedFiles: UploadedFile[];
             storyboard: Storyboard;
-            apiKey: string;
+            apiKey?: string;
         };
+        const { uploadedFiles, storyboard } = body;
+        const apiKey = body.apiKey || process.env.GEMINI_API_KEY;
 
         if (!uploadedFiles || !storyboard || !apiKey) {
             return NextResponse.json(
-                { error: 'Missing required fields' },
+                { error: 'Missing required fields (uploadedFiles, storyboard, or apiKey)' },
                 { status: 400 }
             );
         }

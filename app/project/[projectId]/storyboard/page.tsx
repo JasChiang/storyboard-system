@@ -34,17 +34,12 @@ export default function StoryboardPage() {
   }, [projectId, setCurrentProject]);
 
   const handleGenerate = async (prompt: string, templateId: string, references: ProjectReference[]) => {
-    if (!apiKey) {
-      alert('請先設定 OpenRouter API 金鑰');
-      setShowApiKeyInput(true);
-      return;
-    }
-
     setIsGenerating(true);
 
     try {
       console.log('發送請求到:', '/api/openrouter/generate-storyboard');
-      console.log('請求參數:', { prompt: prompt.substring(0, 50) + '...', templateId, refsCount: references.length });
+      // 這裡傳入 apiKey 為空字串時，後端會嘗試讀取環境變數
+      console.log('請求參數:', { prompt: prompt.substring(0, 50) + '...', templateId, refsCount: references.length, hasApiKey: !!apiKey });
 
       const response = await fetch('/api/openrouter/generate-storyboard', {
         method: 'POST',
