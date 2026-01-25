@@ -38,7 +38,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
   return (
     <Link href={`/project/${project.id}`}>
       <div className="group relative overflow-hidden rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm transition-all hover:bg-muted/50 hover:shadow-lg hover:border-primary/20">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5 opacity-0 transition-opacity group-hover:opacity-100" />
+        <div className="absolute inset-0 bg-primary/5 opacity-0 transition-opacity group-hover:opacity-100" />
 
         <div className="relative p-6">
           <div className="flex items-start justify-between mb-4">

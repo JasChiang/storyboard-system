@@ -24,17 +24,17 @@ export default function Home() {
     <div className="min-h-screen relative overflow-hidden">
       {/* Background Decor */}
       <div className="pointer-events-none fixed inset-0 flex justify-center overflow-hidden">
-        <div className="h-[500px] w-[500px] bg-blue-500/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 rounded-full mix-blend-multiply dark:mix-blend-color-dodge animate-pulse duration-1000" />
-        <div className="h-[500px] w-[500px] bg-purple-500/20 rounded-full blur-[100px] -translate-y-1/2 -translate-x-1/2 rounded-full mix-blend-multiply dark:mix-blend-color-dodge animate-pulse delay-700 duration-1000" />
+        <div className="h-[500px] w-[500px] bg-[#5F9EA0]/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 mix-blend-multiply dark:mix-blend-color-dodge animate-pulse duration-1000" />
+        <div className="h-[500px] w-[500px] bg-[#143A5A]/20 rounded-full blur-[100px] -translate-y-1/2 -translate-x-1/2 mix-blend-multiply dark:mix-blend-color-dodge animate-pulse delay-700 duration-1000" />
       </div>
 
       <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-white/50 backdrop-blur-xl dark:bg-black/50 supports-[backdrop-filter]:bg-white/20">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg shadow-lg shadow-indigo-500/20">
+            <div className="p-2 bg-[#143A5A] rounded-lg shadow-lg shadow-[#143A5A]/20">
               <Clapperboard className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-400">
+            <h1 className="text-xl font-bold text-[#143A5A] dark:text-[#5F9EA0]">
               Storyboard System
             </h1>
           </div>
@@ -54,7 +54,7 @@ export default function Home() {
           {projects.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center">
               <div className="relative mb-12 group">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl blur-2xl opacity-20 group-hover:opacity-30 transition-opacity" />
+                <div className="absolute inset-0 bg-[#5F9EA0] rounded-3xl blur-2xl opacity-20 group-hover:opacity-30 transition-opacity" />
                 <div className="relative p-8 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800">
                   <Clapperboard className="w-20 h-20 text-slate-900 dark:text-white" />
                 </div>
@@ -69,25 +69,25 @@ export default function Home() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-5xl mb-16">
                 <FeatureCard
-                  icon={<Wand2 className="w-6 h-6 text-purple-500" />}
+                  icon={<Wand2 className="w-6 h-6 text-[#143A5A]" />}
                   title="智能腳本"
                   description="AI 把故事瞬間轉化為專業分鏡表"
                   delay={0}
                 />
                 <FeatureCard
-                  icon={<ImageIcon className="w-6 h-6 text-blue-500" />}
+                  icon={<ImageIcon className="w-6 h-6 text-[#5F9EA0]" />}
                   title="圖像生成"
                   description="Fal AI 繪製高品質場景圖"
                   delay={100}
                 />
                 <FeatureCard
-                  icon={<Film className="w-6 h-6 text-indigo-500" />}
+                  icon={<Film className="w-6 h-6 text-[#36454A]" />}
                   title="動態影片"
                   description="Kling/Seedance 賦予畫面生命"
                   delay={200}
                 />
                 <FeatureCard
-                  icon={<Sparkles className="w-6 h-6 text-amber-500" />}
+                  icon={<Sparkles className="w-6 h-6 text-[#CC5500]" />}
                   title="自動剪輯"
                   description="Blender 腳本自動生成與合成"
                   delay={300}
@@ -97,7 +97,7 @@ export default function Home() {
               <Button
                 onClick={() => setIsCreateDialogOpen(true)}
                 size="lg"
-                className="h-14 px-8 text-lg rounded-full shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:scale-105 transition-all duration-300 bg-gradient-to-r from-blue-600 to-indigo-600 border-0"
+                className="h-14 px-8 text-lg rounded-full shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:scale-105 transition-all duration-300 bg-[#143A5A] hover:bg-[#143A5A]/90 border-0"
               >
                 <Plus className="w-5 h-5 mr-2" />
                 開始創作

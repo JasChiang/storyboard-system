@@ -99,8 +99,7 @@ export function VideoAnalyzer({ storyboard, onAnalysisComplete }: VideoAnalyzerP
                 <button
                     onClick={handleAnalyze}
                     disabled={isAnalyzing}
-                    className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 
-                   hover:from-blue-700 hover:to-purple-700
+                    className="w-full py-3 px-4 bg-[#143A5A] hover:bg-[#143A5A]/90 
                    text-white font-medium rounded-lg
                    disabled:opacity-50 disabled:cursor-not-allowed
                    transition-all flex items-center justify-center gap-2 shadow-sm"

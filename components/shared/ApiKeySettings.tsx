@@ -100,7 +100,7 @@ export function ApiKeySettings() {
                             OpenRouter API Key
                         </label>
                         <p className="text-xs text-slate-500 dark:text-slate-500 mb-2">
-                            用於分鏡腳本生成 (Claude 3.5 Sonnet / GPT-4o)
+                            用於分鏡腳本生成
                         </p>
                         <input
                             type={showKeys ? "text" : "password"}
@@ -127,7 +127,7 @@ export function ApiKeySettings() {
                             Fal AI API Key
                         </label>
                         <p className="text-xs text-slate-500 dark:text-slate-500 mb-2">
-                            用於圖片和影片生成 (Nano Banana Pro / Kling / Seedance)
+                            用於圖片和影片生成
                         </p>
                         <input
                             type={showKeys ? "text" : "password"}
@@ -154,7 +154,7 @@ export function ApiKeySettings() {
                             Gemini API Key
                         </label>
                         <p className="text-xs text-slate-500 dark:text-slate-500 mb-2">
-                            用於影片分析 (Gemini 2.0 Flash)
+                            用於影片分析
                         </p>
                         <input
                             type={showKeys ? "text" : "password"}
@@ -193,7 +193,7 @@ export function ApiKeySettings() {
                             <li>點擊上方連結獲取對應的 API Key</li>
                             <li>將 API Key 貼入對應欄位</li>
                             <li>點擊「儲存設定」即可開始使用</li>
-                            <li>API Key 僅儲存在本地，不會上傳</li>
+                            <li>API Key 僅儲存在裝置端，不會上傳</li>
                         </ol>
                     </div>
                 </div>

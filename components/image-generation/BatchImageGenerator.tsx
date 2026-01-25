@@ -191,7 +191,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
     return (
         <div className="space-y-4">
             {/* 設定卡片 */}
-            <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-purple-200 dark:border-purple-500/30 shadow-sm">
+            <div className="p-4 bg-[#5F9EA0]/10 dark:bg-[#5F9EA0]/10 rounded-lg border border-[#5F9EA0]/30 dark:border-[#5F9EA0]/30 shadow-sm">
                 <div className="flex items-start justify-between mb-4">
                     <div>
                         <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -243,8 +243,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                 <button
                     onClick={handleBatchGenerate}
                     disabled={isGenerating || totalScenes === 0}
-                    className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-pink-600 
-                    hover:from-purple-700 hover:to-pink-700
+                    className="w-full py-3 px-4 bg-[#143A5A] hover:bg-[#143A5A]/90
                     text-white font-medium rounded-lg
                     disabled:opacity-50 disabled:cursor-not-allowed
                     transition-all flex items-center justify-center gap-2 shadow-sm"
