@@ -26,7 +26,11 @@ export async function uploadVideoToGemini(
   const buffer = Buffer.from(arrayBuffer);
 
   // 建立臨時檔案
-  const tempPath = `/tmp/${file.name}`;
+  const os = await import('os');
+  const path = await import('path');
+  const tempDir = os.tmpdir();
+  const tempPath = path.join(tempDir, file.name);
+
   const fs = await import('fs/promises');
   await fs.writeFile(tempPath, buffer);
 
@@ -69,10 +73,41 @@ export async function analyzeVideosForEditing(
     const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
     // 構建影片內容參考
-    const videoParts = uploadedFiles.map(file => ({
-      fileData: {
-        mimeType: file.mimeType,
-        fileUri: file.uri,
+    const processedFiles = await Promise.all(uploadedFiles.map(async (file) => {
+      // 如果是 Gemini URI 則直接使用
+      if (file.uri.includes('generativelanguage.googleapis.com')) {
+        return {
+          fileData: {
+            mimeType: file.mimeType,
+            fileUri: file.uri,
+          }
+        };
+      }
+
+      // 如果是外部 URL (如 Fal)，先下載並上傳到 Gemini
+      console.log(`正在下載並上傳影片到 Gemini: ${file.name}`);
+      try {
+        const response = await fetch(file.uri);
+        const arrayBuffer = await response.arrayBuffer();
+
+        // 建立仿 File 物件以重用 uploadVideoToGemini
+        const fileObj = {
+          name: file.name,
+          type: file.mimeType,
+          arrayBuffer: async () => arrayBuffer
+        } as unknown as File;
+
+        const uploaded = await uploadVideoToGemini(fileObj, config);
+
+        return {
+          fileData: {
+            mimeType: uploaded.mimeType,
+            fileUri: uploaded.uri,
+          }
+        };
+      } catch (error) {
+        console.error(`處理影片失敗 ${file.name}:`, error);
+        throw error;
       }
     }));
 
@@ -82,8 +117,13 @@ export async function analyzeVideosForEditing(
     const result = await ai.models.generateContent({
       model: modelName,
       contents: [
-        ...videoParts,
-        { text: prompt }
+        {
+          role: 'user',
+          parts: [
+            ...processedFiles,
+            { text: prompt }
+          ]
+        }
       ],
     });
 
@@ -107,64 +147,91 @@ export async function analyzeVideosForEditing(
 }
 
 function buildEditingAnalysisPrompt(storyboard: Storyboard): string {
-  return `你是專業的影片剪輯師，專精於 Blender Video Sequence Editor (VSE) 剪輯。
-我提供了一系列分鏡影片和對應的分鏡表格。
+  return `# Role
+你是一位精通 Blender Python API (bpy) 的資深影片剪輯師，特別熟悉 **Blender 5.0+** 的最新 API 架構與 Video Sequence Editor (VSE) 自動化流程。
 
-分鏡表格:
+# Task
+我提供了一系列分鏡影片和對應的分鏡表格，請**觀看每段影片的實際內容**後，提供詳細的剪輯建議。
+
+## 分鏡表格:
 ${JSON.stringify(storyboard.scenes, null, 2)}
-
-請**觀看每段影片的實際內容**後，提供詳細的剪輯建議。
 
 ⚠️ **重要**：你必須在每個場景建議中包含 \`visualConfirmation\` 欄位，
 簡短描述你在該影片中實際看到的內容（1-2 句話），以確認你真的觀看了影片。
 
-## 重要限制：
-⚠️ 你的建議將直接轉換為 Blender VSE Python 腳本，因此：
-1. **只能建議 Blender VSE 原生支援的效果**
-2. **不要建議需要外部素材或插件的效果**
-3. **不要建議需要進階節點或 3D 工作區的效果**
+# ⚠️ Critical Constraints (Blender 5.0 API 規則)
+你的建議將直接轉換為 Blender 5.0+ VSE Python 腳本，請務必遵守：
 
-## 可用的轉場效果 (Transitions):
-- crossfade: 淡入淡出（最常用）
-- wipe: 擦除轉場
-- cut: 直接切換（實際上會用快速的 crossfade）
+## 1. 轉場效果 (Transitions)
+- 為了讓轉場生效，前後兩個片段必須在時間軸上有 **重疊 (Overlap)**
+- 片段會交錯放置在 Channel 1 和 Channel 2，避免碰撞
+- 可用轉場類型：
+  - \`crossfade\`: 淡入淡出（最常用，標準交叉溶解）
+  - \`gamma_cross\`: Gamma 校正交叉溶解（更自然的過渡）
+  - \`wipe\`: 擦除轉場（多種擦除方向可選）
+  - \`cut\`: 直接切換（無需重疊）
 
-## 可用的視覺效果 (Effects):
-**可直接實現：**
-- color_correction: 調色（調整飽和度、色彩倍數）
-- glow: 發光/光暈效果（適合強調亮部）
-- blur: 模糊/高斯模糊
-- transform: 變換（縮放、位移，需手動設置關鍵影格）
+## 2. 效果條帶 (Effect Strips) - 透過 new_effect() 創建
+**✅ 可直接實現：**
+- \`color\`: 調色（調整飽和度、色彩倍數）
+- \`glow\`: 發光/光暈效果（強調亮部，適合產品高光）
+- \`blur\`: 高斯模糊（適合景深、夢幻效果）
+- \`transform\`: 變換/縮放（適合 Ken Burns 效果、位移動畫）
+- \`speed\`: 速度控制（快慢動作，如產品特寫放慢）
+- \`adjustment\`: 調整圖層（全局色彩調整）
+- \`colormix\`: 色彩混合（混合模式效果）
+- \`multiply\`: 乘法混合（加深效果）
+- \`add\`: 加法混合（提亮效果）
+- \`alpha_over\`: Alpha 疊加（合成效果）
 
-**不要建議以下效果（無法在 VSE 中實現）：**
-- ❌ sharpen, 3d_animation, motion_graphics
-- ❌ logo_overlay, text_overlay, ui_animation
-- ❌ 任何需要外部素材的效果
+## 3. 條帶修飾器 (Strip Modifiers) - 非破壞性調色
+**✅ Blender 5.0 支援的修飾器：**
+- \`brightness_contrast\`: 亮度/對比度調整
+- \`hue_saturation\`: 色相/飽和度/明度調整
+- \`curves\`: 曲線調色（精細色彩分級）
+- \`white_balance\`: 白平衡校正
+- \`tone_map\`: 色調映射（HDR 效果）
 
-## 輸出要求：
+## 4. 入出點建議
+- **入點 (inPoint)**：建議剪掉開頭靜止或不穩定的部分（通常 0.3-0.5 秒）
+- **出點 (outPoint)**：保留動作最精彩的部分，去除結尾靜止幀
+- 入出點的差值即為該片段的有效時長
 
-請以 JSON 格式輸出剪輯建議，結構如下：
+**❌ 不要建議以下效果（無法在 VSE 中直接實現）：**
+- sharpen, 3d_animation, motion_graphics
+- logo_overlay, text_overlay, ui_animation（需外部素材）
+- 複雜的節點合成效果
+
+# 輸出格式
+請以 JSON 格式輸出，結構如下：
+\`\`\`json
 {
-  "summary": "整體剪輯建議摘要（2-3句話說明影片風格和節奏）",
+  "summary": "整體剪輯建議摘要（2-3句話說明影片風格和節奏建議）",
   "scenes": [
     {
-      "sceneId": "場景的 ID（必須與分鏡表格中的 id 欄位完全一致）",
-      "visualConfirmation": "我看到產品在黑色背景中緩慢旋轉，前半秒靜止，後段光線漸暗",
-      "inPoint": 0.5,  // 入點（秒），建議剪掉開頭靜止或不穩定的部分
-      "outPoint": 4.8, // 出點（秒），保留動作最精彩的部分
-      "transition": "crossfade", // 到下一個場景的轉場，只能用: crossfade, wipe, cut
-      "effects": ["color_correction", "glow"] // 只能用上述「可直接實現」的效果
+      "sceneId": "場景 ID（必須與分鏡表格中的 id 欄位完全一致）",
+      "visualConfirmation": "我看到產品在黑色背景中緩慢旋轉...",
+      "inPoint": 0.5,
+      "outPoint": 4.8,
+      "transition": "crossfade",
+      "effects": ["color", "glow"],
+      "modifiers": ["brightness_contrast", "curves"],
+      "speedFactor": 1.0
     }
   ],
-  "audioNotes": "音頻處理建議（背景音樂風格、旁白節奏、需要的音效類型）"
+  "audioNotes": "音頻處理建議（背景音樂風格、旁白節奏、需要的音效類型）",
+  "transitionDuration": 0.5
 }
+\`\`\`
 
-## 剪輯原則：
-1. **視覺確認**：必須基於實際看到的影片內容提供建議，不要只根據文字描述猜測
-2. **入出點**：去除開頭結尾的靜止幀，保留動作最流暢的部分
-3. **轉場**：預設用 crossfade，快節奏用 cut，特殊過渡用 wipe
-4. **效果**：控制在 2-3 個，避免過度使用
-5. **色彩**：如需統一色調，對所有場景都添加 color_correction
+# 剪輯原則
+1. **視覺確認**：必須基於實際看到的影片內容提供建議
+2. **入出點**：考慮 AI 生成影片常見的開頭/結尾瑕疵
+3. **轉場時長**：預設 0.5 秒，快節奏可用 0.3 秒
+4. **效果控制**：每個場景控制在 1-2 個效果 + 1-2 個修飾器
+5. **色彩一致**：如需統一色調，對所有場景都添加 brightness_contrast 或 curves 修飾器
+6. **節奏感**：根據影片內容調整 speedFactor，產品特寫可用 0.8（慢動作），動作場景用 1.2（加速）
+7. **層次感**：善用 glow 強調高光，blur 創造景深
 
 請根據影片內容分析並輸出 JSON。`;
 }
