@@ -737,8 +737,63 @@ function generateEffectsApplicationSection(
             add_glow_effect(seq_editor, strip, threshold=0.6, channel=21+i*3)`;
     }
 
-    return `            # 根據 AI 建議添加效果條帶
+    return `            # [CRITICAL FIX] 先添加 Modifiers
+            # 使用 bpy.ops 配合 context override 來安全添加 Modifier，避免直接 API 呼叫導致的 Crash
+            def add_modifier_safe(strip, type_name):
+                try:
+                    # 必須先選中該 Strip 並設為活動
+                    for s in seq_editor.strips: s.select = False
+                    strip.select = True
+                    seq_editor.active_strip = strip
+                    
+                    # 尋找 VSE 區域
+                    area = None
+                    for a in bpy.context.screen.areas:
+                        if a.type == 'SEQUENCE_EDITOR':
+                            area = a
+                            break
+                    
+                    if not area:
+                        # 如果找不到，嘗試新建一個或使用當前
+                        area = bpy.context.area
+                    
+                    with bpy.context.temp_override(area=area, scene=bpy.context.scene):
+                        bfs = bpy.ops.sequencer.strip_modifier_add(type=type_name)
+                        if 'FINISHED' in bfs:
+                            return strip.modifiers[-1]
+                    return None
+                except Exception as e:
+                    print(f"⚠ Modifier 添加失敗 ({type_name}): {e}")
+                    return None
+
+            video_modifiers = video_info.get("modifiers", [])
+            if video_modifiers:
+                print(f"→ 套用修飾器 ({len(video_modifiers)})")
+            
+            for modifier in video_modifiers:
+                modifier_lower = modifier.lower()
+                mod = None
+                if "brightness" in modifier_lower or "contrast" in modifier_lower:
+                    mod = add_modifier_safe(strip, 'BRIGHT_CONTRAST')
+                    if mod:
+                        mod.bright = 0.05
+                        mod.contrast = 1.1
+                elif "hue" in modifier_lower or "saturation" in modifier_lower:
+                    mod = add_modifier_safe(strip, 'HUE_CORRECT')
+                    if mod and hasattr(mod, 'color_saturation'):
+                        mod.color_saturation = 1.15
+                elif "curves" in modifier_lower:
+                    add_modifier_safe(strip, 'CURVES')
+                elif "white_balance" in modifier_lower or "white balance" in modifier_lower:
+                    add_modifier_safe(strip, 'WHITE_BALANCE')
+                elif "tone" in modifier_lower or "tonemap" in modifier_lower:
+                    add_modifier_safe(strip, 'TONEMAP')
+
+            # 之後再添加 Effects (這些 Effects 會依賴於 strip)
             video_effects = video_info.get("effects", [])
+            if video_effects:
+                print(f"→ 套用效果 ({len(video_effects)})")
+            
             effect_channel = 20 + i * 6
             
             for effect in video_effects:
@@ -764,23 +819,7 @@ function generateEffectsApplicationSection(
                     pass  # 需要兩個輸入源
                 elif "add" in effect_lower:
                     # 加法混合效果
-                    pass  # 需要兩個輸入源
-            
-            # 根據 AI 建議添加條帶修飾器 (Blender 5.0)
-            video_modifiers = video_info.get("modifiers", [])
-            
-            for modifier in video_modifiers:
-                modifier_lower = modifier.lower()
-                if "brightness" in modifier_lower or "contrast" in modifier_lower:
-                    add_brightness_contrast_modifier(strip, brightness=0.05, contrast=1.1)
-                elif "hue" in modifier_lower or "saturation" in modifier_lower:
-                    add_hue_saturation_modifier(strip, saturation=1.15)
-                elif "curves" in modifier_lower:
-                    add_curves_modifier(strip)
-                elif "white_balance" in modifier_lower or "white balance" in modifier_lower:
-                    add_white_balance_modifier(strip)
-                elif "tone" in modifier_lower or "tonemap" in modifier_lower:
-                    add_tonemap_modifier(strip)`;
+                    pass  # 需要兩個輸入源`;
 }
 
 /**
