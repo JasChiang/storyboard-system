@@ -153,11 +153,21 @@ function buildEditingAnalysisPrompt(storyboard: Storyboard): string {
 # Task
 我提供了一系列分鏡影片和對應的分鏡表格，請**觀看每段影片的實際內容**後，提供詳細的剪輯建議。
 
-## 分鏡表格:
+## 分鏡表格參考:
 ${JSON.stringify(storyboard.scenes, null, 2)}
 
-⚠️ **重要**：你必須在每個場景建議中包含 \`visualConfirmation\` 欄位，
-簡短描述你在該影片中實際看到的內容（1-2 句話），以確認你真的觀看了影片。
+# ⚠️ 視覺分析要求 (VISUAL GROUNDING)
+我傳送了 ${storyboard.scenes.length} 個影片檔案給你，它們的順序**嚴格對應**上面的分鏡表格順序 (Video 1 = Scene 1, Video 2 = Scene 2, ...)。
+
+**請注意：影片實際內容可能與分鏡表格的文字描述不符。**
+當兩者不一致時，**必須以你實際看到的影片畫面為準**。
+
+你必須在每個場景建議的 \`visualConfirmation\` 欄位中：
+1. 描述你**實際上**看到的畫面細節（如：顏色、動作、人物特徵、背景）。
+2. **不要**照抄表格中的描述，如果畫面跟描述不同，請如實寫出差異。
+3. 如果影片只有幾秒鐘或不完整，也請如實描述。
+
+這對於確認剪輯點非常重要，因為我們不能剪輯不存在的畫面。
 
 # ⚠️ Critical Constraints (Blender 5.0 API 規則)
 你的建議將直接轉換為 Blender 5.0+ VSE Python 腳本，請務必遵守：

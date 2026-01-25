@@ -27,6 +27,8 @@ export function BlenderScriptViewer({
             editingSuggestion,
             fps: 30,
             resolution: { width: 1920, height: 1080 },
+            transitionDuration: 0.5,
+            autoRender: false,
         });
 
         setScript(generatedScript);
@@ -129,15 +131,39 @@ export function BlenderScriptViewer({
             </div>
 
             {/* 使用說明 */}
-            <div className="p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-300 mb-2">使用說明</h4>
-                <ol className="text-xs text-blue-200/80 space-y-1 list-decimal list-inside">
-                    <li>下載生成的 Python 腳本</li>
-                    <li>在 Blender 中開啟影片編輯工作區 (Video Editing)</li>
-                    <li>開啟 Scripting 面板</li>
-                    <li>載入並執行此腳本</li>
-                    <li>腳本會自動導入所有影片片段並設定轉場效果</li>
-                </ol>
+            <div className="p-4 bg-blue-950/40 border border-blue-500/30 rounded-lg space-y-3">
+                <div className="flex items-center gap-2 mb-2 border-b border-blue-500/20 pb-2">
+                    <h4 className="text-sm font-medium text-blue-100">🚀 執行方式 (Headless 算圖模式)</h4>
+                </div>
+
+                <div className="space-y-4">
+                    <div>
+                        <span className="text-xs font-bold text-blue-300 block mb-1">Windows (PowerShell)</span>
+                        <code className="block p-2 bg-black/40 rounded text-[10px] text-zinc-300 font-mono break-all select-all cursor-pointer hover:bg-black/60 transition-colors">
+                            & "C:\Program Files\Blender Foundation\Blender 5.0\blender.exe" -b -P {projectName.replace(/\s+/g, '_')}_blender_script.py -- --render
+                        </code>
+                    </div>
+
+                    <div>
+                        <span className="text-xs font-bold text-blue-300 block mb-1">macOS (Terminal)</span>
+                        <code className="block p-2 bg-black/40 rounded text-[10px] text-zinc-300 font-mono break-all select-all cursor-pointer hover:bg-black/60 transition-colors">
+                            /Applications/Blender.app/Contents/MacOS/Blender -b -P {projectName.replace(/\s+/g, '_')}_blender_script.py -- --render
+                        </code>
+                    </div>
+
+                    <div>
+                        <span className="text-xs font-bold text-blue-300 block mb-1">Linux</span>
+                        <code className="block p-2 bg-black/40 rounded text-[10px] text-zinc-300 font-mono break-all select-all cursor-pointer hover:bg-black/60 transition-colors">
+                            blender -b -P {projectName.replace(/\s+/g, '_')}_blender_script.py -- --render
+                        </code>
+                    </div>
+                </div>
+
+                <div className="pt-2 border-t border-blue-500/20">
+                    <p className="text-xs text-blue-200/60">
+                        💡 點擊指令可全選。參數 <code className="text-blue-200">-b</code> 代表背景執行，<code className="text-blue-200">--render</code> 代表自動開始算圖。
+                    </p>
+                </div>
             </div>
         </div>
     );
