@@ -83,7 +83,7 @@ export function VideoAnalyzer({ storyboard, onAnalysisComplete }: VideoAnalyzerP
                             AI 影片分析
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                            使用 Gemini 2.0 Flash 分析影片內容，自動生成剪輯建議
+                            使用 Gemini 分析影片內容，自動生成剪輯建議
                         </p>
                     </div>
                 </div>
