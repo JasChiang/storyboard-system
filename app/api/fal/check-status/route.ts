@@ -3,7 +3,10 @@ import { checkQueueStatus, getImageResult, getVideoResult } from '@/lib/api/fal'
 
 export async function POST(request: NextRequest) {
     try {
-        const { requestId, endpoint, type, apiKey } = await request.json();
+        const body = await request.json();
+        const { requestId, endpoint, type } = body;
+        // 使用環境變數作為 API Key 的備援（與 generate-image 一致）
+        const apiKey = body.apiKey || process.env.FAL_API_KEY;
 
         if (!requestId || !endpoint || !type || !apiKey) {
             return NextResponse.json(
