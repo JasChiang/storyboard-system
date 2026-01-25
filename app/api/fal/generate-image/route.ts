@@ -3,7 +3,9 @@ import { generateImage } from '@/lib/api/fal';
 
 export async function POST(request: NextRequest) {
     try {
-        const { prompt, referenceImage, aspectRatio, resolution, apiKey } = await request.json();
+        const body = await request.json();
+        const { prompt, referenceImage, aspectRatio, resolution } = body;
+        const apiKey = body.apiKey || process.env.FAL_API_KEY;
 
         if (!prompt || !apiKey) {
             return NextResponse.json(

@@ -3,6 +3,7 @@ import { generateVideoKling, generateVideoSeedance } from '@/lib/api/fal';
 
 export async function POST(request: NextRequest) {
     try {
+        const body = await request.json();
         const {
             imageUrl,
             prompt,
@@ -11,8 +12,8 @@ export async function POST(request: NextRequest) {
             aspectRatio,
             enableSound,
             enableAudio,
-            apiKey,
-        } = await request.json();
+        } = body;
+        const apiKey = body.apiKey || process.env.FAL_API_KEY;
 
         if (!imageUrl || !prompt || !model || !apiKey) {
             return NextResponse.json(

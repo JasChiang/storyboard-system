@@ -19,8 +19,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Get API key from env
-        const apiKey = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+        // Get API key from body or env
+        const apiKey = body.apiKey || process.env.OPENROUTER_API_KEY;
 
         if (!apiKey) {
             return NextResponse.json(
