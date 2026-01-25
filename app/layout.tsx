@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ApiKeySettings } from "@/components/shared/ApiKeySettings";
+import { FalConfigProvider } from "@/components/providers/FalConfigProvider";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -23,8 +24,10 @@ export default function RootLayout({
         "min-h-full bg-background font-sans antialiased"
       )}>
         <div className="fixed inset-0 -z-10 h-full w-full bg-[#F5F5F0] dark:bg-[#36454F]"></div>
-        {children}
-        <ApiKeySettings />
+        <FalConfigProvider>
+          {children}
+          <ApiKeySettings />
+        </FalConfigProvider>
       </body>
     </html>
   );

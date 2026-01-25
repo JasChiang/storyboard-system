@@ -140,7 +140,7 @@ export function BlenderScriptViewer({
                     <div>
                         <span className="text-xs font-bold text-blue-700 dark:text-blue-300 block mb-1">Windows (PowerShell)</span>
                         <code className="block p-2 bg-slate-900/90 dark:bg-black/40 rounded text-[10px] text-slate-300 font-mono break-all select-all cursor-pointer hover:bg-black/60 transition-colors">
-                            & "C:\Program Files\Blender Foundation\Blender 5.0\blender.exe" -b -P {projectName.replace(/\s+/g, '_')}_blender_script.py -- --render
+                            {`& "C:\\Program Files\\Blender Foundation\\Blender 5.0\\blender.exe" -b -P ${projectName.replace(/\s+/g, '_')}_blender_script.py -- --render`}
                         </code>
                     </div>
 

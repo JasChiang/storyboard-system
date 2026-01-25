@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile } from '@/lib/api/fal';
 
+/**
+ * @deprecated 此端點已被 Server Proxy 取代
+ *
+ * 舊方案：文件 → 此端點（伺服器）→ Fal Storage（慢，消耗頻寬）
+ * 新方案：文件 → /api/fal/proxy → 直接到 Fal Storage（快，不消耗頻寬）
+ *
+ * 建議使用 @fal-ai/server-proxy 取代此端點
+ * 參考：components/providers/FalConfigProvider.tsx
+ */
 export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData();

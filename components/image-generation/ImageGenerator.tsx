@@ -278,7 +278,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                             最終提示詞預覽：
                         </label>
                         <p className="text-xs text-slate-600 dark:text-slate-300 italic leading-relaxed">
-                            "{buildImagePrompt()}"
+                            &quot;{buildImagePrompt()}&quot;
                         </p>
                     </div>
                 )}

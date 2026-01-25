@@ -54,31 +54,9 @@ export function ProjectReferenceUploader({
         setIsUploading(true);
 
         try {
-            const apiKey = localStorage.getItem('fal_api_key');
-            let uploadedUrl = '';
-
-            if (apiKey) {
-                // 有本地 Key，使用客戶端上傳
-                fal.config({ credentials: apiKey });
-                uploadedUrl = await fal.storage.upload(file);
-            } else {
-                // 無本地 Key，嘗試使用伺服器端代理上傳
-                const formData = new FormData();
-                formData.append('file', file);
-
-                const response = await fetch('/api/fal/upload', {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || '上傳失敗，請檢查伺服器 FAL_KEY 設定或在設定中輸入 API Key');
-                }
-
-                const data = await response.json();
-                uploadedUrl = data.url;
-            }
+            // 直接使用 Fal SDK 上傳
+            // 如果前端有 API key，會直接上傳；否則會通過 Server Proxy
+            const uploadedUrl = await fal.storage.upload(file);
 
             // 創建新的參考圖（待填寫描述）
             const newRef: ProjectReference = {
