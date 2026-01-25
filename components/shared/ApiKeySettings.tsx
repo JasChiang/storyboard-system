@@ -117,7 +117,7 @@ export function ApiKeySettings() {
                             rel="noopener noreferrer"
                             className="text-xs text-blue-700 hover:text-blue-800 dark:text-blue-500 dark:hover:text-blue-400"
                         >
-                            獲取 API Key →
+                            取得 API Key →
                         </a>
                     </div>
 
@@ -144,7 +144,7 @@ export function ApiKeySettings() {
                             rel="noopener noreferrer"
                             className="text-xs text-blue-700 hover:text-blue-800 dark:text-blue-500 dark:hover:text-blue-400"
                         >
-                            獲取 API Key →
+                            取得 API Key →
                         </a>
                     </div>
 
@@ -171,7 +171,7 @@ export function ApiKeySettings() {
                             rel="noopener noreferrer"
                             className="text-xs text-blue-700 hover:text-blue-800 dark:text-blue-500 dark:hover:text-blue-400"
                         >
-                            獲取 API Key →
+                            取得 API Key →
                         </a>
                     </div>
 
@@ -190,10 +190,10 @@ export function ApiKeySettings() {
                     <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
                         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-300 mb-2">使用說明</h3>
                         <ol className="text-xs text-slate-600 dark:text-slate-500 space-y-1 list-decimal list-inside">
-                            <li>點擊上方連結獲取對應的 API Key</li>
+                            <li>點擊上方連結取得對應的 API Key</li>
                             <li>將 API Key 貼入對應欄位</li>
                             <li>點擊「儲存設定」即可開始使用</li>
-                            <li>API Key 僅儲存在裝置端，不會上傳</li>
+                            <li>API Key 僅儲存在本機，不會上傳</li>
                         </ol>
                     </div>
                 </div>

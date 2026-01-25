@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 獲取模板
+    // 取得模板
     const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
 
     // 調用 OpenRouter API（傳遞 references）

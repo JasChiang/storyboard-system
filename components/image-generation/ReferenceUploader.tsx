@@ -34,7 +34,7 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
         setIsUploading(true);
 
         try {
-            // 創建本地預覽
+            // 建立本機預覽
             const localPreview = URL.createObjectURL(file);
             setPreview(localPreview);
 
@@ -46,7 +46,7 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
 
             console.log('上傳成功:', uploadedUrl);
 
-            // 釋放本地預覽
+            // 釋放本機預覽
             URL.revokeObjectURL(localPreview);
 
             // 設置上傳後的 URL

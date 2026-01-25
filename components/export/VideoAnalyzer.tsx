@@ -144,7 +144,7 @@ export function VideoAnalyzer({ storyboard, onAnalysisComplete }: VideoAnalyzerP
 
                         {result.audioNotes && (
                             <div>
-                                <h4 className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-2">音頻處理</h4>
+                                <h4 className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-2">音訊處理</h4>
                                 <p className="text-xs text-slate-600 dark:text-slate-400">{result.audioNotes}</p>
                             </div>
                         )}

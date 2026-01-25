@@ -70,7 +70,7 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-5xl mb-16">
                 <FeatureCard
                   icon={<Wand2 className="w-6 h-6 text-[#143A5A]" />}
-                  title="智能腳本"
+                  title="智慧腳本"
                   description="AI 把故事瞬間轉化為專業分鏡表"
                   delay={0}
                 />

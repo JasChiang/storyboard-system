@@ -10,7 +10,7 @@ export interface FalConfig {
   apiKey: string;
 }
 
-// 配置 Fal SDK
+// 設定 Fal SDK
 function configureFal(apiKey: string) {
   fal.config({
     credentials: apiKey,
@@ -181,7 +181,7 @@ export async function checkQueueStatus(
   }
 }
 
-// 獲取圖片結果
+// 取得圖片結果
 export async function getImageResult(
   requestId: string,
   endpoint: string,
@@ -205,7 +205,7 @@ export async function getImageResult(
   }
 }
 
-// 獲取影片結果
+// 取得影片結果
 export async function getVideoResult(
   requestId: string,
   endpoint: string,

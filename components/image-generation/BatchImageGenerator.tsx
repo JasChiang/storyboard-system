@@ -152,7 +152,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
         setIsGenerating(true);
 
         try {
-            // 獲取 API Key（可選，後端有環境變數備援）
+            // 取得 API Key（可選，後端有環境變數備援）
             const apiKey = localStorage.getItem('fal_api_key') || '';
 
             // 初始化狀態

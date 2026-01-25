@@ -4,7 +4,7 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
     id: 'default',
     name: '標準分鏡模板',
     description: '適用於一般影片的分鏡生成',
-    systemPrompt: `你是專業的分鏡師和導演。根據用戶提供的故事需求，生成詳細的分鏡腳本表格。
+    systemPrompt: `你是專業的分鏡師和導演。根據使用者提供的故事需求，生成詳細的分鏡腳本表格。
 
 請為每個場景提供：
 1. 場景編號 (sceneNumber) - 從 1 開始的連續編號
@@ -18,7 +18,7 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
    
    ⚠️ 重要提示：
    - description 只描述靜態畫面，不要包含任何動作或運鏡指令
-   - 如果用戶會提供參考圖（角色外觀、服裝等），description 應該專注於場景、環境、姿態、情緒，而不需要詳細描述角色的外觀特徵（如髮型、臉型、服裝細節）
+   - 如果使用者會提供參考圖（角色外觀、服裝等），description 應該專注於場景、環境、姿態、情緒，而不需要詳細描述角色的外觀特徵（如髮型、臉型、服裝細節）
    - 可以用「角色」、「主角」等通用詞彙，讓參考圖提供外觀細節
 
 3. 鏡頭運動 (cameraMovement) - 描述鏡頭的動態運動，如：

@@ -53,7 +53,7 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
         setIsGenerating(true);
 
         try {
-            // 獲取 API Key（可選，後端有環境變數備援）
+            // 取得 API Key（可選，後端有環境變數備援）
             const apiKey = localStorage.getItem('fal_api_key') || '';
 
             // 呼叫生成 API
@@ -277,7 +277,7 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                                         className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900
                              text-blue-600 focus:ring-blue-600 focus:ring-offset-0"
                                     />
-                                    <span className="text-sm text-slate-700 dark:text-slate-300">啟用音頻</span>
+                                    <span className="text-sm text-slate-700 dark:text-slate-300">啟用音訊</span>
                                 </label>
                             </>
                         )}

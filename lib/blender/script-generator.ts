@@ -26,7 +26,7 @@ interface VideoMapping {
  * 1. 媒體類型優先：必須先設定 media_type = 'VIDEO'，才能使用 FFMPEG 設定
  * 2. 序列存取：使用 sequences 集合（而非 strips）
  * 3. 轉場邏輯：前後片段需重疊，且應交錯放置在不同軌道
- * 4. 資源處理：VSE 不支援 URL，需先下載到本地
+ * 4. 資源處理：VSE 不支援 URL，需先下載到本機
  * 5. Headless 模式：支援 blender --background 執行
  */
 export function generateBlenderScript(options: BlenderScriptOptions): string {
@@ -109,7 +109,7 @@ def parse_args():
 
 ARGS = parse_args()
 
-# ===== 配置 =====
+# ===== 設定 =====
 FPS = ${fps}
 RESOLUTION_X = ${resolution.width}
 RESOLUTION_Y = ${resolution.height}
@@ -125,7 +125,7 @@ DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 # ===== 工具函式 =====
 def download_video(url: str, filename: str) -> str:
     """
-    下載影片到本地
+    下載影片到本機
     VSE 不支援直接讀取 URL，必須先下載
     """
     local_path = DOWNLOAD_DIR / filename
@@ -167,7 +167,7 @@ def setup_scene():
         scene.render.ffmpeg.constant_rate_factor = 'MEDIUM'
         scene.render.ffmpeg.ffmpeg_preset = 'GOOD'
         
-        # 音頻設定
+        # 音訊設定
         scene.render.ffmpeg.audio_codec = 'AAC'
         scene.render.ffmpeg.audio_bitrate = 192
         scene.render.ffmpeg.audio_channels = 'STEREO'
@@ -213,7 +213,7 @@ def add_movie_strip(seq_editor, filepath: str, name: str, channel: int, frame_st
     
     Args:
         seq_editor: 序列編輯器
-        filepath: 本地影片路徑
+        filepath: 本機影片路徑
         name: 片段名稱
         channel: 軌道 (1 或 2，用於交錯)
         frame_start: 開始幀
@@ -522,7 +522,7 @@ def add_curves_modifier(strip):
     
     try:
         modifier = strip.modifiers.new(name="Curves", type='CURVES')
-        # 曲線預設為線性，用戶可在 UI 中手動調整
+        # 曲線預設為線性，使用者可在 UI 中手動調整
         print(f"✓ 添加曲線調色修飾器: {strip.name}")
         return modifier
     except Exception as e:
@@ -579,11 +579,11 @@ ${generateVideoDataSection(videoMappings, editingSuggestion, fps, transitionFram
     # ===== 下載並添加影片 =====
     print("\\n--- 下載影片 ---")
     for i, video_info in enumerate(VIDEO_DATA):
-        # 判斷是 URL 還是本地路徑
+        # 判斷是 URL 還是本機路徑
         if video_info["url"].startswith("http"):
             filepath = download_video(video_info["url"], f"scene_{i+1}.mp4")
         else:
-            filepath = video_info["url"]  # 已是本地路徑
+            filepath = video_info["url"]  # 已是本機路徑
         
         if not filepath:
             continue
@@ -645,9 +645,9 @@ ${generateEffectsApplicationSection(videoMappings, editingSuggestion)}
         print("\\n💡 提示: 使用 --render 參數可自動執行算圖")
         print("   範例: blender --background --python script.py -- --output output.mp4 --render")
 
-# ===== 音頻處理建議 =====
+# ===== 音訊處理建議 =====
 """
-⚠️ 以下音頻需要手動添加到專案中：
+⚠️ 以下音訊需要手動添加到專案中：
 
 1. 背景音樂 (BGM): 預設 Channel 5
    bgm = seq_editor.strips.new_sound(
@@ -823,7 +823,7 @@ function generateEffectsApplicationSection(
 }
 
 /**
- * 獲取 Blender 轉場類型
+ * 取得 Blender 轉場類型
  */
 export function getBlenderTransitionType(transition: string): string {
     const mapping: Record<string, string> = {

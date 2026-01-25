@@ -229,7 +229,7 @@ ${JSON.stringify(storyboard.scenes, null, 2)}
       "speedFactor": 1.0
     }
   ],
-  "audioNotes": "音頻處理建議（背景音樂風格、旁白節奏、需要的音效類型）",
+  "audioNotes": "音訊處理建議（背景音樂風格、旁白節奏、需要的音效類型）",
   "transitionDuration": 0.5
 }
 \`\`\`

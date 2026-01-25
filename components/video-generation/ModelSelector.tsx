@@ -24,7 +24,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
             name: 'Seedance 1.5 Pro',
             description: 'ByteDance 影片生成，支援 4-12 秒',
             icon: Wand2,
-            features: ['4-12 秒', '可選音頻', '快速生成'],
+            features: ['4-12 秒', '可選音訊', '快速生成'],
         },
     ];
 

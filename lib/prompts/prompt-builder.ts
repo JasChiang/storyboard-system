@@ -16,7 +16,7 @@ export function buildSystemPrompt(
         const environmentRefs = references.filter(r => r.type === 'environment');
         const styleRefs = references.filter(r => r.type === 'style');
 
-        prompt += `\n\n---\n\n## 用戶已提供的參考圖\n\n`;
+        prompt += `\n\n---\n\n## 使用者已提供的參考圖\n\n`;
 
         const angleMap: Record<string, string> = {
             'front': 'Front View (正面)',
@@ -66,7 +66,7 @@ export function buildSystemPrompt(
         // 加入額外規範
         prompt += `## ⚠️ 參考圖一致性規範
 
-由於用戶已提供參考圖，請遵循以下規則：
+由於使用者已提供參考圖，請遵循以下規則：
 
 1. **標記引用**：在 description 中使用 \`<名稱>\` 格式引用角色或商品
 ${characterRefs.map(r => `   - 使用 \`<${r.name || '角色'}>\` 指代該角色`).join('\n')}

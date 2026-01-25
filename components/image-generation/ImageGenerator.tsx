@@ -27,7 +27,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
         projectReferences.map(r => r.id)  // 預設全選
     );
 
-    // 獲取選中的專案參考圖 URL
+    // 取得選中的專案參考圖 URL
     const getSelectedReferenceUrls = (): string[] => {
         const urls: string[] = [];
         projectReferences.forEach(r => {
@@ -92,7 +92,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
         return parts.join('. ');
     };
 
-    // 獲取模式說明
+    // 取得模式說明
     const getModeDescription = () => {
         switch (promptMode) {
             case 'append':
@@ -104,7 +104,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
         }
     };
 
-    // 獲取佔位符提示
+    // 取得佔位符提示
     const getPlaceholder = () => {
         switch (promptMode) {
             case 'append':
@@ -122,7 +122,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
         try {
             const prompt = buildImagePrompt();
 
-            // 獲取 API Key（可選，後端有環境變數備援）
+            // 取得 API Key（可選，後端有環境變數備援）
             const apiKey = localStorage.getItem('fal_api_key') || '';
 
             // 呼叫生成 API

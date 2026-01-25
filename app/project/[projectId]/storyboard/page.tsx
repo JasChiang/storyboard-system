@@ -192,7 +192,7 @@ export default function StoryboardPage() {
                 </Button>
               </div>
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
-                金鑰將保存在瀏覽器本地，不會上傳到伺服器
+                金鑰將保存在瀏覽器本機，不會上傳到伺服器
               </p>
             </div>
           )}

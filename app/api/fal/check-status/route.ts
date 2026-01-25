@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
         const status = await checkQueueStatus(requestId, endpoint, { apiKey });
 
         if (status.status === 'COMPLETED') {
-            // 直接使用 SDK 獲取結果
+            // 直接使用 SDK 取得結果
             const result = type === 'image'
                 ? await getImageResult(requestId, endpoint, { apiKey })
                 : await getVideoResult(requestId, endpoint, { apiKey });

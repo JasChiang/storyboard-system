@@ -33,7 +33,7 @@ export interface Storyboard {
   id: string;
   projectId: string;
   title: string;
-  originalPrompt: string;        // 用戶原始輸入
+  originalPrompt: string;        // 使用者原始輸入
   templateUsed: string;          // 使用的提示詞模板
   scenes: Scene[];
   projectReferences?: ProjectReference[];  // 專案級參考圖

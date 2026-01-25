@@ -36,9 +36,9 @@
 - **`/api/fal/upload`** - 舊的文件上傳代理（已被 Server Proxy 取代）
 - **`/api/fal/upload-file`** - 舊的文件上傳（已被 Server Proxy 取代）
 
-## 🔧 前端配置
+## 🔧 前端設定
 
-前端在 `FalConfigProvider` 中自動配置 Fal Client：
+前端在 `FalConfigProvider` 中自動設定 Fal Client：
 
 ```typescript
 // 有 localStorage key
@@ -50,12 +50,12 @@ fal.config({ proxyUrl: '/api/fal/proxy' });
 
 ## 🔑 API Key 優先順序
 
-1. **前端 localStorage** - 用戶自己的 API key（優先）
+1. **前端 localStorage** - 使用者自己的 API key（優先）
 2. **後端環境變數** - 伺服器的 API key（備援）
 3. 兩者都沒有 → 返回錯誤
 
 ## 📚 相關文檔
 
 - [Fal Server Proxy 文檔](https://fal.ai/docs)
-- [前端配置](../../../components/providers/FalConfigProvider.tsx)
+- [前端設定](../../../components/providers/FalConfigProvider.tsx)
 - [環境變數範例](../../../.env.local.example)

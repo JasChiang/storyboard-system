@@ -5,14 +5,14 @@ const API_KEYS_KEY = 'storyboard-api-keys';
 
 // 專案 CRUD 操作
 export const projectStorage = {
-  // 獲取所有專案
+  // 取得所有專案
   getAll(): Project[] {
     if (typeof window === 'undefined') return [];
     const data = localStorage.getItem(STORAGE_KEY);
     return data ? JSON.parse(data) : [];
   },
 
-  // 獲取單個專案
+  // 取得單個專案
   getById(id: string): Project | null {
     const projects = this.getAll();
     return projects.find(p => p.id === id) || null;
@@ -71,7 +71,7 @@ export interface ApiKeys {
 }
 
 export const apiKeyStorage = {
-  // 獲取所有 API 金鑰
+  // 取得所有 API 金鑰
   getAll(): ApiKeys {
     if (typeof window === 'undefined') return {};
     const data = localStorage.getItem(API_KEYS_KEY);

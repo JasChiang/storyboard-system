@@ -9,7 +9,7 @@ import { route } from '@fal-ai/server-proxy/nextjs';
 // 確保環境變數設定正確
 if (!process.env.FAL_KEY && !process.env.FAL_API_KEY) {
     console.warn('⚠️  警告：未設定 FAL_KEY 或 FAL_API_KEY 環境變數，Server Proxy 將無法使用');
-    console.warn('   前端用戶必須在 localStorage 中設定自己的 API key 才能使用 Fal 服務');
+    console.warn('   前端使用者必須在 localStorage 中設定自己的 API key 才能使用 Fal 服務');
 }
 
 // 如果只有 FAL_API_KEY，將它設定為 FAL_KEY（讓 server-proxy 能讀取）
