@@ -191,14 +191,14 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
     return (
         <div className="space-y-4">
             {/* 設定卡片 */}
-            <div className="p-4 bg-gradient-to-br from-purple-900/20 to-pink-900/20 rounded-lg border border-purple-500/30">
+            <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-purple-200 dark:border-purple-500/30 shadow-sm">
                 <div className="flex items-start justify-between mb-4">
                     <div>
-                        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                            <Zap className="w-5 h-5 text-yellow-400" />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                            <Zap className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />
                             批次生成
                         </h3>
-                        <p className="text-sm text-zinc-400 mt-1">
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                             為 {totalScenes} 個尚未生成的場景自動生成圖片
                         </p>
                     </div>
@@ -206,15 +206,15 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
 
                 <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className="space-y-2">
-                        <label className="block text-sm font-medium text-zinc-300">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                             長寬比
                         </label>
                         <select
                             value={aspectRatio}
                             onChange={(e) => setAspectRatio(e.target.value)}
                             disabled={isGenerating}
-                            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg
-                       text-sm text-zinc-200 focus:outline-none focus:border-purple-500"
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                       text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
                         >
                             <option value="16:9">16:9 (橫向)</option>
                             <option value="9:16">9:16 (直向)</option>
@@ -223,15 +223,15 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                     </div>
 
                     <div className="space-y-2">
-                        <label className="block text-sm font-medium text-zinc-300">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                             解析度
                         </label>
                         <select
                             value={resolution}
                             onChange={(e) => setResolution(e.target.value as '1K' | '2K' | '4K')}
                             disabled={isGenerating}
-                            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg
-                       text-sm text-zinc-200 focus:outline-none focus:border-purple-500"
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                       text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
                         >
                             <option value="1K">1K (快速)</option>
                             <option value="2K">2K (推薦)</option>
@@ -244,10 +244,10 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                     onClick={handleBatchGenerate}
                     disabled={isGenerating || totalScenes === 0}
                     className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-pink-600 
-                   hover:from-purple-700 hover:to-pink-700
-                   text-white font-medium rounded-lg
-                   disabled:opacity-50 disabled:cursor-not-allowed
-                   transition-all flex items-center justify-center gap-2"
+                    hover:from-purple-700 hover:to-pink-700
+                    text-white font-medium rounded-lg
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                    transition-all flex items-center justify-center gap-2 shadow-sm"
                 >
                     {isGenerating ? (
                         <>
@@ -266,7 +266,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
             {/* 進度列表 */}
             {statuses.size > 0 && (
                 <div className="space-y-2">
-                    <h4 className="text-sm font-medium text-zinc-300">生成進度</h4>
+                    <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">生成進度</h4>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                         {scenesWithoutImages.map(scene => {
                             const status = statuses.get(scene.id);
@@ -275,32 +275,32 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                             return (
                                 <div
                                     key={scene.id}
-                                    className="flex items-center gap-3 p-3 bg-zinc-900/50 rounded-lg border border-zinc-800"
+                                    className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm"
                                 >
                                     <div className="flex-shrink-0">
                                         {status.status === 'pending' && (
-                                            <div className="w-5 h-5 rounded-full bg-zinc-700" />
+                                            <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700" />
                                         )}
                                         {status.status === 'generating' && (
-                                            <div className="w-5 h-5 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
+                                            <div className="w-5 h-5 border-2 border-purple-400/30 border-t-purple-600 dark:border-t-purple-400 rounded-full animate-spin" />
                                         )}
                                         {status.status === 'completed' && (
-                                            <CheckCircle2 className="w-5 h-5 text-green-400" />
+                                            <CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-400" />
                                         )}
                                         {status.status === 'failed' && (
-                                            <AlertCircle className="w-5 h-5 text-red-400" />
+                                            <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400" />
                                         )}
                                     </div>
 
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-zinc-200">
+                                        <p className="text-sm font-medium text-slate-900 dark:text-slate-200">
                                             場景 {scene.sceneNumber}
                                         </p>
-                                        <p className="text-xs text-zinc-500 truncate">
+                                        <p className="text-xs text-slate-500 truncate">
                                             {scene.description}
                                         </p>
                                         {status.error && (
-                                            <p className="text-xs text-red-400 mt-1">{status.error}</p>
+                                            <p className="text-xs text-red-500 dark:text-red-400 mt-1">{status.error}</p>
                                         )}
                                     </div>
                                 </div>
@@ -309,18 +309,18 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                     </div>
 
                     {/* 統計 */}
-                    <div className="flex items-center justify-between p-3 bg-zinc-900/30 rounded-lg border border-zinc-800">
+                    <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/30 rounded-lg border border-slate-200 dark:border-slate-800">
                         <div className="flex items-center gap-4 text-sm">
-                            <span className="text-zinc-400">
-                                完成: <span className="text-green-400 font-medium">{completedCount}</span>
+                            <span className="text-slate-600 dark:text-slate-400">
+                                完成: <span className="text-green-600 dark:text-green-400 font-medium">{completedCount}</span>
                             </span>
                             {failedCount > 0 && (
-                                <span className="text-zinc-400">
-                                    失敗: <span className="text-red-400 font-medium">{failedCount}</span>
+                                <span className="text-slate-600 dark:text-slate-400">
+                                    失敗: <span className="text-red-600 dark:text-red-400 font-medium">{failedCount}</span>
                                 </span>
                             )}
                         </div>
-                        <span className="text-sm text-zinc-500">
+                        <span className="text-sm text-slate-500 dark:text-slate-500">
                             {completedCount + failedCount} / {totalScenes}
                         </span>
                     </div>

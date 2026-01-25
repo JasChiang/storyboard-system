@@ -140,27 +140,27 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
     return (
         <div className="space-y-4">
             {/* 場景資訊 */}
-            <div className="p-4 bg-zinc-900/50 rounded-lg border border-zinc-800">
-                <h3 className="text-sm font-medium text-zinc-300 mb-2">
+            <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                <h3 className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-2">
                     場景 {scene.sceneNumber}
                 </h3>
-                <p className="text-sm text-zinc-400 mb-3">{scene.description}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">{scene.description}</p>
 
                 {scene.generatedImage ? (
-                    <div className="relative aspect-video rounded-lg overflow-hidden border border-zinc-700">
+                    <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
                         <img
                             src={scene.generatedImage.url}
                             alt={`Scene ${scene.sceneNumber}`}
                             className="w-full h-full object-cover"
                         />
-                        <div className="absolute top-2 right-2 px-2 py-1 bg-green-500/90 text-white text-xs rounded">
+                        <div className="absolute top-2 right-2 px-2 py-1 bg-green-500/90 text-white text-xs rounded shadow-sm">
                             已生成圖片
                         </div>
                     </div>
                 ) : (
-                    <div className="aspect-video bg-zinc-900 rounded-lg border border-zinc-700 
+                    <div className="aspect-video bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 
                         flex items-center justify-center">
-                        <p className="text-sm text-zinc-600">尚未生成圖片</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-500">尚未生成圖片</p>
                     </div>
                 )}
             </div>
@@ -193,27 +193,27 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
             <div className="space-y-3">
                 <button
                     onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors"
+                    className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 transition-colors"
                 >
                     <Settings2 className="w-4 h-4" />
                     進階設定
                 </button>
 
                 {showAdvanced && (
-                    <div className="p-4 bg-zinc-900/30 rounded-lg border border-zinc-800 space-y-4">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 space-y-4">
                         {model === 'kling' ? (
                             <>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <label className="block text-sm font-medium text-zinc-300">
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                             影片長度
                                         </label>
                                         <select
                                             value={klingDuration}
                                             onChange={(e) => setKlingDuration(Number(e.target.value) as 5 | 10)}
                                             disabled={isGenerating}
-                                            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg
-                               text-sm text-zinc-200 focus:outline-none focus:border-purple-500"
+                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
                                         >
                                             <option value={5}>5 秒</option>
                                             <option value={10}>10 秒</option>
@@ -221,15 +221,15 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label className="block text-sm font-medium text-zinc-300">
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                             長寬比
                                         </label>
                                         <select
                                             value={klingAspectRatio}
                                             onChange={(e) => setKlingAspectRatio(e.target.value as '16:9' | '9:16' | '1:1')}
                                             disabled={isGenerating}
-                                            className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg
-                               text-sm text-zinc-200 focus:outline-none focus:border-purple-500"
+                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
                                         >
                                             <option value="16:9">16:9 (橫向)</option>
                                             <option value="9:16">9:16 (直向)</option>
@@ -244,16 +244,16 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                                         checked={klingEnableSound}
                                         onChange={(e) => setKlingEnableSound(e.target.checked)}
                                         disabled={isGenerating}
-                                        className="w-4 h-4 rounded border-zinc-700 bg-zinc-900
+                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900
                              text-purple-600 focus:ring-purple-500 focus:ring-offset-0"
                                     />
-                                    <span className="text-sm text-zinc-300">啟用音效</span>
+                                    <span className="text-sm text-slate-700 dark:text-slate-300">啟用音效</span>
                                 </label>
                             </>
                         ) : (
                             <>
                                 <div className="space-y-2">
-                                    <label className="block text-sm font-medium text-zinc-300">
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                         影片長度 (4-12 秒)
                                     </label>
                                     <div className="flex items-center gap-3">
@@ -266,7 +266,7 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                                             disabled={isGenerating}
                                             className="flex-1"
                                         />
-                                        <span className="text-sm text-zinc-300 w-12 text-right">
+                                        <span className="text-sm text-slate-700 dark:text-slate-300 w-12 text-right">
                                             {seedanceDuration} 秒
                                         </span>
                                     </div>
@@ -278,10 +278,10 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                                         checked={seedanceEnableAudio}
                                         onChange={(e) => setSeedanceEnableAudio(e.target.checked)}
                                         disabled={isGenerating}
-                                        className="w-4 h-4 rounded border-zinc-700 bg-zinc-900
+                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900
                              text-purple-600 focus:ring-purple-500 focus:ring-offset-0"
                                     />
-                                    <span className="text-sm text-zinc-300">啟用音頻</span>
+                                    <span className="text-sm text-slate-700 dark:text-slate-300">啟用音頻</span>
                                 </label>
                             </>
                         )}
@@ -297,7 +297,7 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                  hover:from-purple-700 hover:to-pink-700
                  text-white font-medium rounded-lg
                  disabled:opacity-50 disabled:cursor-not-allowed
-                 transition-all flex items-center justify-center gap-2"
+                 transition-all flex items-center justify-center gap-2 shadow-sm"
             >
                 {isGenerating ? (
                     <>
@@ -313,7 +313,7 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
             </button>
 
             {!scene.generatedImage && (
-                <p className="text-xs text-center text-amber-400">
+                <p className="text-xs text-center text-amber-600 dark:text-amber-400">
                     ⚠️ 請先在「圖片」頁面生成場景圖片
                 </p>
             )}

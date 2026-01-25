@@ -87,7 +87,7 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
 
     return (
         <div className="space-y-3">
-            <label className="block text-sm font-medium text-zinc-300">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 參考圖片 (選填)
             </label>
 
@@ -96,7 +96,7 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
                     <img
                         src={preview}
                         alt="Reference"
-                        className="w-full h-48 object-contain rounded-lg border border-zinc-700 bg-zinc-900/50"
+                        className="w-full h-48 object-contain rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/50"
                     />
                     {isUploading && (
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
@@ -111,7 +111,7 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
                         disabled={disabled || isUploading}
                         className="absolute top-2 right-2 p-2 bg-red-500/90 hover:bg-red-600 
                      rounded-lg transition-colors opacity-0 group-hover:opacity-100
-                     disabled:opacity-50 disabled:cursor-not-allowed"
+                     disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                     >
                         <X className="w-4 h-4 text-white" />
                     </button>
@@ -120,8 +120,8 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
                 <label
                     className={`
             flex flex-col items-center justify-center w-full h-48
-            border-2 border-dashed border-zinc-700 rounded-lg
-            cursor-pointer hover:border-zinc-600 hover:bg-zinc-900/30
+            border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg
+            cursor-pointer hover:border-slate-400 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50
             transition-colors
             ${disabled || isUploading ? 'opacity-50 cursor-not-allowed' : ''}
           `}
@@ -129,21 +129,21 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
                     <div className="flex flex-col items-center justify-center p-6">
                         {isUploading ? (
                             <>
-                                <div className="w-12 h-12 border-2 border-zinc-500/30 border-t-zinc-500 rounded-full animate-spin mb-3" />
-                                <p className="text-sm text-zinc-400 text-center">
+                                <div className="w-12 h-12 border-2 border-slate-300 dark:border-slate-600 border-t-purple-600 dark:border-t-purple-400 rounded-full animate-spin mb-3" />
+                                <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
                                     上傳中...
                                 </p>
                             </>
                         ) : (
                             <>
-                                <ImageIcon className="w-12 h-12 text-zinc-500 mb-3" />
-                                <p className="text-sm text-zinc-400 text-center">
+                                <ImageIcon className="w-12 h-12 text-slate-400 mb-3" />
+                                <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
                                     點擊上傳參考圖片
                                 </p>
-                                <p className="text-xs text-zinc-600 mt-1">
+                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                                     PNG, JPG, WEBP (最大 10MB)
                                 </p>
-                                <p className="text-xs text-zinc-500 mt-2">
+                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
                                     上傳到 Fal Storage
                                 </p>
                             </>

@@ -58,23 +58,23 @@ export default function ExportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <>
       {/* Header */}
-      <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-white/50 backdrop-blur-xl dark:bg-black/50 supports-[backdrop-filter]:bg-white/20">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <Link
               href={`/project/${projectId}`}
-              className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
-              <ArrowLeft className="w-5 h-5 text-zinc-400" />
+              <ArrowLeft className="w-5 h-5 text-slate-500 dark:text-slate-400" />
             </Link>
             <div>
-              <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                <Scissors className="w-5 h-5 text-purple-400" />
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Scissors className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                 Blender 腳本匯出
               </h1>
-              <p className="text-sm text-zinc-500 mt-0.5">
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                 {currentProject.name} · AI 分析與自動剪輯
               </p>
             </div>
@@ -85,36 +85,36 @@ export default function ExportPage() {
       <main className="container mx-auto px-4 py-8">
         {/* 完成度檢查 */}
         <div className="max-w-4xl mx-auto mb-8">
-          <div className="p-4 bg-zinc-900/50 rounded-lg border border-zinc-800">
-            <h3 className="text-sm font-medium text-zinc-300 mb-3">專案完成度</h3>
+          <div className="p-4 bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 backdrop-blur-sm">
+            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">專案完成度</h3>
             <div className="grid grid-cols-3 gap-3">
               <div className="flex items-center gap-2">
                 {hasStoryboard ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
                 ) : (
-                  <XCircle className="w-4 h-4 text-zinc-600" />
+                  <XCircle className="w-4 h-4 text-slate-400 dark:text-slate-600" />
                 )}
-                <span className={`text-sm ${hasStoryboard ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                <span className={`text-sm ${hasStoryboard ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-600'}`}>
                   分鏡腳本
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 {hasImages ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
                 ) : (
-                  <XCircle className="w-4 h-4 text-zinc-600" />
+                  <XCircle className="w-4 h-4 text-slate-400 dark:text-slate-600" />
                 )}
-                <span className={`text-sm ${hasImages ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                <span className={`text-sm ${hasImages ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-600'}`}>
                   圖片生成
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 {hasVideos ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
                 ) : (
-                  <XCircle className="w-4 h-4 text-zinc-600" />
+                  <XCircle className="w-4 h-4 text-slate-400 dark:text-slate-600" />
                 )}
-                <span className={`text-sm ${hasVideos ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                <span className={`text-sm ${hasVideos ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-600'}`}>
                   影片生成 ({scenesWithVideos.length}/{scenes.length})
                 </span>
               </div>
@@ -125,7 +125,7 @@ export default function ExportPage() {
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
           {/* 左側：影片分析 */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">步驟 1: AI 影片分析</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">步驟 1: AI 影片分析</h2>
             <VideoAnalyzer
               storyboard={currentProject.storyboard}
               onAnalysisComplete={handleAnalysisComplete}
@@ -134,7 +134,7 @@ export default function ExportPage() {
 
           {/* 右側：Blender 腳本 */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">步驟 2: Blender 腳本</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">步驟 2: Blender 腳本</h2>
             <BlenderScriptViewer
               projectName={currentProject.name}
               scenes={scenes}
@@ -146,22 +146,22 @@ export default function ExportPage() {
         {/* 影片列表 */}
         {scenesWithVideos.length > 0 && (
           <div className="max-w-4xl mx-auto mt-8">
-            <h2 className="text-lg font-semibold text-white mb-4">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
               已生成的影片 ({scenesWithVideos.length})
             </h2>
             <div className="grid grid-cols-3 gap-4">
               {scenesWithVideos.map((scene) => (
                 <div
                   key={scene.id}
-                  className="bg-zinc-900/50 rounded-lg border border-zinc-800 p-3 space-y-2"
+                  className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-3 space-y-2 backdrop-blur-sm"
                 >
                   <video
                     src={scene.generatedVideo!.url}
-                    className="w-full aspect-video rounded bg-zinc-900"
+                    className="w-full aspect-video rounded bg-slate-900"
                     controls
                   />
-                  <p className="text-xs text-zinc-400">場景 {scene.sceneNumber}</p>
-                  <p className="text-xs text-zinc-600 truncate">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">場景 {scene.sceneNumber}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-600 truncate">
                     {scene.generatedVideo!.model === 'kling' ? 'Kling 2.6 Pro' : 'Seedance 1.5 Pro'}
                   </p>
                 </div>
@@ -170,6 +170,6 @@ export default function ExportPage() {
           </div>
         )}
       </main>
-    </div>
+    </>
   );
 }

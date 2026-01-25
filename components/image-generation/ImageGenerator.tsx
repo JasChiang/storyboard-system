@@ -205,13 +205,13 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
     return (
         <div className="space-y-4">
             {/* 場景資訊 */}
-            <div className="p-4 bg-zinc-900/50 rounded-lg border border-zinc-800">
-                <h3 className="text-sm font-medium text-zinc-300 mb-2">
+            <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                <h3 className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-2">
                     場景 {scene.sceneNumber}
                 </h3>
-                <p className="text-sm text-zinc-400">{scene.description}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">{scene.description}</p>
                 {scene.cameraMovement && scene.cameraMovement !== '無' && (
-                    <p className="text-xs text-zinc-500 mt-1">
+                    <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
                         鏡頭運動: {scene.cameraMovement}
                     </p>
                 )}
@@ -228,29 +228,36 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
             {/* 自訂提示詞區塊 */}
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-zinc-300">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                         自訂提示詞 (選填)
                     </label>
 
                     {/* 模式選擇 */}
-                    <select
-                        value={promptMode}
-                        onChange={(e) => setPromptMode(e.target.value as 'append' | 'replace' | 'prepend')}
-                        disabled={isGenerating || !customPrompt}
-                        className="px-3 py-1 bg-zinc-900 border border-zinc-700 rounded-lg
-                                 text-xs text-zinc-200 focus:outline-none focus:border-purple-500
-                                 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <option value="append">增強模式</option>
-                        <option value="replace">覆蓋模式</option>
-                        <option value="prepend">優先模式</option>
-                    </select>
+                    <div className="relative">
+                        <select
+                            value={promptMode}
+                            onChange={(e) => setPromptMode(e.target.value as 'append' | 'replace' | 'prepend')}
+                            disabled={isGenerating || !customPrompt}
+                            className="appearance-none pl-3 pr-8 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                                     text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-purple-500
+                                     disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                        >
+                            <option value="append">增強模式</option>
+                            <option value="replace">覆蓋模式</option>
+                            <option value="prepend">優先模式</option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
                 </div>
 
                 {/* 模式說明 */}
                 {customPrompt && (
-                    <div className="p-2 bg-zinc-900/50 rounded border border-zinc-800">
-                        <p className="text-xs text-zinc-400">
+                    <div className="p-2 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-200 dark:border-slate-800">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                             {getModeDescription()}
                         </p>
                     </div>
@@ -260,8 +267,8 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                     value={customPrompt}
                     onChange={(e) => setCustomPrompt(e.target.value)}
                     placeholder={getPlaceholder()}
-                    className="w-full px-3 py-2 bg-zinc-900/50 border border-zinc-700 rounded-lg
-                   text-sm text-zinc-200 placeholder-zinc-600
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg
+                   text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400
                    focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500
                    transition-colors resize-none"
                     rows={3}
@@ -270,11 +277,11 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
 
                 {/* 即時預覽最終 Prompt */}
                 {customPrompt && (
-                    <div className="p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-                        <label className="text-xs text-blue-300 font-medium block mb-1">
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                        <label className="text-xs text-blue-600 dark:text-blue-300 font-medium block mb-1">
                             最終提示詞預覽：
                         </label>
-                        <p className="text-xs text-zinc-300 italic leading-relaxed">
+                        <p className="text-xs text-slate-600 dark:text-slate-300 italic leading-relaxed">
                             "{buildImagePrompt()}"
                         </p>
                     </div>
@@ -284,7 +291,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
             {/* 專案參考圖（來自分鏡階段） */}
             {projectReferences.length > 0 && (
                 <div className="space-y-3">
-                    <label className="block text-sm font-medium text-zinc-300">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                         專案參考圖
                     </label>
                     <div className="grid grid-cols-3 gap-2">
@@ -303,9 +310,9 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                                     relative rounded-lg overflow-hidden border-2 transition-all
                                     ${selectedProjectRefs.includes(ref.id)
                                         ? 'border-purple-500 ring-2 ring-purple-500/30'
-                                        : 'border-zinc-700 opacity-60 hover:opacity-80'
+                                        : 'border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-80'
                                     }
-                                    disabled:cursor-not-allowed
+                                    disabled:cursor-not-allowed shadow-sm
                                 `}
                             >
                                 <img
@@ -314,7 +321,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                                     className="w-full h-16 object-cover"
                                 />
                                 <div className="absolute bottom-0 left-0 right-0 p-1 bg-black/70">
-                                    <p className="text-[10px] text-zinc-300 truncate">
+                                    <p className="text-[10px] text-white truncate">
                                         {ref.name ? `<${ref.name}>` : ref.type}
                                     </p>
                                 </div>
@@ -326,7 +333,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                             </button>
                         ))}
                     </div>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-slate-500">
                         點擊選擇/取消要使用的參考圖（已選 {selectedProjectRefs.length}/{projectReferences.length}）
                     </p>
                 </div>
@@ -343,24 +350,24 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
             <div className="space-y-3">
                 <button
                     onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors"
+                    className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 transition-colors"
                 >
                     <Settings2 className="w-4 h-4" />
                     進階設定
                 </button>
 
                 {showAdvanced && (
-                    <div className="grid grid-cols-2 gap-4 p-4 bg-zinc-900/30 rounded-lg border border-zinc-800">
+                    <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-900/30 rounded-lg border border-slate-200 dark:border-slate-800">
                         <div className="space-y-2">
-                            <label className="block text-sm font-medium text-zinc-300">
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                 長寬比
                             </label>
                             <select
                                 value={aspectRatio}
                                 onChange={(e) => setAspectRatio(e.target.value)}
                                 disabled={isGenerating}
-                                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg
-                         text-sm text-zinc-200 focus:outline-none focus:border-purple-500"
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                         text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
                             >
                                 <option value="16:9">16:9 (橫向)</option>
                                 <option value="9:16">9:16 (直向)</option>
@@ -371,15 +378,15 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                         </div>
 
                         <div className="space-y-2">
-                            <label className="block text-sm font-medium text-zinc-300">
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                 解析度
                             </label>
                             <select
                                 value={resolution}
                                 onChange={(e) => setResolution(e.target.value as '1K' | '2K' | '4K')}
                                 disabled={isGenerating}
-                                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg
-                         text-sm text-zinc-200 focus:outline-none focus:border-purple-500"
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                         text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
                             >
                                 <option value="1K">1K (快速)</option>
                                 <option value="2K">2K (推薦)</option>
@@ -398,7 +405,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                  hover:from-purple-700 hover:to-pink-700
                  text-white font-medium rounded-lg
                  disabled:opacity-50 disabled:cursor-not-allowed
-                 transition-all flex items-center justify-center gap-2"
+                 transition-all flex items-center justify-center gap-2 shadow-sm"
             >
                 {isGenerating ? (
                     <>

@@ -96,39 +96,39 @@ export default function ImagesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <>
       {/* Header */}
-      <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-white/50 backdrop-blur-xl dark:bg-black/50 supports-[backdrop-filter]:bg-white/20">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
                 href={`/project/${projectId}`}
-                className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
               >
-                <ArrowLeft className="w-5 h-5 text-zinc-400" />
+                <ArrowLeft className="w-5 h-5 text-slate-500 dark:text-slate-400" />
               </Link>
               <div>
-                <h1 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-purple-400" />
+                <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                   分鏡圖片生成
                 </h1>
-                <p className="text-sm text-zinc-500 mt-0.5">
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                   {currentProject.name} · {scenes.length} 個場景
                 </p>
               </div>
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center gap-2 p-1 bg-zinc-900 rounded-lg border border-zinc-800">
+            <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
               <button
                 onClick={() => setViewMode('individual')}
                 className={`
                   px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                   flex items-center gap-2
                   ${viewMode === 'individual'
-                    ? 'bg-purple-600 text-white'
-                    : 'text-zinc-400 hover:text-zinc-300'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                   }
                 `}
               >
@@ -141,8 +141,8 @@ export default function ImagesPage() {
                   px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                   flex items-center gap-2
                   ${viewMode === 'batch'
-                    ? 'bg-purple-600 text-white'
-                    : 'text-zinc-400 hover:text-zinc-300'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                   }
                 `}
               >
@@ -159,7 +159,7 @@ export default function ImagesPage() {
           <div className="grid grid-cols-12 gap-6">
             {/* Scene List */}
             <div className="col-span-4 space-y-3">
-              <h2 className="text-sm font-medium text-zinc-400 px-2">選擇場景</h2>
+              <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 px-2">選擇場景</h2>
               <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
                 {scenes.map((scene) => (
                   <button
@@ -168,22 +168,22 @@ export default function ImagesPage() {
                     className={`
                       w-full text-left p-4 rounded-lg border transition-all
                       ${selectedSceneId === scene.id
-                        ? 'bg-purple-900/30 border-purple-500'
-                        : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-700'
+                        ? 'bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 ring-1 ring-purple-200 dark:ring-purple-800'
+                        : 'bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                       }
                     `}
                   >
                     <div className="flex items-start justify-between mb-2">
-                      <span className="text-sm font-medium text-zinc-300">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                         場景 {scene.sceneNumber}
                       </span>
                       {scene.generatedImage && (
-                        <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">
+                        <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 rounded">
                           已生成
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-zinc-500 line-clamp-2">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
                       {scene.description}
                     </p>
                   </button>
@@ -194,7 +194,7 @@ export default function ImagesPage() {
             {/* Image Generator */}
             <div className="col-span-8">
               {selectedScene ? (
-                <div className="bg-zinc-900/50 rounded-lg border border-zinc-800 p-6">
+                <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
                   <ImageGenerator
                     scene={selectedScene}
                     onImageGenerated={(url, prompt) =>
@@ -204,10 +204,10 @@ export default function ImagesPage() {
                   />
                 </div>
               ) : (
-                <div className="h-full flex items-center justify-center bg-zinc-900/50 rounded-lg border border-zinc-800">
+                <div className="h-full flex items-center justify-center bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 backdrop-blur-sm">
                   <div className="text-center">
-                    <Sparkles className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-                    <p className="text-zinc-500">請從左側選擇場景</p>
+                    <Sparkles className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+                    <p className="text-slate-500 dark:text-slate-400">請從左側選擇場景</p>
                   </div>
                 </div>
               )}
@@ -223,14 +223,14 @@ export default function ImagesPage() {
 
             {/* Scene Grid Preview */}
             <div className="mt-8">
-              <h2 className="text-sm font-medium text-zinc-400 mb-4">場景預覽</h2>
+              <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-4">場景預覽</h2>
               <div className="grid grid-cols-3 gap-4">
                 {scenes.map((scene) => (
                   <div
                     key={scene.id}
-                    className="bg-zinc-900/50 rounded-lg border border-zinc-800 p-3 space-y-2"
+                    className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-3 space-y-2 backdrop-blur-sm"
                   >
-                    <div className="aspect-video bg-zinc-900 rounded overflow-hidden">
+                    <div className="aspect-video bg-slate-100 dark:bg-slate-800 rounded overflow-hidden">
                       {scene.generatedImage ? (
                         <img
                           src={scene.generatedImage.url}
@@ -239,11 +239,11 @@ export default function ImagesPage() {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <Sparkles className="w-6 h-6 text-zinc-700" />
+                          <Sparkles className="w-6 h-6 text-slate-300 dark:text-slate-700" />
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       場景 {scene.sceneNumber}
                     </p>
                   </div>
@@ -253,6 +253,6 @@ export default function ImagesPage() {
           </div>
         )}
       </main>
-    </div>
+    </>
   );
 }

@@ -73,13 +73,13 @@ export function MotionPromptEditor({
     return (
         <div className="space-y-3">
             <div className="flex items-start justify-between">
-                <label className="block text-sm font-medium text-zinc-300">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                     動作提示詞 (Motion Prompt)
                 </label>
                 <button
                     type="button"
                     onClick={() => setShowSuggestions(!showSuggestions)}
-                    className="text-xs text-purple-400 hover:text-purple-300 transition-colors
+                    className="text-xs text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors
                    flex items-center gap-1"
                 >
                     <Lightbulb className="w-3 h-3" />
@@ -88,9 +88,9 @@ export function MotionPromptEditor({
             </div>
 
             {sceneDescription && (
-                <div className="p-3 bg-zinc-900/50 rounded-lg border border-zinc-800">
-                    <p className="text-xs text-zinc-500 mb-1">場景描述</p>
-                    <p className="text-sm text-zinc-300">{sceneDescription}</p>
+                <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <p className="text-xs text-slate-500 mb-1">場景描述</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-300">{sceneDescription}</p>
                 </div>
             )}
 
@@ -98,8 +98,8 @@ export function MotionPromptEditor({
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder="描述畫面中的動作、鏡頭運動等... 例如: Camera slowly zooms in, person walks forward"
-                className="w-full px-3 py-2 bg-zinc-900/50 border border-zinc-700 rounded-lg
-                 text-sm text-zinc-200 placeholder-zinc-600
+                className="w-full px-3 py-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg
+                 text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400
                  focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500
                  transition-colors resize-none"
                 rows={4}
@@ -107,8 +107,8 @@ export function MotionPromptEditor({
             />
 
             {showSuggestions && (
-                <div className="space-y-3 p-4 bg-zinc-900/30 rounded-lg border border-zinc-800">
-                    <div className="flex items-center gap-2 text-sm text-zinc-400">
+                <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-900/30 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                         <Sparkles className="w-4 h-4" />
                         <span>點擊建議自動添加到提示詞</span>
                     </div>
@@ -116,7 +116,7 @@ export function MotionPromptEditor({
                     <div className="space-y-4">
                         {suggestions.map((category) => (
                             <div key={category.category}>
-                                <h4 className="text-xs font-medium text-zinc-500 mb-2">
+                                <h4 className="text-xs font-medium text-slate-500 mb-2">
                                     {category.category}
                                 </h4>
                                 <div className="flex flex-wrap gap-2">
@@ -126,9 +126,10 @@ export function MotionPromptEditor({
                                             type="button"
                                             onClick={() => handleSuggestionClick(prompt)}
                                             disabled={disabled}
-                                            className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700
-                               text-xs text-zinc-300 rounded-lg
-                               transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700
+                               border border-slate-200 dark:border-slate-700
+                               text-xs text-slate-600 dark:text-slate-300 rounded-lg
+                               transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                                         >
                                             {prompt}
                                         </button>
@@ -140,7 +141,7 @@ export function MotionPromptEditor({
                 </div>
             )}
 
-            <p className="text-xs text-zinc-600">
+            <p className="text-xs text-slate-500">
                 💡 提示：清晰描述動作可以提升影片生成品質
             </p>
         </div>

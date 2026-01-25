@@ -55,31 +55,31 @@ export function BlenderScriptViewer({
     return (
         <div className="space-y-4">
             {/* 資訊卡片 */}
-            <div className="p-4 bg-zinc-900/50 rounded-lg border border-zinc-800">
+            <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="flex items-start gap-3">
-                    <FileCode2 className="w-5 h-5 text-purple-400 mt-0.5" />
+                    <FileCode2 className="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5" />
                     <div className="flex-1">
-                        <h3 className="text-sm font-medium text-zinc-200 mb-1">
+                        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-1">
                             Blender Python 腳本
                         </h3>
-                        <p className="text-xs text-zinc-500">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                             自動生成的 Blender 剪輯腳本，包含 {scenesWithVideos.length} 個影片片段
                         </p>
                     </div>
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
-                    <div className="p-2 bg-zinc-900 rounded">
-                        <span className="text-zinc-500">影片片段</span>
-                        <p className="text-zinc-200 font-medium">{scenesWithVideos.length}</p>
+                    <div className="p-2 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-100 dark:border-slate-700/50">
+                        <span className="text-slate-500 dark:text-slate-400">影片片段</span>
+                        <p className="text-slate-900 dark:text-slate-200 font-medium">{scenesWithVideos.length}</p>
                     </div>
-                    <div className="p-2 bg-zinc-900 rounded">
-                        <span className="text-zinc-500">解析度</span>
-                        <p className="text-zinc-200 font-medium">1920x1080</p>
+                    <div className="p-2 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-100 dark:border-slate-700/50">
+                        <span className="text-slate-500 dark:text-slate-400">解析度</span>
+                        <p className="text-slate-900 dark:text-slate-200 font-medium">1920x1080</p>
                     </div>
-                    <div className="p-2 bg-zinc-900 rounded">
-                        <span className="text-zinc-500">幀率</span>
-                        <p className="text-zinc-200 font-medium">30 FPS</p>
+                    <div className="p-2 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-100 dark:border-slate-700/50">
+                        <span className="text-slate-500 dark:text-slate-400">幀率</span>
+                        <p className="text-slate-900 dark:text-slate-200 font-medium">30 FPS</p>
                     </div>
                 </div>
             </div>
@@ -88,17 +88,17 @@ export function BlenderScriptViewer({
             {isGenerated && script && (
                 <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-medium text-zinc-300">腳本預覽</h4>
-                        <div className="flex items-center gap-2 text-xs text-green-400">
+                        <h4 className="text-sm font-medium text-slate-900 dark:text-slate-200">腳本預覽</h4>
+                        <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
                             <Check className="w-4 h-4" />
                             已生成
                         </div>
                     </div>
 
                     <div className="relative">
-                        <pre className="p-4 bg-zinc-950 rounded-lg border border-zinc-800
-                         text-xs text-zinc-300 overflow-x-auto max-h-96 overflow-y-auto
-                         font-mono">
+                        <pre className="p-4 bg-slate-900 rounded-lg border border-slate-800
+                         text-xs text-slate-300 overflow-x-auto max-h-96 overflow-y-auto
+                         font-mono shadow-inner">
                             {script}
                         </pre>
                     </div>
@@ -112,7 +112,7 @@ export function BlenderScriptViewer({
                         onClick={handleGenerate}
                         className="flex-1 py-3 px-4 bg-purple-600 hover:bg-purple-700
                      text-white font-medium rounded-lg transition-colors
-                     flex items-center justify-center gap-2"
+                     flex items-center justify-center gap-2 shadow-sm"
                     >
                         <FileCode2 className="w-5 h-5" />
                         生成 Blender 腳本
@@ -122,7 +122,7 @@ export function BlenderScriptViewer({
                         onClick={handleDownload}
                         className="flex-1 py-3 px-4 bg-green-600 hover:bg-green-700
                      text-white font-medium rounded-lg transition-colors
-                     flex items-center justify-center gap-2"
+                     flex items-center justify-center gap-2 shadow-sm"
                     >
                         <Download className="w-5 h-5" />
                         下載 .py 檔案
@@ -131,37 +131,37 @@ export function BlenderScriptViewer({
             </div>
 
             {/* 使用說明 */}
-            <div className="p-4 bg-blue-950/40 border border-blue-500/30 rounded-lg space-y-3">
-                <div className="flex items-center gap-2 mb-2 border-b border-blue-500/20 pb-2">
-                    <h4 className="text-sm font-medium text-blue-100">🚀 執行方式 (Headless 算圖模式)</h4>
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-3">
+                <div className="flex items-center gap-2 mb-2 border-b border-blue-200 dark:border-blue-800 pb-2">
+                    <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100">🚀 執行方式 (Headless 算圖模式)</h4>
                 </div>
 
                 <div className="space-y-4">
                     <div>
-                        <span className="text-xs font-bold text-blue-300 block mb-1">Windows (PowerShell)</span>
-                        <code className="block p-2 bg-black/40 rounded text-[10px] text-zinc-300 font-mono break-all select-all cursor-pointer hover:bg-black/60 transition-colors">
+                        <span className="text-xs font-bold text-blue-700 dark:text-blue-300 block mb-1">Windows (PowerShell)</span>
+                        <code className="block p-2 bg-slate-900/90 dark:bg-black/40 rounded text-[10px] text-slate-300 font-mono break-all select-all cursor-pointer hover:bg-black/60 transition-colors">
                             & "C:\Program Files\Blender Foundation\Blender 5.0\blender.exe" -b -P {projectName.replace(/\s+/g, '_')}_blender_script.py -- --render
                         </code>
                     </div>
 
                     <div>
-                        <span className="text-xs font-bold text-blue-300 block mb-1">macOS (Terminal)</span>
-                        <code className="block p-2 bg-black/40 rounded text-[10px] text-zinc-300 font-mono break-all select-all cursor-pointer hover:bg-black/60 transition-colors">
+                        <span className="text-xs font-bold text-blue-700 dark:text-blue-300 block mb-1">macOS (Terminal)</span>
+                        <code className="block p-2 bg-slate-900/90 dark:bg-black/40 rounded text-[10px] text-slate-300 font-mono break-all select-all cursor-pointer hover:bg-black/60 transition-colors">
                             /Applications/Blender.app/Contents/MacOS/Blender -b -P {projectName.replace(/\s+/g, '_')}_blender_script.py -- --render
                         </code>
                     </div>
 
                     <div>
-                        <span className="text-xs font-bold text-blue-300 block mb-1">Linux</span>
-                        <code className="block p-2 bg-black/40 rounded text-[10px] text-zinc-300 font-mono break-all select-all cursor-pointer hover:bg-black/60 transition-colors">
+                        <span className="text-xs font-bold text-blue-700 dark:text-blue-300 block mb-1">Linux</span>
+                        <code className="block p-2 bg-slate-900/90 dark:bg-black/40 rounded text-[10px] text-slate-300 font-mono break-all select-all cursor-pointer hover:bg-black/60 transition-colors">
                             blender -b -P {projectName.replace(/\s+/g, '_')}_blender_script.py -- --render
                         </code>
                     </div>
                 </div>
 
-                <div className="pt-2 border-t border-blue-500/20">
-                    <p className="text-xs text-blue-200/60">
-                        💡 點擊指令可全選。參數 <code className="text-blue-200">-b</code> 代表背景執行，<code className="text-blue-200">--render</code> 代表自動開始算圖。
+                <div className="pt-2 border-t border-blue-200 dark:border-blue-800">
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                        💡 點擊指令可全選。參數 <code className="text-blue-800 dark:text-blue-200 font-bold">-b</code> 代表背景執行，<code className="text-blue-800 dark:text-blue-200 font-bold">--render</code> 代表自動開始算圖。
                     </p>
                 </div>
             </div>

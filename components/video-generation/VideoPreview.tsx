@@ -23,12 +23,12 @@ export function VideoPreview({
 
     if (isLoading) {
         return (
-            <div className="relative w-full aspect-video bg-zinc-900/50 rounded-lg border border-zinc-700 
+            <div className="relative w-full aspect-video bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 
                       flex items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-                    <p className="text-sm text-zinc-400">生成影片中...</p>
-                    <p className="text-xs text-zinc-600">這可能需要幾分鐘時間</p>
+                    <Loader2 className="w-8 h-8 text-purple-600 dark:text-purple-400 animate-spin" />
+                    <p className="text-sm text-slate-500 dark:text-slate-400">生成影片中...</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">這可能需要幾分鐘時間</p>
                 </div>
             </div>
         );
@@ -36,11 +36,11 @@ export function VideoPreview({
 
     if (!videoUrl) {
         return (
-            <div className="relative w-full aspect-video bg-zinc-900/50 rounded-lg border border-zinc-700 
+            <div className="relative w-full aspect-video bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 
                       flex items-center justify-center">
                 <div className="flex flex-col items-center gap-2">
-                    <Film className="w-8 h-8 text-zinc-600" />
-                    <p className="text-sm text-zinc-500">尚未生成影片</p>
+                    <Film className="w-8 h-8 text-slate-400 dark:text-slate-600" />
+                    <p className="text-sm text-slate-500 dark:text-slate-500">尚未生成影片</p>
                 </div>
             </div>
         );
@@ -52,8 +52,8 @@ export function VideoPreview({
                 <video
                     src={videoUrl}
                     className={`
-            w-full aspect-video rounded-lg border border-zinc-700 
-            bg-zinc-900/50 transition-opacity duration-300
+            w-full aspect-video rounded-lg border border-slate-200 dark:border-slate-700 
+            bg-black transition-opacity duration-300
             ${videoLoaded ? 'opacity-100' : 'opacity-0'}
           `}
                     controls
@@ -67,14 +67,14 @@ export function VideoPreview({
 
                 {!videoLoaded && (
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <Loader2 className="w-6 h-6 text-zinc-500 animate-spin" />
+                        <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
                     </div>
                 )}
 
                 {!isPlaying && videoLoaded && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="w-16 h-16 bg-purple-600/80 rounded-full flex items-center justify-center
-                          backdrop-blur-sm">
+                        <div className="w-16 h-16 bg-white/20 dark:bg-white/10 rounded-full flex items-center justify-center
+                          backdrop-blur-md border border-white/30 shadow-lg">
                             <Play className="w-8 h-8 text-white ml-1" fill="white" />
                         </div>
                     </div>
@@ -87,7 +87,7 @@ export function VideoPreview({
                      bg-purple-600 hover:bg-purple-700 
                      text-white text-sm font-medium rounded-lg
                      opacity-0 group-hover:opacity-100 transition-opacity
-                     flex items-center gap-2"
+                     flex items-center gap-2 shadow-sm"
                     >
                         <Film className="w-4 h-4" />
                         重新生成
@@ -97,16 +97,16 @@ export function VideoPreview({
 
             <div className="grid grid-cols-2 gap-3">
                 {prompt && (
-                    <div className="p-3 bg-zinc-900/50 rounded-lg border border-zinc-800">
-                        <p className="text-xs text-zinc-500 mb-1">Motion Prompt</p>
-                        <p className="text-sm text-zinc-300">{prompt}</p>
+                    <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Motion Prompt</p>
+                        <p className="text-sm text-slate-900 dark:text-slate-200">{prompt}</p>
                     </div>
                 )}
 
                 {model && (
-                    <div className="p-3 bg-zinc-900/50 rounded-lg border border-zinc-800">
-                        <p className="text-xs text-zinc-500 mb-1">模型</p>
-                        <p className="text-sm text-zinc-300">
+                    <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">模型</p>
+                        <p className="text-sm text-slate-900 dark:text-slate-200">
                             {model === 'kling' ? 'Kling 2.6 Pro' : 'Seedance 1.5 Pro'}
                         </p>
                     </div>
@@ -117,9 +117,9 @@ export function VideoPreview({
             <a
                 href={videoUrl}
                 download
-                className="block w-full py-2 px-4 bg-zinc-800 hover:bg-zinc-700
-                 text-zinc-200 text-sm font-medium rounded-lg text-center
-                 transition-colors"
+                className="block w-full py-2 px-4 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700
+                 text-white text-sm font-medium rounded-lg text-center
+                 transition-colors shadow-sm"
             >
                 下載影片
             </a>

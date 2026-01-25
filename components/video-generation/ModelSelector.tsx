@@ -30,7 +30,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
 
     return (
         <div className="space-y-3">
-            <label className="block text-sm font-medium text-zinc-300">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 選擇影片生成模型
             </label>
 
@@ -45,33 +45,33 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                             onClick={() => onChange(model.id)}
                             disabled={disabled}
                             className={`
-                relative p-4 rounded-lg border-2 transition-all text-left
+                relative p-4 rounded-lg border-2 transition-all text-left shadow-sm
                 disabled:opacity-50 disabled:cursor-not-allowed
                 ${isSelected
-                                    ? 'border-purple-500 bg-purple-900/20'
-                                    : 'border-zinc-700 bg-zinc-900/50 hover:border-zinc-600'
+                                    ? 'border-purple-600 bg-purple-50 dark:bg-purple-900/20'
+                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600'
                                 }
               `}
                         >
                             {isSelected && (
-                                <div className="absolute top-2 right-2 w-2 h-2 bg-purple-500 rounded-full" />
+                                <div className="absolute top-2 right-2 w-2 h-2 bg-purple-600 dark:bg-purple-500 rounded-full" />
                             )}
 
                             <div className="flex items-start gap-3 mb-3">
                                 <div className={`
                   p-2 rounded-lg
-                  ${isSelected ? 'bg-purple-600/20' : 'bg-zinc-800'}
+                  ${isSelected ? 'bg-purple-100 dark:bg-purple-900/40' : 'bg-slate-100 dark:bg-slate-700'}
                 `}>
                                     <Icon className={`
                     w-5 h-5
-                    ${isSelected ? 'text-purple-400' : 'text-zinc-500'}
+                    ${isSelected ? 'text-purple-600 dark:text-purple-400' : 'text-slate-500 dark:text-slate-400'}
                   `} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <h3 className="text-sm font-semibold text-white mb-1">
+                                    <h3 className={`text-sm font-semibold mb-1 ${isSelected ? 'text-purple-900 dark:text-purple-100' : 'text-slate-900 dark:text-white'}`}>
                                         {model.name}
                                     </h3>
-                                    <p className="text-xs text-zinc-500">
+                                    <p className={`text-xs ${isSelected ? 'text-purple-700 dark:text-purple-300' : 'text-slate-500 dark:text-slate-400'}`}>
                                         {model.description}
                                     </p>
                                 </div>
@@ -84,8 +84,8 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                                         className={`
                       text-xs px-2 py-0.5 rounded-full
                       ${isSelected
-                                                ? 'bg-purple-500/20 text-purple-300'
-                                                : 'bg-zinc-800 text-zinc-400'
+                                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300'
+                                                : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
                                             }
                     `}
                                     >

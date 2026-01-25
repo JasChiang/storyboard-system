@@ -56,31 +56,31 @@ export function ApiKeySettings() {
         <>
             {/* 遮罩 */}
             <div
-                className="fixed inset-0 bg-black/50 z-40"
+                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
                 onClick={() => setIsOpen(false)}
             />
 
             {/* 設定面板 */}
-            <div className="fixed right-0 top-0 h-full w-full max-w-md bg-zinc-900 z-50
-                    shadow-2xl overflow-y-auto">
+            <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-slate-900 z-50
+                    shadow-2xl overflow-y-auto border-l border-slate-200 dark:border-slate-800">
                 <div className="p-6 space-y-6">
                     {/* Header */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <Key className="w-6 h-6 text-purple-400" />
-                            <h2 className="text-xl font-bold text-white">API 金鑰設定</h2>
+                            <Key className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">API 金鑰設定</h2>
                         </div>
                         <button
                             onClick={() => setIsOpen(false)}
-                            className="p-2 hover:bg-zinc-800 rounded-lg transition-colors text-zinc-400"
+                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-500 dark:text-slate-400"
                         >
                             ✕
                         </button>
                     </div>
 
                     {/* 說明 */}
-                    <div className="p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-                        <p className="text-sm text-blue-200">
+                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-lg">
+                        <p className="text-sm text-blue-700 dark:text-blue-200">
                             API 金鑰將儲存在瀏覽器的 LocalStorage 中，不會傳送到伺服器
                         </p>
                     </div>
@@ -88,7 +88,7 @@ export function ApiKeySettings() {
                     {/* 顯示/隱藏切換 */}
                     <button
                         onClick={() => setShowKeys(!showKeys)}
-                        className="flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300"
+                        className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                     >
                         {showKeys ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         {showKeys ? '隱藏金鑰' : '顯示金鑰'}
@@ -96,10 +96,10 @@ export function ApiKeySettings() {
 
                     {/* OpenRouter API Key */}
                     <div className="space-y-2">
-                        <label className="block text-sm font-medium text-zinc-300">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                             OpenRouter API Key
                         </label>
-                        <p className="text-xs text-zinc-500 mb-2">
+                        <p className="text-xs text-slate-500 dark:text-slate-500 mb-2">
                             用於分鏡腳本生成 (Claude 3.5 Sonnet / GPT-4o)
                         </p>
                         <input
@@ -107,15 +107,15 @@ export function ApiKeySettings() {
                             value={openrouterKey}
                             onChange={(e) => setOpenrouterKey(e.target.value)}
                             placeholder="sk-or-..."
-                            className="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-lg
-                       text-sm text-zinc-200 placeholder-zinc-600
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg
+                       text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600
                        focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                         />
                         <a
                             href="https://openrouter.ai/settings/keys"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-purple-400 hover:text-purple-300"
+                            className="text-xs text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
                         >
                             獲取 API Key →
                         </a>
@@ -123,10 +123,10 @@ export function ApiKeySettings() {
 
                     {/* Fal AI API Key */}
                     <div className="space-y-2">
-                        <label className="block text-sm font-medium text-zinc-300">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                             Fal AI API Key
                         </label>
-                        <p className="text-xs text-zinc-500 mb-2">
+                        <p className="text-xs text-slate-500 dark:text-slate-500 mb-2">
                             用於圖片和影片生成 (Nano Banana Pro / Kling / Seedance)
                         </p>
                         <input
@@ -134,15 +134,15 @@ export function ApiKeySettings() {
                             value={falKey}
                             onChange={(e) => setFalKey(e.target.value)}
                             placeholder="..."
-                            className="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-lg
-                       text-sm text-zinc-200 placeholder-zinc-600
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg
+                       text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600
                        focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                         />
                         <a
                             href="https://fal.ai/dashboard/keys"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-purple-400 hover:text-purple-300"
+                            className="text-xs text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
                         >
                             獲取 API Key →
                         </a>
@@ -150,10 +150,10 @@ export function ApiKeySettings() {
 
                     {/* Gemini API Key */}
                     <div className="space-y-2">
-                        <label className="block text-sm font-medium text-zinc-300">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                             Gemini API Key
                         </label>
-                        <p className="text-xs text-zinc-500 mb-2">
+                        <p className="text-xs text-slate-500 dark:text-slate-500 mb-2">
                             用於影片分析 (Gemini 2.0 Flash)
                         </p>
                         <input
@@ -161,15 +161,15 @@ export function ApiKeySettings() {
                             value={geminiKey}
                             onChange={(e) => setGeminiKey(e.target.value)}
                             placeholder="AIza..."
-                            className="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-lg
-                       text-sm text-zinc-200 placeholder-zinc-600
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg
+                       text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600
                        focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                         />
                         <a
                             href="https://aistudio.google.com/app/apikey"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-purple-400 hover:text-purple-300"
+                            className="text-xs text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
                         >
                             獲取 API Key →
                         </a>
@@ -180,16 +180,16 @@ export function ApiKeySettings() {
                         onClick={handleSave}
                         className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-700
                      text-white font-medium rounded-lg transition-colors
-                     flex items-center justify-center gap-2"
+                     flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                     >
                         <Save className="w-5 h-5" />
                         {saved ? '已儲存 ✓' : '儲存設定'}
                     </button>
 
                     {/* 使用說明 */}
-                    <div className="p-4 bg-zinc-950 rounded-lg border border-zinc-800">
-                        <h3 className="text-sm font-medium text-zinc-300 mb-2">使用說明</h3>
-                        <ol className="text-xs text-zinc-500 space-y-1 list-decimal list-inside">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
+                        <h3 className="text-sm font-medium text-slate-900 dark:text-slate-300 mb-2">使用說明</h3>
+                        <ol className="text-xs text-slate-600 dark:text-slate-500 space-y-1 list-decimal list-inside">
                             <li>點擊上方連結獲取對應的 API Key</li>
                             <li>將 API Key 貼入對應欄位</li>
                             <li>點擊「儲存設定」即可開始使用</li>

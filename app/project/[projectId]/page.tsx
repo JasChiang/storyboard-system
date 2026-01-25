@@ -75,13 +75,8 @@ export default function ProjectPage() {
   ];
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="pointer-events-none fixed inset-0 flex justify-center overflow-hidden -z-10">
-        <div className="h-[400px] w-[400px] bg-primary/20 rounded-full blur-[128px] translate-y-[-50%] translate-x-[50%] opacity-50" />
-      </div>
-
-      <header className="sticky top-0 z-50 border-b border-border/40 bg-background/60 backdrop-blur-xl supports-[backdrop-filter]:bg-background/20">
+    <>
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-white/50 backdrop-blur-xl dark:bg-black/50 supports-[backdrop-filter]:bg-white/20">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <Link href="/">
@@ -167,6 +162,6 @@ export default function ProjectPage() {
           </div>
         </div>
       </main>
-    </div>
+    </>
   );
 }
