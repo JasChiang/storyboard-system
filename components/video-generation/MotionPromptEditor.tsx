@@ -79,7 +79,7 @@ export function MotionPromptEditor({
                 <button
                     type="button"
                     onClick={() => setShowSuggestions(!showSuggestions)}
-                    className="text-xs text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-colors
+                    className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors
                    flex items-center gap-1"
                 >
                     <Lightbulb className="w-3 h-3" />
@@ -100,7 +100,7 @@ export function MotionPromptEditor({
                 placeholder="描述畫面中的動作、鏡頭運動等... 例如: Camera slowly zooms in, person walks forward"
                 className="w-full px-3 py-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg
                  text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400
-                 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500
+                 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500
                  transition-colors resize-none"
                 rows={4}
                 disabled={disabled}

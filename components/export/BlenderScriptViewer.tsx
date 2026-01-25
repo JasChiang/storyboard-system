@@ -57,7 +57,7 @@ export function BlenderScriptViewer({
             {/* 資訊卡片 */}
             <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="flex items-start gap-3">
-                    <FileCode2 className="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5" />
+                    <FileCode2 className="w-5 h-5 text-blue-700 dark:text-blue-500 mt-0.5" />
                     <div className="flex-1">
                         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-1">
                             Blender Python 腳本
@@ -110,7 +110,7 @@ export function BlenderScriptViewer({
                 {!isGenerated ? (
                     <button
                         onClick={handleGenerate}
-                        className="flex-1 py-3 px-4 bg-purple-600 hover:bg-purple-700
+                        className="flex-1 py-3 px-4 bg-blue-700 hover:bg-blue-800
                      text-white font-medium rounded-lg transition-colors
                      flex items-center justify-center gap-2 shadow-sm"
                     >

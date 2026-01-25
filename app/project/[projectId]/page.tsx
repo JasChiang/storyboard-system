@@ -49,8 +49,8 @@ export default function ProjectPage() {
       description: '為每個場景生成分鏡圖片',
       href: `/project/${projectId}/images`,
       available: !!currentProject.storyboard,
-      color: 'text-purple-500',
-      bg: 'bg-purple-500/10',
+      color: 'text-blue-500',
+      bg: 'bg-blue-500/10',
     },
     {
       id: 'videos',

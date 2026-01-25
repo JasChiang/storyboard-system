@@ -152,11 +152,8 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
         setIsGenerating(true);
 
         try {
-            const apiKey = localStorage.getItem('fal_api_key');
-            if (!apiKey) {
-                alert('請先在設定中輸入 Fal AI API Key');
-                return;
-            }
+            // 獲取 API Key（可選，後端有環境變數備援）
+            const apiKey = localStorage.getItem('fal_api_key') || '';
 
             // 初始化狀態
             scenesWithoutImages.forEach(scene => {
@@ -214,7 +211,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                             onChange={(e) => setAspectRatio(e.target.value)}
                             disabled={isGenerating}
                             className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                       text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
+                       text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
                         >
                             <option value="16:9">16:9 (橫向)</option>
                             <option value="9:16">9:16 (直向)</option>
@@ -231,7 +228,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                             onChange={(e) => setResolution(e.target.value as '1K' | '2K' | '4K')}
                             disabled={isGenerating}
                             className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                       text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
+                       text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
                         >
                             <option value="1K">1K (快速)</option>
                             <option value="2K">2K (推薦)</option>
@@ -281,7 +278,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                                             <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700" />
                                         )}
                                         {status.status === 'generating' && (
-                                            <div className="w-5 h-5 border-2 border-purple-400/30 border-t-purple-600 dark:border-t-purple-400 rounded-full animate-spin" />
+                                            <div className="w-5 h-5 border-2 border-blue-400/30 border-t-blue-700 dark:border-t-blue-500 rounded-full animate-spin" />
                                         )}
                                         {status.status === 'completed' && (
                                             <CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-400" />

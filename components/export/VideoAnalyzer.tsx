@@ -77,7 +77,7 @@ export function VideoAnalyzer({ storyboard, onAnalysisComplete }: VideoAnalyzerP
             {/* 分析說明 */}
             <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="flex items-start gap-3">
-                    <Brain className="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5" />
+                    <Brain className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
                     <div className="flex-1">
                         <h3 className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-1">
                             AI 影片分析

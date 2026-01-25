@@ -196,7 +196,7 @@ export function ProjectReferenceUploader({
                                         text-xs px-1.5 py-0.5 rounded
                                         ${ref.type === 'character' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
                                             ref.type === 'environment' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
-                                                'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'}
+                                                'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'}
                                     `}>
                                         {TYPE_OPTIONS.find(t => t.value === ref.type)?.label}
                                     </span>
@@ -272,7 +272,7 @@ export function ProjectReferenceUploader({
                                                 className={`
                                                     px-2 py-1 text-xs rounded transition-colors flex items-center gap-1
                                                     ${editingRef.angle === angle.value
-                                                        ? 'bg-purple-500 text-white'
+                                                        ? 'bg-blue-500 text-white'
                                                         : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
                                                     }
                                                 `}

@@ -47,7 +47,7 @@ export default function ExportPage() {
           <p className="text-zinc-400">請先建立分鏡腳本</p>
           <Link
             href={`/project/${projectId}/storyboard`}
-            className="mt-4 inline-block px-4 py-2 bg-purple-600 hover:bg-purple-700 
+            className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 
                      text-white rounded-lg transition-colors"
           >
             前往分鏡編輯
@@ -71,7 +71,7 @@ export default function ExportPage() {
             </Link>
             <div>
               <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Scissors className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <Scissors className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 Blender 腳本匯出
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">

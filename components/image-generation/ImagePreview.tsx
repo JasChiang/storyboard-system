@@ -23,7 +23,7 @@ export function ImagePreview({
             <div className="relative w-full aspect-video bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 
                       flex items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-8 h-8 text-purple-600 dark:text-purple-400 animate-spin" />
+                    <Loader2 className="w-8 h-8 text-blue-700 dark:text-blue-500 animate-spin" />
                     <p className="text-sm text-slate-500 dark:text-slate-400">生成圖片中...</p>
                 </div>
             </div>
@@ -66,7 +66,7 @@ export function ImagePreview({
                     <button
                         onClick={onRegenerate}
                         className="absolute bottom-3 right-3 px-4 py-2 
-                     bg-purple-600 hover:bg-purple-700 
+                     bg-blue-700 hover:bg-blue-800 
                      text-white text-sm font-medium rounded-lg
                      opacity-0 group-hover:opacity-100 transition-opacity
                      flex items-center gap-2 shadow-sm"

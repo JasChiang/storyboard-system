@@ -122,12 +122,8 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
         try {
             const prompt = buildImagePrompt();
 
-            // 獲取 API Key
-            const apiKey = localStorage.getItem('fal_api_key');
-            if (!apiKey) {
-                alert('請先在設定中輸入 Fal AI API Key');
-                return;
-            }
+            // 獲取 API Key（可選，後端有環境變數備援）
+            const apiKey = localStorage.getItem('fal_api_key') || '';
 
             // 呼叫生成 API
             const response = await fetch('/api/fal/generate-image', {
@@ -239,7 +235,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                             onChange={(e) => setPromptMode(e.target.value as 'append' | 'replace' | 'prepend')}
                             disabled={isGenerating || !customPrompt}
                             className="appearance-none pl-3 pr-8 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                                     text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-purple-500
+                                     text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-600
                                      disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                         >
                             <option value="append">增強模式</option>
@@ -269,7 +265,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                     placeholder={getPlaceholder()}
                     className="w-full px-3 py-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg
                    text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400
-                   focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500
+                   focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600
                    transition-colors resize-none"
                     rows={3}
                     disabled={isGenerating}
@@ -309,7 +305,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                                 className={`
                                     relative rounded-lg overflow-hidden border-2 transition-all
                                     ${selectedProjectRefs.includes(ref.id)
-                                        ? 'border-purple-500 ring-2 ring-purple-500/30'
+                                        ? 'border-blue-600 ring-2 ring-blue-600/30'
                                         : 'border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-80'
                                     }
                                     disabled:cursor-not-allowed shadow-sm
@@ -326,7 +322,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                                     </p>
                                 </div>
                                 {selectedProjectRefs.includes(ref.id) && (
-                                    <div className="absolute top-1 right-1 w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center">
+                                    <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
                                         <span className="text-white text-[10px]">✓</span>
                                     </div>
                                 )}
@@ -367,7 +363,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                                 onChange={(e) => setAspectRatio(e.target.value)}
                                 disabled={isGenerating}
                                 className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                         text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
+                         text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
                             >
                                 <option value="16:9">16:9 (橫向)</option>
                                 <option value="9:16">9:16 (直向)</option>
@@ -386,7 +382,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                                 onChange={(e) => setResolution(e.target.value as '1K' | '2K' | '4K')}
                                 disabled={isGenerating}
                                 className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                         text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
+                         text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
                             >
                                 <option value="1K">1K (快速)</option>
                                 <option value="2K">2K (推薦)</option>

@@ -53,12 +53,8 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
         setIsGenerating(true);
 
         try {
-            // 獲取 API Key
-            const apiKey = localStorage.getItem('fal_api_key');
-            if (!apiKey) {
-                alert('請先在設定中輸入 Fal AI API Key');
-                return;
-            }
+            // 獲取 API Key（可選，後端有環境變數備援）
+            const apiKey = localStorage.getItem('fal_api_key') || '';
 
             // 呼叫生成 API
             const response = await fetch('/api/fal/generate-video', {
@@ -213,7 +209,7 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                                             onChange={(e) => setKlingDuration(Number(e.target.value) as 5 | 10)}
                                             disabled={isGenerating}
                                             className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
+                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
                                         >
                                             <option value={5}>5 秒</option>
                                             <option value={10}>10 秒</option>
@@ -229,7 +225,7 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                                             onChange={(e) => setKlingAspectRatio(e.target.value as '16:9' | '9:16' | '1:1')}
                                             disabled={isGenerating}
                                             className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-purple-500"
+                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
                                         >
                                             <option value="16:9">16:9 (橫向)</option>
                                             <option value="9:16">9:16 (直向)</option>
@@ -245,7 +241,7 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                                         onChange={(e) => setKlingEnableSound(e.target.checked)}
                                         disabled={isGenerating}
                                         className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900
-                             text-purple-600 focus:ring-purple-500 focus:ring-offset-0"
+                             text-blue-600 focus:ring-blue-600 focus:ring-offset-0"
                                     />
                                     <span className="text-sm text-slate-700 dark:text-slate-300">啟用音效</span>
                                 </label>
@@ -279,7 +275,7 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                                         onChange={(e) => setSeedanceEnableAudio(e.target.checked)}
                                         disabled={isGenerating}
                                         className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900
-                             text-purple-600 focus:ring-purple-500 focus:ring-offset-0"
+                             text-blue-600 focus:ring-blue-600 focus:ring-offset-0"
                                     />
                                     <span className="text-sm text-slate-700 dark:text-slate-300">啟用音頻</span>
                                 </label>

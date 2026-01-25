@@ -34,27 +34,39 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
         setIsUploading(true);
 
         try {
-            // 獲取 API Key
+            // 獲取 API Key（可選，後端有環境變數備援）
             const apiKey = localStorage.getItem('fal_api_key');
-            if (!apiKey) {
-                alert('請先在設定中輸入 Fal AI API Key');
-                setIsUploading(false);
-                return;
-            }
-
-            // 配置 SDK
-            fal.config({
-                credentials: apiKey,
-            });
 
             // 創建本地預覽
             const localPreview = URL.createObjectURL(file);
             setPreview(localPreview);
 
-            console.log('開始上傳到 Fal Storage...');
+            let uploadedUrl = '';
 
-            // 直接使用 SDK 上傳到 Fal Storage
-            const uploadedUrl = await fal.storage.upload(file);
+            if (apiKey) {
+                // 有本地 Key，使用客戶端上傳
+                fal.config({ credentials: apiKey });
+                console.log('使用客戶端上傳到 Fal Storage...');
+                uploadedUrl = await fal.storage.upload(file);
+            } else {
+                // 無本地 Key，嘗試使用伺服器端代理上傳
+                console.log('使用伺服器端代理上傳...');
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/api/fal/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || '上傳失敗，請檢查伺服器 FAL_KEY 設定或在設定中輸入 API Key');
+                }
+
+                const data = await response.json();
+                uploadedUrl = data.url;
+            }
 
             console.log('上傳成功:', uploadedUrl);
 
@@ -129,7 +141,7 @@ export function ReferenceUploader({ value, onChange, disabled }: ReferenceUpload
                     <div className="flex flex-col items-center justify-center p-6">
                         {isUploading ? (
                             <>
-                                <div className="w-12 h-12 border-2 border-slate-300 dark:border-slate-600 border-t-purple-600 dark:border-t-purple-400 rounded-full animate-spin mb-3" />
+                                <div className="w-12 h-12 border-2 border-slate-300 dark:border-slate-600 border-t-blue-600 dark:border-t-blue-500 rounded-full animate-spin mb-3" />
                                 <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
                                     上傳中...
                                 </p>

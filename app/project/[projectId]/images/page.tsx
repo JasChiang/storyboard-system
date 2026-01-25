@@ -85,7 +85,7 @@ export default function ImagesPage() {
           <p className="text-zinc-400">請先建立分鏡腳本</p>
           <Link
             href={`/project/${projectId}/storyboard`}
-            className="mt-4 inline-block px-4 py-2 bg-purple-600 hover:bg-purple-700 
+            className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 
                      text-white rounded-lg transition-colors"
           >
             前往分鏡編輯
@@ -110,7 +110,7 @@ export default function ImagesPage() {
               </Link>
               <div>
                 <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   分鏡圖片生成
                 </h1>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
@@ -127,7 +127,7 @@ export default function ImagesPage() {
                   px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                   flex items-center gap-2
                   ${viewMode === 'individual'
-                    ? 'bg-purple-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                   }
                 `}
@@ -141,7 +141,7 @@ export default function ImagesPage() {
                   px-3 py-1.5 rounded-md text-sm font-medium transition-colors
                   flex items-center gap-2
                   ${viewMode === 'batch'
-                    ? 'bg-purple-600 text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                   }
                 `}
@@ -168,7 +168,7 @@ export default function ImagesPage() {
                     className={`
                       w-full text-left p-4 rounded-lg border transition-all
                       ${selectedSceneId === scene.id
-                        ? 'bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800 ring-1 ring-purple-200 dark:ring-purple-800'
+                        ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 ring-1 ring-blue-200 dark:ring-blue-800'
                         : 'bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                       }
                     `}

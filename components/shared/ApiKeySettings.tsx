@@ -39,7 +39,7 @@ export function ApiKeySettings() {
         return (
             <button
                 onClick={() => setIsOpen(true)}
-                className="fixed bottom-6 right-6 p-4 bg-purple-600 hover:bg-purple-700
+                className="fixed bottom-6 right-6 p-4 bg-blue-700 hover:bg-blue-800
                  text-white rounded-full shadow-lg transition-all z-50
                  flex items-center gap-2 group"
             >
@@ -67,7 +67,7 @@ export function ApiKeySettings() {
                     {/* Header */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <Key className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                            <Key className="w-6 h-6 text-blue-700 dark:text-blue-500" />
                             <h2 className="text-xl font-bold text-slate-900 dark:text-white">API 金鑰設定</h2>
                         </div>
                         <button
@@ -109,13 +109,13 @@ export function ApiKeySettings() {
                             placeholder="sk-or-..."
                             className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg
                        text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600
-                       focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                       focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                         />
                         <a
                             href="https://openrouter.ai/settings/keys"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+                            className="text-xs text-blue-700 hover:text-blue-800 dark:text-blue-500 dark:hover:text-blue-400"
                         >
                             獲取 API Key →
                         </a>
@@ -136,13 +136,13 @@ export function ApiKeySettings() {
                             placeholder="..."
                             className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg
                        text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600
-                       focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                       focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                         />
                         <a
                             href="https://fal.ai/dashboard/keys"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+                            className="text-xs text-blue-700 hover:text-blue-800 dark:text-blue-500 dark:hover:text-blue-400"
                         >
                             獲取 API Key →
                         </a>
@@ -163,13 +163,13 @@ export function ApiKeySettings() {
                             placeholder="AIza..."
                             className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg
                        text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600
-                       focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                       focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                         />
                         <a
                             href="https://aistudio.google.com/app/apikey"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+                            className="text-xs text-blue-700 hover:text-blue-800 dark:text-blue-500 dark:hover:text-blue-400"
                         >
                             獲取 API Key →
                         </a>
@@ -178,7 +178,7 @@ export function ApiKeySettings() {
                     {/* 儲存按鈕 */}
                     <button
                         onClick={handleSave}
-                        className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-700
+                        className="w-full py-3 px-4 bg-blue-700 hover:bg-blue-800
                      text-white font-medium rounded-lg transition-colors
                      flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                     >

@@ -48,30 +48,30 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                 relative p-4 rounded-lg border-2 transition-all text-left shadow-sm
                 disabled:opacity-50 disabled:cursor-not-allowed
                 ${isSelected
-                                    ? 'border-purple-600 bg-purple-50 dark:bg-purple-900/20'
+                                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
                                     : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600'
                                 }
               `}
                         >
                             {isSelected && (
-                                <div className="absolute top-2 right-2 w-2 h-2 bg-purple-600 dark:bg-purple-500 rounded-full" />
+                                <div className="absolute top-2 right-2 w-2 h-2 bg-blue-600 dark:bg-blue-500 rounded-full" />
                             )}
 
                             <div className="flex items-start gap-3 mb-3">
                                 <div className={`
                   p-2 rounded-lg
-                  ${isSelected ? 'bg-purple-100 dark:bg-purple-900/40' : 'bg-slate-100 dark:bg-slate-700'}
+                  ${isSelected ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-slate-100 dark:bg-slate-700'}
                 `}>
                                     <Icon className={`
                     w-5 h-5
-                    ${isSelected ? 'text-purple-600 dark:text-purple-400' : 'text-slate-500 dark:text-slate-400'}
+                    ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}
                   `} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <h3 className={`text-sm font-semibold mb-1 ${isSelected ? 'text-purple-900 dark:text-purple-100' : 'text-slate-900 dark:text-white'}`}>
+                                    <h3 className={`text-sm font-semibold mb-1 ${isSelected ? 'text-blue-900 dark:text-blue-100' : 'text-slate-900 dark:text-white'}`}>
                                         {model.name}
                                     </h3>
-                                    <p className={`text-xs ${isSelected ? 'text-purple-700 dark:text-purple-300' : 'text-slate-500 dark:text-slate-400'}`}>
+                                    <p className={`text-xs ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'}`}>
                                         {model.description}
                                     </p>
                                 </div>
@@ -84,7 +84,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
                                         className={`
                       text-xs px-2 py-0.5 rounded-full
                       ${isSelected
-                                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300'
+                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
                                                 : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
                                             }
                     `}
