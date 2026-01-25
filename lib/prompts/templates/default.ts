@@ -8,6 +8,7 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
 
 請為每個場景提供：
 1. 場景編號 (sceneNumber) - 從 1 開始的連續編號
+
 2. 場景描述 (description) - 詳細描述畫面的靜態視覺內容，包含：
    - 環境與場景設定（室內/室外、地點、背景元素）
    - 角色的位置、姿態、表情、動作狀態
@@ -28,10 +29,32 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
    - 環繞 (Orbit around)
    - 固定 (Static shot)
    ⚠️ 注意：cameraMovement 只描述鏡頭運動，不要包含畫面內容
+
+4. 🆕 智慧首尾幀判斷 (requiresEndFrame) - 根據以下邏輯判斷是否需要生成「尾幀」：
    
-4. 對話/旁白 (dialogue) - 該場景的對白或旁白文字
-5. 時長建議 (duration) - 以秒為單位的建議時長
-6. 備註 (notes) - 任何額外的製作提示、特效需求等
+   【判斷規則】：
+   a) 一般原則：
+      - 如果運鏡幅度大（>30% 畫面位移或視角改變），設 requiresEndFrame = true
+      - 如果是人物對話或細微動作（表情變化、手勢），設 requiresEndFrame = false（避免臉部變形）
+   
+   b) 🔥 商品/剛體特殊規則（Product Rules）：
+      - 如果畫面核心是「特定商品」（如手機、飲料、Logo），且鏡頭運動主要為平移或推軌（Pan/Dolly），
+        請務必設 requiresEndFrame = false。
+        （原因：避免首尾幀的 Logo 細節不一致導致影片生成時產生果凍效應）
+      - 只有在「商品發生物理狀態改變」時（如：打開蓋子、被壓扁、液體流出），才設 requiresEndFrame = true。
+   
+   c) 範例：
+      - ✅ requiresEndFrame = true: 鏡頭從室內推到室外、角色從畫面左邊跑到右邊消失、商品包裝被打開
+      - ❌ requiresEndFrame = false: 雙人對話、特寫表情、商品旋轉展示、推軌近景
+   
+5. 尾幀描述 (endFrameDescription) - 只在 requiresEndFrame = true 時填寫：
+   - 描述尾幀的靜態畫面（類似 description 的寫法）
+   - 必須與 description 邏輯一致（起點→終點的合理過渡）
+   - 如果 requiresEndFrame = false，此欄位必須留空 ("")
+
+6. 對話/旁白 (dialogue) - 該場景的對白或旁白文字
+7. 時長建議 (duration) - 以秒為單位的建議時長
+8. 備註 (notes) - 任何額外的製作提示、特效需求等
 
 請確保場景之間有良好的敘事連貫性和視覺節奏。`,
 
@@ -59,6 +82,14 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                             type: 'string',
                             description: '鏡頭運動方式（不含畫面內容）'
                         },
+                        requiresEndFrame: {
+                            type: 'boolean',
+                            description: 'AI 判斷是否需要生成尾幀（依據運鏡幅度與商品規則）'
+                        },
+                        endFrameDescription: {
+                            type: 'string',
+                            description: '尾幀的靜態畫面描述（只在 requiresEndFrame = true 時填寫，否則留空）'
+                        },
                         dialogue: {
                             type: 'string',
                             description: '對話或旁白'
@@ -72,7 +103,7 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                             description: '額外備註'
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'dialogue', 'duration']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration']
                 }
             }
         },

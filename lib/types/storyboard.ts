@@ -8,6 +8,10 @@ export interface Scene {
   duration: number;              // 時長建議 (秒)
   notes?: string;                // 備註
 
+  // Smart Keyframing (智慧首尾幀)
+  requiresEndFrame?: boolean;    // AI 判斷是否需要生成尾幀
+  endFrameDescription?: string;  // 尾幀的靜態畫面描述
+
   // 生成資源
   referenceImage?: string;       // 參考素材圖 (base64 or URL)
   generatedImage?: {
@@ -45,6 +49,10 @@ export interface ProjectReference {
   type: 'character' | 'product' | 'environment' | 'style';
   name?: string;                 // 角色名稱 或 商品名稱
   descriptionSource: 'manual' | 'ai';  // 描述來源
+
+  // Multi-Angle Support (多視角支援)
+  angle?: 'front' | 'side' | 'back' | 'top' | 'other';  // 視角標籤
+  aiDescription?: string;        // Vision AI 自動生成的詳細描述
 }
 
 // 提示詞模板

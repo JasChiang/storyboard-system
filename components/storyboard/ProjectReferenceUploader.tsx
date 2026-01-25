@@ -18,6 +18,14 @@ const TYPE_OPTIONS = [
     { value: 'style', label: '風格', hint: '視覺風格參考' },
 ] as const;
 
+const ANGLE_OPTIONS = [
+    { value: 'front', label: '正面', emoji: '⬛' },
+    { value: 'side', label: '側面', emoji: '◼️' },
+    { value: 'back', label: '背面', emoji: '⬜' },
+    { value: 'top', label: '頂部', emoji: '🔼' },
+    { value: 'other', label: '其他', emoji: '⚪' },
+] as const;
+
 export function ProjectReferenceUploader({
     references,
     onChange,
@@ -61,7 +69,8 @@ export function ProjectReferenceUploader({
                 id: crypto.randomUUID(),
                 url: uploadedUrl,
                 description: '',
-                type: 'character',
+                type: 'product',  // 預設商品類型
+                angle: 'front',    // 🆕 預設正面
                 descriptionSource: 'manual',
             };
 
@@ -77,42 +86,58 @@ export function ProjectReferenceUploader({
         }
     };
 
+    // 🆕 使用新的 Gemini Vision API 分析參考圖
     const handleAIDescribe = async () => {
         if (!editingRef) return;
 
         setIsDescribing(true);
 
         try {
-            const apiKey = localStorage.getItem('openrouter_api_key');
+            const apiKey = localStorage.getItem('gemini_api_key');
             if (!apiKey) {
-                alert('請先在設定中輸入 OpenRouter API Key');
+                alert('請先在設定中輸入 Gemini API Key');
                 return;
             }
 
-            const response = await fetch('/api/describe-image', {
+            // Convert URL to base64 if needed
+            const imageBase64 = await fetch(editingRef.url)
+                .then(res => res.blob())
+                .then(blob => {
+                    return new Promise<string>((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result as string);
+                        reader.readAsDataURL(blob);
+                    });
+                });
+
+            const response = await fetch('/api/gemini/analyze-reference', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Gemini-API-Key': apiKey,
+                },
                 body: JSON.stringify({
-                    imageUrl: editingRef.url,
+                    imageBase64,
+                    angle: editingRef.angle || 'front',
                     type: editingRef.type,
-                    apiKey,
                 }),
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || 'AI 描述失敗');
+                throw new Error(data.error || 'AI 分析失敗');
             }
 
             setEditingRef({
                 ...editingRef,
                 description: data.description,
+                aiDescription: data.description,  // 🆕 儲存 AI 描述
                 descriptionSource: 'ai',
             });
         } catch (error) {
             console.error('AI describe error:', error);
-            alert(error instanceof Error ? error.message : 'AI 描述失敗');
+            alert(error instanceof Error ? error.message : 'AI 分析失敗');
         } finally {
             setIsDescribing(false);
         }
@@ -173,6 +198,13 @@ export function ProjectReferenceUploader({
                                         <Sparkles className="w-3 h-3 text-amber-500" />
                                     )}
                                 </div>
+                                <div className="flex items-center gap-1 mb-1">
+                                    {ref.angle && (
+                                        <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                            {ANGLE_OPTIONS.find(a => a.value === ref.angle)?.emoji} {ANGLE_OPTIONS.find(a => a.value === ref.angle)?.label}
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">
                                     {ref.description}
                                 </p>
@@ -218,6 +250,32 @@ export function ProjectReferenceUploader({
                                     </button>
                                 ))}
                             </div>
+
+                            {/* 🆕 視角選擇 (只在商品和角色時顯示) */}
+                            {(editingRef.type === 'product' || editingRef.type === 'character') && (
+                                <div>
+                                    <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">視角</label>
+                                    <div className="flex gap-1.5">
+                                        {ANGLE_OPTIONS.map((angle) => (
+                                            <button
+                                                key={angle.value}
+                                                onClick={() => setEditingRef({ ...editingRef, angle: angle.value })}
+                                                className={`
+                                                    px-2 py-1 text-xs rounded transition-colors flex items-center gap-1
+                                                    ${editingRef.angle === angle.value
+                                                        ? 'bg-purple-500 text-white'
+                                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                                    }
+                                                `}
+                                                title={angle.label}
+                                            >
+                                                <span>{angle.emoji}</span>
+                                                <span className="hidden sm:inline">{angle.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* 名稱（角色和商品顯示） */}
                             {(editingRef.type === 'character' || editingRef.type === 'product') && (

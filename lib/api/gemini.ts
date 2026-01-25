@@ -1,5 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { GoogleAIFileManager } from '@google/generative-ai/server';
+import { GoogleGenAI } from '@google/genai';
 import { Storyboard } from '../types/storyboard';
 import { EditingSuggestion } from '../types/project';
 
@@ -20,9 +19,7 @@ export async function uploadVideoToGemini(
   file: File,
   config: GeminiConfig
 ): Promise<UploadedFile> {
-  // 注意：GoogleAIFileManager 需要在 Node.js 環境運行
-  // 這個函數應該在 API Route 中使用
-  const fileManager = new GoogleAIFileManager(config.apiKey);
+  const ai = new GoogleGenAI({ apiKey: config.apiKey });
 
   // 將 File 轉換為 Buffer (在 API Route 中)
   const arrayBuffer = await file.arrayBuffer();
@@ -33,26 +30,30 @@ export async function uploadVideoToGemini(
   const fs = await import('fs/promises');
   await fs.writeFile(tempPath, buffer);
 
-  const uploadResult = await fileManager.uploadFile(tempPath, {
-    mimeType: file.type,
-    displayName: file.name,
+  // 使用新 SDK 的 files API
+  const uploadResult = await ai.files.upload({
+    file: tempPath,
+    config: {
+      mimeType: file.type,
+      displayName: file.name,
+    },
   });
 
   // 等待處理完成
-  let uploadedFile = await fileManager.getFile(uploadResult.file.name);
+  let uploadedFile = await ai.files.get({ name: uploadResult.name || '' });
   while (uploadedFile.state === 'PROCESSING') {
     await new Promise(resolve => setTimeout(resolve, 5000));
-    uploadedFile = await fileManager.getFile(uploadResult.file.name);
+    uploadedFile = await ai.files.get({ name: uploadResult.name || '' });
   }
 
   // 清理臨時檔案
   await fs.unlink(tempPath);
 
   return {
-    name: uploadedFile.name,
-    uri: uploadedFile.uri,
-    mimeType: uploadedFile.mimeType,
-    sizeBytes: uploadedFile.sizeBytes,
+    name: uploadedFile.name || '',
+    uri: uploadedFile.uri || '',
+    mimeType: uploadedFile.mimeType || file.type,
+    sizeBytes: uploadedFile.sizeBytes?.toString(),
     state: uploadedFile.state as 'PROCESSING' | 'ACTIVE' | 'FAILED',
   };
 }
@@ -64,9 +65,8 @@ export async function analyzeVideosForEditing(
   config: GeminiConfig
 ): Promise<EditingSuggestion> {
   try {
-    const genAI = new GoogleGenerativeAI(config.apiKey);
+    const ai = new GoogleGenAI({ apiKey: config.apiKey });
     const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
-    const model = genAI.getGenerativeModel({ model: modelName });
 
     // 構建影片內容參考
     const videoParts = uploadedFiles.map(file => ({
@@ -78,21 +78,25 @@ export async function analyzeVideosForEditing(
 
     const prompt = buildEditingAnalysisPrompt(storyboard);
 
-    const result = await model.generateContent([
-      ...videoParts,
-      { text: prompt }
-    ]);
+    // 使用新 SDK 的 models API
+    const result = await ai.models.generateContent({
+      model: modelName,
+      contents: [
+        ...videoParts,
+        { text: prompt }
+      ],
+    });
 
-    const responseText = result.response.text();
+    const responseText = result.text || '';
     return parseEditingSuggestion(responseText);
   } catch (error: any) {
     // 處理配額超限錯誤
     if (error?.message?.includes('quota') || error?.message?.includes('429')) {
       throw new Error(
-        `Gemini API 配額已超限。建議解決方案：\n` +
-        `1. 在 .env.local 中將 GEMINI_MODEL 改為 gemini-1.5-flash\n` +
-        `2. 或使用 gemini-1.5-pro (更高配額)\n` +
-        `3. 或等待配額重置（通常為每日/每分鐘限制）\n\n` +
+        `Gemini API 配額已超限。建議解決方案：\\n` +
+        `1. 在 .env.local 中將 GEMINI_MODEL 改為 gemini-1.5-flash\\n` +
+        `2. 或使用 gemini-1.5-pro (更高配額)\\n` +
+        `3. 或等待配額重置（通常為每日/每分鐘限制）\\n\\n` +
         `原始錯誤: ${error.message}`
       );
     }

@@ -47,6 +47,14 @@ MV 分鏡要點：
                             type: 'string',
                             description: '鏡頭運動方式'
                         },
+                        requiresEndFrame: {
+                            type: 'boolean',
+                            description: 'AI 判斷是否需要生成尾幀'
+                        },
+                        endFrameDescription: {
+                            type: 'string',
+                            description: '尾幀描述（requiresEndFrame=true 時填寫）'
+                        },
                         dialogue: {
                             type: 'string',
                             description: '對話或旁白'
@@ -60,7 +68,7 @@ MV 分鏡要點：
                             description: '額外備註'
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'dialogue', 'duration']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration']
                 }
             }
         },
