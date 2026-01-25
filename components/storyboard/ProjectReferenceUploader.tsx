@@ -109,9 +109,6 @@ export function ProjectReferenceUploader({
         setIsDescribing(true);
 
         try {
-            const apiKey = localStorage.getItem('gemini_api_key') || '';
-            // 移除前端阻擋，讓後端環境變數作為備援
-
             // Convert URL to base64 if needed
             const imageBase64 = await fetch(editingRef.url)
                 .then(res => res.blob())
@@ -123,11 +120,10 @@ export function ProjectReferenceUploader({
                     });
                 });
 
-            const response = await fetch('/api/gemini/analyze-reference', {
+            const response = await fetch('/api/openrouter/analyze-reference', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Gemini-API-Key': apiKey,
                 },
                 body: JSON.stringify({
                     imageBase64,

@@ -85,3 +85,71 @@ export async function generateStoryboardScript(
     throw new Error('AI 回傳的內容不是有效的 JSON 格式。請檢查 console 查看完整內容。');
   }
 }
+
+/**
+ * 分析參考圖片
+ */
+export async function analyzeReferenceImage(
+  base64Image: string,
+  prompt: string,
+  config: OpenRouterConfig
+): Promise<string> {
+  const model = process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.0-flash-001';
+
+  // 處理 base64 圖片格式
+  // OpenRouter 預期 URL 格式或 base64 data URI
+  // 如果輸入已經是 data URI (data:image/...) 則直接使用，否則加上前綴
+  const imageUrl = base64Image.startsWith('data:')
+    ? base64Image
+    : `data:image/jpeg;base64,${base64Image}`;
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+      'X-Title': 'Storyboard System',
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: prompt
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: imageUrl
+              }
+            }
+          ]
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    let errorDetails = '';
+    try {
+      const errorData = await response.json();
+      errorDetails = errorData.error?.message || JSON.stringify(errorData);
+    } catch {
+      errorDetails = await response.text();
+    }
+    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
+  }
+
+  const data: OpenRouterResponse = await response.json();
+  const content = data.choices[0]?.message?.content;
+
+  if (!content) {
+    throw new Error('OpenRouter 沒有回傳任何內容');
+  }
+
+  return content;
+}

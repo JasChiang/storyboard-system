@@ -18,11 +18,21 @@ export function buildSystemPrompt(
 
         prompt += `\n\n---\n\n## 用戶已提供的參考圖\n\n`;
 
+        const angleMap: Record<string, string> = {
+            'front': 'Front View (正面)',
+            'side': 'Side View (側面)',
+            'three_quarter': '3/4 View (3/4側)',
+            'back': 'Back View (背面)',
+            'top': 'Top View (頂視)',
+            'other': 'Other View'
+        };
+
         if (characterRefs.length > 0) {
             prompt += `### 角色參考\n`;
             characterRefs.forEach(r => {
                 const charName = r.name || '未命名角色';
-                prompt += `- **<${charName}>**: ${r.description}\n`;
+                const angleInfo = r.angle ? ` [${angleMap[r.angle] || r.angle}]` : '';
+                prompt += `- **<${charName}>**${angleInfo}: ${r.description}\n`;
             });
             prompt += '\n';
         }
@@ -31,7 +41,8 @@ export function buildSystemPrompt(
             prompt += `### 商品參考\n`;
             productRefs.forEach(r => {
                 const prodName = r.name || '未命名商品';
-                prompt += `- **<${prodName}>**: ${r.description}\n`;
+                const angleInfo = r.angle ? ` [${angleMap[r.angle] || r.angle}]` : '';
+                prompt += `- **<${prodName}>**${angleInfo}: ${r.description}\n`;
             });
             prompt += '\n';
         }
