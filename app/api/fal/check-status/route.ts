@@ -5,13 +5,25 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { requestId, endpoint, type } = body;
-        // 使用環境變數作為 API Key 的備援（與 generate-image 一致）
-        const apiKey = body.apiKey || process.env.FAL_API_KEY;
+        const apiKey = process.env.FAL_API_KEY;
 
-        if (!requestId || !endpoint || !type || !apiKey) {
+        if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
+            return NextResponse.json(
+                { error: 'Client-provided apiKey is not allowed' },
+                { status: 400 }
+            );
+        }
+
+        if (!requestId || !endpoint || !type) {
             return NextResponse.json(
                 { error: 'Missing required fields' },
                 { status: 400 }
+            );
+        }
+        if (!apiKey) {
+            return NextResponse.json(
+                { error: 'Missing FAL_API_KEY on server' },
+                { status: 500 }
             );
         }
 

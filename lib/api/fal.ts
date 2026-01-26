@@ -10,6 +10,18 @@ export interface FalConfig {
   apiKey: string;
 }
 
+type FalQueueLog = {
+  message?: string;
+};
+
+type FalQueueStatusResponse = {
+  status?: string;
+  response_url?: string;
+  logs?: FalQueueLog[];
+  error?: string;
+  metrics?: Record<string, unknown>;
+};
+
 // 設定 Fal SDK
 function configureFal(apiKey: string) {
   fal.config({
@@ -165,17 +177,17 @@ export async function checkQueueStatus(
   console.log('Checking status for:', requestId, 'on endpoint:', endpoint);
 
   try {
-    const status: any = await fal.queue.status(endpoint, {
+    const status = (await fal.queue.status(endpoint, {
       requestId,
       logs: true,
-    });
+    })) as FalQueueStatusResponse;
 
     console.log('Status response:', JSON.stringify(status, null, 2));
 
     return {
       status: status.status as 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED',
       response_url: status.response_url,
-      logs: status.logs?.map((log: any) => log.message),
+      logs: status.logs?.map((log) => log.message),
       error: status.error,
       metrics: status.metrics,
     };

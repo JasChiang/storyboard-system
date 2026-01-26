@@ -5,12 +5,25 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { prompt, referenceImage, aspectRatio, resolution } = body;
-        const apiKey = body.apiKey || process.env.FAL_API_KEY;
+        const apiKey = process.env.FAL_API_KEY;
 
-        if (!prompt || !apiKey) {
+        if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
+            return NextResponse.json(
+                { error: 'Client-provided apiKey is not allowed' },
+                { status: 400 }
+            );
+        }
+
+        if (!prompt) {
             return NextResponse.json(
                 { error: 'Missing required fields' },
                 { status: 400 }
+            );
+        }
+        if (!apiKey) {
+            return NextResponse.json(
+                { error: 'Missing FAL_API_KEY on server' },
+                { status: 500 }
             );
         }
 
