@@ -1,4 +1,4 @@
-import { EditingSuggestion } from '../types/project';
+import { EditingSuggestion, SceneEditSuggestion } from '../types/project';
 import type { Scene } from '../types/storyboard';
 
 export interface BlenderScriptOptions {
@@ -690,12 +690,17 @@ function generateVideoDataSection(
     fps: number = 30,
     transitionFrames: number = 15
 ): string {
+    type SceneEditSuggestionExtended = SceneEditSuggestion & {
+        modifiers?: string[];
+        speedFactor?: number;
+    };
+
     const videoDataItems = videoMappings.map((mapping) => {
         const { scene } = mapping;
 
         const sceneEditInfo = editingSuggestion?.scenes?.find(
             s => s.sceneId === scene.id
-        );
+        ) as SceneEditSuggestionExtended | undefined;
 
         const inPoint = sceneEditInfo?.inPoint || 0;
         const outPoint = sceneEditInfo?.outPoint || scene.duration || 5;
@@ -703,9 +708,9 @@ function generateVideoDataSection(
         // 效果列表
         const effects = sceneEditInfo?.effects || [];
         // 修飾器列表 (Blender 5.0 新增)
-        const modifiers = (sceneEditInfo as any)?.modifiers || [];
+        const modifiers = sceneEditInfo?.modifiers || [];
         // 速度因子
-        const speedFactor = (sceneEditInfo as any)?.speedFactor || 1.0;
+        const speedFactor = sceneEditInfo?.speedFactor || 1.0;
 
         return `        {
             "name": "Scene_${scene.sceneNumber}",
