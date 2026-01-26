@@ -129,15 +129,16 @@ export async function analyzeVideosForEditing(
 
     const responseText = result.text || '';
     return parseEditingSuggestion(responseText);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : '';
     // 處理配額超限錯誤
-    if (error?.message?.includes('quota') || error?.message?.includes('429')) {
+    if (message.includes('quota') || message.includes('429')) {
       throw new Error(
         `Gemini API 配額已超限。建議解決方案：\\n` +
         `1. 在 .env.local 中將 GEMINI_MODEL 改為 gemini-1.5-flash\\n` +
         `2. 或使用 gemini-1.5-pro (更高配額)\\n` +
         `3. 或等待配額重置（通常為每日/每分鐘限制）\\n\\n` +
-        `原始錯誤: ${error.message}`
+        `原始錯誤: ${message || 'Unknown error'}`
       );
     }
 
