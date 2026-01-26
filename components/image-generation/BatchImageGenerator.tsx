@@ -60,7 +60,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
         return parts.join('. ');
     };
 
-    const generateSingleImage = async (scene: Scene, apiKey: string) => {
+    const generateSingleImage = async (scene: Scene) => {
         updateStatus(scene.id, { status: 'generating' });
 
         try {
@@ -78,7 +78,6 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                     ], // 結合場景個別參考圖與專案級參考圖
                     aspectRatio,
                     resolution,
-                    apiKey,
                 }),
             });
 
@@ -87,12 +86,15 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
             if (!response.ok) {
                 throw new Error(data.error || 'Generation failed');
             }
+            if (!data.endpoint) {
+                throw new Error('Missing endpoint from server');
+            }
 
             // 輪詢狀態 - 使用 API 回傳的 endpoint
             const requestId = data.request_id;
             const endpoint = data.endpoint; // 從後端回傳的正確 endpoint
 
-            const imageUrl = await pollStatus(requestId, endpoint, apiKey);
+            const imageUrl = await pollStatus(requestId, endpoint);
 
             updateStatus(scene.id, {
                 status: 'completed',
@@ -113,8 +115,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
 
     const pollStatus = async (
         requestId: string,
-        endpoint: string,
-        apiKey: string
+        endpoint: string
     ): Promise<string> => {
         const maxAttempts = 60;
         let attempts = 0;
@@ -127,7 +128,6 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                     requestId,
                     endpoint,
                     type: 'image',
-                    apiKey,
                 }),
             });
 
@@ -141,7 +141,9 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                 throw new Error(data.error || 'Generation failed');
             }
 
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            const delayMs = Math.min(15000, 2000 * Math.pow(1.5, attempts));
+            const jitter = Math.floor(delayMs * 0.2 * Math.random());
+            await new Promise(resolve => setTimeout(resolve, delayMs + jitter));
             attempts++;
         }
 
@@ -152,9 +154,6 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
         setIsGenerating(true);
 
         try {
-            // 取得 API Key（可選，後端有環境變數備援）
-            const apiKey = localStorage.getItem('fal_api_key') || '';
-
             // 初始化狀態
             scenesWithoutImages.forEach(scene => {
                 updateStatus(scene.id, { status: 'pending' });
@@ -165,7 +164,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
             // 依序生成（避免超過 API 限制）
             for (const scene of scenesWithoutImages) {
                 try {
-                    const result = await generateSingleImage(scene, apiKey);
+                    const result = await generateSingleImage(scene);
                     results.set(scene.id, result);
                 } catch (error) {
                     console.error(`Failed to generate image for scene ${scene.sceneNumber}:`, error);

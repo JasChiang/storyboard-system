@@ -122,9 +122,6 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
         try {
             const prompt = buildImagePrompt();
 
-            // 取得 API Key（可選，後端有環境變數備援）
-            const apiKey = localStorage.getItem('fal_api_key') || '';
-
             // 呼叫生成 API
             const response = await fetch('/api/fal/generate-image', {
                 method: 'POST',
@@ -134,7 +131,6 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                     referenceImage: getSelectedReferenceUrls(), // 傳送所有選取的參考圖 URL
                     aspectRatio,
                     resolution,
-                    apiKey,
                 }),
             });
 
@@ -143,12 +139,15 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
             if (!response.ok) {
                 throw new Error(data.error || 'Generation failed');
             }
+            if (!data.endpoint) {
+                throw new Error('Missing endpoint from server');
+            }
 
             // 輪詢檢查狀態 - 使用 API 回傳的 endpoint
             const requestId = data.request_id;
             const endpoint = data.endpoint; // 從後端回傳的正確 endpoint
 
-            await pollStatus(requestId, endpoint, apiKey, prompt);
+            await pollStatus(requestId, endpoint, prompt);
         } catch (error) {
             console.error('Generate error:', error);
             alert(error instanceof Error ? error.message : '生成失敗');
@@ -160,7 +159,6 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
     const pollStatus = async (
         requestId: string,
         endpoint: string,
-        apiKey: string,
         prompt: string
     ) => {
         const maxAttempts = 60; // 最多等 5 分鐘
@@ -174,7 +172,6 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                     requestId,
                     endpoint,
                     type: 'image',
-                    apiKey,
                 }),
             });
 
@@ -190,8 +187,9 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                 throw new Error(data.error || 'Generation failed');
             }
 
-            // 等待 5 秒後重試
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            const delayMs = Math.min(15000, 2000 * Math.pow(1.5, attempts));
+            const jitter = Math.floor(delayMs * 0.2 * Math.random());
+            await new Promise(resolve => setTimeout(resolve, delayMs + jitter));
             attempts++;
         }
 

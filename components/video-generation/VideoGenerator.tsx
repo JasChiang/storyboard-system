@@ -55,9 +55,6 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
         setIsGenerating(true);
 
         try {
-            // 取得 API Key（可選，後端有環境變數備援）
-            const apiKey = localStorage.getItem('fal_api_key') || '';
-
             // 呼叫生成 API
             const response = await fetch('/api/fal/generate-video', {
                 method: 'POST',
@@ -71,7 +68,6 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                     resolution: model === 'seedance' ? seedanceResolution : undefined,
                     enableSound: model === 'kling' ? klingEnableSound : undefined,
                     enableAudio: model === 'seedance' ? seedanceEnableAudio : undefined,
-                    apiKey,
                 }),
             });
 
@@ -80,14 +76,15 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
             if (!response.ok) {
                 throw new Error(data.error || 'Generation failed');
             }
+            if (!data.endpoint) {
+                throw new Error('Missing endpoint from server');
+            }
 
             // 輪詢檢查狀態
             const requestId = data.request_id;
-            const endpoint = model === 'kling'
-                ? 'fal-ai/kling-video/v2.6/pro/image-to-video'
-                : 'fal-ai/bytedance/seedance/v1.5/pro/image-to-video';
+            const endpoint = data.endpoint;
 
-            await pollStatus(requestId, endpoint, apiKey);
+            await pollStatus(requestId, endpoint);
         } catch (error) {
             console.error('Generate error:', error);
             alert(error instanceof Error ? error.message : '生成失敗');
@@ -98,8 +95,7 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
 
     const pollStatus = async (
         requestId: string,
-        endpoint: string,
-        apiKey: string
+        endpoint: string
     ) => {
         const maxAttempts = 120; // 最多等 10 分鐘（影片生成較慢）
         let attempts = 0;
@@ -112,7 +108,6 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                     requestId,
                     endpoint,
                     type: 'video',
-                    apiKey,
                 }),
             });
 
@@ -128,8 +123,9 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                 throw new Error(data.error || 'Generation failed');
             }
 
-            // 等待 5 秒後重試
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            const delayMs = Math.min(20000, 3000 * Math.pow(1.5, attempts));
+            const jitter = Math.floor(delayMs * 0.2 * Math.random());
+            await new Promise(resolve => setTimeout(resolve, delayMs + jitter));
             attempts++;
         }
 
