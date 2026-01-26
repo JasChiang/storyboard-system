@@ -50,6 +50,9 @@ export function StoryboardTable({ scenes, onUpdateScene, onDeleteScene }: Storyb
                 時長
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                首尾幀
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 操作
               </th>
             </tr>

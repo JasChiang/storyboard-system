@@ -24,7 +24,7 @@ export default function ImagesPage() {
   const scenes = currentProject?.storyboard?.scenes || [];
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
 
-  const handleImageGenerated = (sceneId: string, imageUrl: string, prompt: string) => {
+  const handleImageGenerated = (sceneId: string, imageUrl: string, prompt: string, endFrameUrl?: string, endFramePrompt?: string) => {
     if (!currentProject?.storyboard) return;
 
     const updatedScenes = currentProject.storyboard.scenes.map(scene =>
@@ -36,6 +36,11 @@ export default function ImagesPage() {
             prompt,
             timestamp: new Date().toISOString(),
           },
+          generatedEndFrame: endFrameUrl ? {
+            url: endFrameUrl,
+            prompt: endFramePrompt || '',
+            timestamp: new Date().toISOString(),
+          } : scene.generatedEndFrame, // 保留現有尾幀
         }
         : scene
     );
@@ -50,7 +55,7 @@ export default function ImagesPage() {
     });
   };
 
-  const handleBatchComplete = (results: Map<string, { url: string; prompt: string }>) => {
+  const handleBatchComplete = (results: Map<string, { url: string; prompt: string; endFrameUrl?: string; endFramePrompt?: string }>) => {
     if (!currentProject?.storyboard) return;
 
     const updatedScenes = currentProject.storyboard.scenes.map(scene => {
@@ -63,6 +68,12 @@ export default function ImagesPage() {
             prompt: result.prompt,
             timestamp: new Date().toISOString(),
           },
+          // 如果有尾幀，也儲存尾幀資訊
+          generatedEndFrame: result.endFrameUrl ? {
+            url: result.endFrameUrl,
+            prompt: result.endFramePrompt || '',
+            timestamp: new Date().toISOString(),
+          } : undefined,
         };
       }
       return scene;
@@ -197,8 +208,8 @@ export default function ImagesPage() {
                 <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
                   <ImageGenerator
                     scene={selectedScene}
-                    onImageGenerated={(url, prompt) =>
-                      handleImageGenerated(selectedScene.id, url, prompt)
+                    onImageGenerated={(url, prompt, endFrameUrl, endFramePrompt) =>
+                      handleImageGenerated(selectedScene.id, url, prompt, endFrameUrl, endFramePrompt)
                     }
                     projectReferences={currentProject.storyboard?.projectReferences}
                   />
@@ -230,6 +241,7 @@ export default function ImagesPage() {
                     key={scene.id}
                     className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-3 space-y-2 backdrop-blur-sm"
                   >
+                    {/* 首幀 */}
                     <div className="aspect-video bg-slate-100 dark:bg-slate-800 rounded overflow-hidden">
                       {scene.generatedImage ? (
                         <img
@@ -243,9 +255,34 @@ export default function ImagesPage() {
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      場景 {scene.sceneNumber}
-                    </p>
+
+                    {/* 尾幀（如果存在） */}
+                    {scene.generatedEndFrame && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                          <span className="inline-block w-1.5 h-1.5 bg-purple-600 dark:bg-purple-400 rounded-full"></span>
+                          尾幀
+                        </p>
+                        <div className="aspect-video bg-slate-100 dark:bg-slate-800 rounded overflow-hidden">
+                          <img
+                            src={scene.generatedEndFrame.url}
+                            alt={`Scene ${scene.sceneNumber} End Frame`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        場景 {scene.sceneNumber}
+                      </p>
+                      {scene.requiresEndFrame && (
+                        <span className="text-xs px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                          首尾幀
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

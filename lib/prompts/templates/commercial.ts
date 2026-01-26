@@ -37,6 +37,11 @@ export const COMMERCIAL_TEMPLATE: PromptTemplate = {
       - ✅ requiresEndFrame = true: "打開可樂罐蓋子"、"從工廠場景切到戶外廣告牌"
    
 5. 尾幀描述 (endFrameDescription) - 只在 requiresEndFrame = true 時填寫
+   - ⚠️ 關鍵：撰寫「完整的獨立場景描述」，不要用相對描述詞
+   - 從 description 複製：環境、光線、構圖、色調、視角
+   - 只修改：物體狀態的改變（如：包裝打開、液體倒出）
+   - ❌ 禁止：「同樣」、「相同」、「依舊」等詞彙
+   - ✅ 範例：完整重寫場景，只改變化的元素
 6. 對話/旁白 (dialogue) - 廣告文案或旁白
 7. 時長建議 (duration)
 8. 備註 (notes) - 特效、音樂提示等

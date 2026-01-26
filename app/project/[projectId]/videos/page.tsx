@@ -165,12 +165,29 @@ export default function VideosPage() {
 
                     {/* 預覽縮圖 */}
                     {scene.generatedImage && (
-                      <div className="aspect-video rounded overflow-hidden border border-slate-200 dark:border-slate-700">
-                        <img
-                          src={scene.generatedImage.url}
-                          alt={`Scene ${scene.sceneNumber}`}
-                          className="w-full h-full object-cover"
-                        />
+                      <div className="space-y-1.5">
+                        <div className="aspect-video rounded overflow-hidden border border-slate-200 dark:border-slate-700">
+                          <img
+                            src={scene.generatedImage.url}
+                            alt={`Scene ${scene.sceneNumber}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        {scene.generatedEndFrame && (
+                          <>
+                            <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium flex items-center gap-1">
+                              <span className="inline-block w-1 h-1 bg-purple-600 dark:bg-purple-400 rounded-full"></span>
+                              尾幀
+                            </p>
+                            <div className="aspect-video rounded overflow-hidden border border-purple-200 dark:border-purple-700">
+                              <img
+                                src={scene.generatedEndFrame.url}
+                                alt={`Scene ${scene.sceneNumber} End Frame`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </button>

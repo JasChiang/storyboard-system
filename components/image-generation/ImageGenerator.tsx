@@ -8,12 +8,13 @@ import type { Scene, ProjectReference } from '@/lib/types/storyboard';
 
 interface ImageGeneratorProps {
     scene: Scene;
-    onImageGenerated: (imageUrl: string, prompt: string) => void;
+    onImageGenerated: (imageUrl: string, prompt: string, endFrameUrl?: string, endFramePrompt?: string) => void;
     projectReferences?: ProjectReference[];
 }
 
 export function ImageGenerator({ scene, onImageGenerated, projectReferences = [] }: ImageGeneratorProps) {
-    const [isGenerating, setIsGenerating] = useState(false);
+    const [isGeneratingStart, setIsGeneratingStart] = useState(false);
+    const [isGeneratingEnd, setIsGeneratingEnd] = useState(false);
     const [referenceImage, setReferenceImage] = useState<string | null>(
         scene.referenceImage || null
     );
@@ -41,8 +42,8 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
         return urls;
     };
 
-    // 構建圖片生成 prompt
-    const buildImagePrompt = () => {
+    // 構建圖片生成 prompt（支援首幀/尾幀）
+    const buildImagePrompt = (isEndFrame: boolean = false) => {
         const parts = [];
 
         // 1. 加入專案參考圖的描述作為上下文
@@ -57,10 +58,15 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
             }
         }
 
-        // 2. 加入主要場景描述和自訂提示詞
+        // 2. 選擇正確的描述（首幀或尾幀）
+        const sceneDescription = isEndFrame
+            ? (scene.endFrameDescription || scene.description)
+            : scene.description;
+
+        // 3. 加入主要場景描述和自訂提示詞
         if (!customPrompt) {
             // 沒有自訂內容，直接使用場景描述
-            parts.push(scene.description);
+            parts.push(sceneDescription);
         } else {
             // 有自訂內容，根據模式處理
             switch (promptMode) {
@@ -71,19 +77,19 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
 
                 case 'append':
                     // 場景描述 + 自訂內容
-                    parts.push(scene.description);
+                    parts.push(sceneDescription);
                     parts.push(customPrompt);
                     break;
 
                 case 'prepend':
                     // 自訂內容 + 場景描述
                     parts.push(customPrompt);
-                    parts.push(scene.description);
+                    parts.push(sceneDescription);
                     break;
             }
         }
 
-        // 3. 如果有場景參考圖，加強保持外觀特徵的指令
+        // 4. 如果有場景參考圖，加強保持外觀特徵的指令
         if (referenceImage) {
             parts.push('Maintain the exact appearance, facial features, clothing, and style from the uploaded reference image.');
             parts.push('保持參考圖中的外觀、面部特徵、服裝和風格。');
@@ -116,11 +122,15 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
         }
     };
 
-    const handleGenerate = async () => {
-        setIsGenerating(true);
+    const handleGenerate = async (isEndFrame: boolean = false) => {
+        if (isEndFrame) {
+            setIsGeneratingEnd(true);
+        } else {
+            setIsGeneratingStart(true);
+        }
 
         try {
-            const prompt = buildImagePrompt();
+            const prompt = buildImagePrompt(isEndFrame);
 
             // 呼叫生成 API
             const response = await fetch('/api/fal/generate-image', {
@@ -147,19 +157,24 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
             const requestId = data.request_id;
             const endpoint = data.endpoint; // 從後端回傳的正確 endpoint
 
-            await pollStatus(requestId, endpoint, prompt);
+            await pollStatus(requestId, endpoint, prompt, isEndFrame);
         } catch (error) {
             console.error('Generate error:', error);
             alert(error instanceof Error ? error.message : '生成失敗');
         } finally {
-            setIsGenerating(false);
+            if (isEndFrame) {
+                setIsGeneratingEnd(false);
+            } else {
+                setIsGeneratingStart(false);
+            }
         }
     };
 
     const pollStatus = async (
         requestId: string,
         endpoint: string,
-        prompt: string
+        prompt: string,
+        isEndFrame: boolean = false
     ) => {
         const maxAttempts = 60; // 最多等 5 分鐘
         let attempts = 0;
@@ -180,7 +195,23 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
             if (data.status === 'COMPLETED') {
                 const imageUrl = data.result.images[0]?.url;
                 if (imageUrl) {
-                    onImageGenerated(imageUrl, prompt);
+                    // 如果是尾幀，保留現有的首幀資訊
+                    if (isEndFrame) {
+                        onImageGenerated(
+                            scene.generatedImage?.url || '',
+                            scene.generatedImage?.prompt || '',
+                            imageUrl,
+                            prompt
+                        );
+                    } else {
+                        // 如果是首幀，保留現有的尾幀資訊
+                        onImageGenerated(
+                            imageUrl,
+                            prompt,
+                            scene.generatedEndFrame?.url,
+                            scene.generatedEndFrame?.prompt
+                        );
+                    }
                 }
                 return;
             } else if (data.status === 'FAILED') {
@@ -211,13 +242,42 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                 )}
             </div>
 
-            {/* 圖片預覽 */}
-            <ImagePreview
-                imageUrl={scene.generatedImage?.url || null}
-                prompt={scene.generatedImage?.prompt}
-                isLoading={isGenerating}
-                onRegenerate={handleGenerate}
-            />
+            {/* 首幀預覽 */}
+            <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">首幀 (Start Frame)</h4>
+                    {scene.requiresEndFrame && (
+                        <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                            需要尾幀
+                        </span>
+                    )}
+                </div>
+                <ImagePreview
+                    imageUrl={scene.generatedImage?.url || null}
+                    prompt={scene.generatedImage?.prompt}
+                    isLoading={isGeneratingStart}
+                    onRegenerate={() => handleGenerate(false)}
+                />
+            </div>
+
+            {/* 尾幀預覽（如果需要） */}
+            {scene.requiresEndFrame && scene.endFrameDescription && (
+                <div className="space-y-2 p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-purple-600 dark:bg-purple-400 rounded-full"></div>
+                        <h4 className="text-sm font-medium text-purple-700 dark:text-purple-300">尾幀 (End Frame)</h4>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 italic">
+                        {scene.endFrameDescription}
+                    </p>
+                    <ImagePreview
+                        imageUrl={scene.generatedEndFrame?.url || null}
+                        prompt={scene.generatedEndFrame?.prompt}
+                        isLoading={isGeneratingEnd}
+                        onRegenerate={() => handleGenerate(true)}
+                    />
+                </div>
+            )}
 
             {/* 自訂提示詞區塊 */}
             <div className="space-y-3">
@@ -231,7 +291,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                         <select
                             value={promptMode}
                             onChange={(e) => setPromptMode(e.target.value as 'append' | 'replace' | 'prepend')}
-                            disabled={isGenerating || !customPrompt}
+                            disabled={(isGeneratingStart || isGeneratingEnd) || !customPrompt}
                             className="appearance-none pl-3 pr-8 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
                                      text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-600
                                      disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
@@ -266,7 +326,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                    focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600
                    transition-colors resize-none"
                     rows={3}
-                    disabled={isGenerating}
+                    disabled={isGeneratingStart || isGeneratingEnd}
                 />
 
                 {/* 即時預覽最終 Prompt */}
@@ -299,7 +359,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                                         setSelectedProjectRefs(prev => [...prev, ref.id]);
                                     }
                                 }}
-                                disabled={isGenerating}
+                                disabled={isGeneratingStart || isGeneratingEnd}
                                 className={`
                                     relative rounded-lg overflow-hidden border-2 transition-all
                                     ${selectedProjectRefs.includes(ref.id)
@@ -337,7 +397,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
             <ReferenceUploader
                 value={referenceImage}
                 onChange={setReferenceImage}
-                disabled={isGenerating}
+                disabled={isGeneratingStart || isGeneratingEnd}
             />
 
             {/* 進階設定 */}
@@ -359,7 +419,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                             <select
                                 value={aspectRatio}
                                 onChange={(e) => setAspectRatio(e.target.value)}
-                                disabled={isGenerating}
+                                disabled={isGeneratingStart || isGeneratingEnd}
                                 className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
                          text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
                             >
@@ -378,7 +438,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                             <select
                                 value={resolution}
                                 onChange={(e) => setResolution(e.target.value as '1K' | '2K' | '4K')}
-                                disabled={isGenerating}
+                                disabled={isGeneratingStart || isGeneratingEnd}
                                 className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
                          text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
                             >
@@ -392,26 +452,51 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
             </div>
 
             {/* 生成按鈕 */}
-            <button
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                className="w-full py-3 px-4 bg-[#143A5A] hover:bg-[#143A5A]/90 
-                 text-white font-medium rounded-lg
-                 disabled:opacity-50 disabled:cursor-not-allowed
-                 transition-all flex items-center justify-center gap-2 shadow-sm"
-            >
-                {isGenerating ? (
-                    <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        生成中...
-                    </>
-                ) : (
-                    <>
-                        <Sparkles className="w-5 h-5" />
-                        生成圖片
-                    </>
+            <div className="grid grid-cols-2 gap-3">
+                <button
+                    onClick={() => handleGenerate(false)}
+                    disabled={isGeneratingStart || isGeneratingEnd}
+                    className="py-3 px-4 bg-blue-600 hover:bg-blue-700
+                     text-white font-medium rounded-lg
+                     disabled:opacity-50 disabled:cursor-not-allowed
+                     transition-all flex items-center justify-center gap-2 shadow-sm"
+                >
+                    {isGeneratingStart ? (
+                        <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            生成中...
+                        </>
+                    ) : (
+                        <>
+                            <Sparkles className="w-5 h-5" />
+                            生成首幀
+                        </>
+                    )}
+                </button>
+
+                {scene.requiresEndFrame && scene.endFrameDescription && (
+                    <button
+                        onClick={() => handleGenerate(true)}
+                        disabled={isGeneratingStart || isGeneratingEnd}
+                        className="py-3 px-4 bg-purple-600 hover:bg-purple-700
+                         text-white font-medium rounded-lg
+                         disabled:opacity-50 disabled:cursor-not-allowed
+                         transition-all flex items-center justify-center gap-2 shadow-sm"
+                    >
+                        {isGeneratingEnd ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                生成中...
+                            </>
+                        ) : (
+                            <>
+                                <Sparkles className="w-5 h-5" />
+                                生成尾幀
+                            </>
+                        )}
+                    </button>
                 )}
-            </button>
+            </div>
         </div>
     );
 }

@@ -7,14 +7,16 @@ import type { Scene, ProjectReference } from '@/lib/types/storyboard';
 interface BatchImageGeneratorProps {
     scenes: Scene[];
     projectReferences?: ProjectReference[];
-    onBatchComplete: (results: Map<string, { url: string; prompt: string }>) => void;
+    onBatchComplete: (results: Map<string, { url: string; prompt: string; endFrameUrl?: string; endFramePrompt?: string }>) => void;
 }
 
 interface GenerationStatus {
     sceneId: string;
-    status: 'pending' | 'generating' | 'completed' | 'failed';
+    status: 'pending' | 'generating' | 'generating_end_frame' | 'completed' | 'failed';
     imageUrl?: string;
     prompt?: string;
+    endFrameUrl?: string;
+    endFramePrompt?: string;
     error?: string;
 }
 
@@ -36,7 +38,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
         });
     };
 
-    const buildImagePrompt = (scene: Scene) => {
+    const buildImagePrompt = (scene: Scene, isEndFrame: boolean = false) => {
         const parts = [];
 
         // 1. 加入專案參考圖的描述作為上下文
@@ -48,9 +50,12 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
             });
         }
 
-        // 2. 加入主要場景描述
-        // 只使用靜態的場景描述，不包含運鏡指令
-        parts.push(scene.description);
+        // 2. 加入場景描述（首幀或尾幀）
+        if (isEndFrame && scene.endFrameDescription) {
+            parts.push(scene.endFrameDescription);
+        } else {
+            parts.push(scene.description);
+        }
 
         if (scene.referenceImage || projectReferences.length > 0) {
             parts.push('Maintain the exact appearance, facial features, clothing, and style from the uploaded reference image.');
@@ -60,49 +65,81 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
         return parts.join('. ');
     };
 
-    const generateSingleImage = async (scene: Scene) => {
+    const generateSingleImage = async (scene: Scene, isEndFrame: boolean = false) => {
+        const prompt = buildImagePrompt(scene, isEndFrame);
+
+        // 呼叫生成 API
+        const response = await fetch('/api/fal/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt,
+                referenceImage: [
+                    ...(scene.referenceImage ? [scene.referenceImage] : []),
+                    ...projectReferences.map(r => r.url)
+                ], // 結合場景個別參考圖與專案級參考圖
+                aspectRatio,
+                resolution,
+            }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Generation failed');
+        }
+        if (!data.endpoint) {
+            throw new Error('Missing endpoint from server');
+        }
+
+        // 輪詢狀態 - 使用 API 回傳的 endpoint
+        const requestId = data.request_id;
+        const endpoint = data.endpoint;
+
+        const imageUrl = await pollStatus(requestId, endpoint);
+
+        return { url: imageUrl, prompt };
+    };
+
+    const generateSceneImages = async (scene: Scene) => {
         updateStatus(scene.id, { status: 'generating' });
 
         try {
-            const prompt = buildImagePrompt(scene);
-
-            // 呼叫生成 API
-            const response = await fetch('/api/fal/generate-image', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    prompt,
-                    referenceImage: [
-                        ...(scene.referenceImage ? [scene.referenceImage] : []),
-                        ...projectReferences.map(r => r.url)
-                    ], // 結合場景個別參考圖與專案級參考圖
-                    aspectRatio,
-                    resolution,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Generation failed');
-            }
-            if (!data.endpoint) {
-                throw new Error('Missing endpoint from server');
-            }
-
-            // 輪詢狀態 - 使用 API 回傳的 endpoint
-            const requestId = data.request_id;
-            const endpoint = data.endpoint; // 從後端回傳的正確 endpoint
-
-            const imageUrl = await pollStatus(requestId, endpoint);
+            // 1. 生成首幀
+            const startFrame = await generateSingleImage(scene, false);
 
             updateStatus(scene.id, {
-                status: 'completed',
-                imageUrl,
-                prompt,
+                imageUrl: startFrame.url,
+                prompt: startFrame.prompt,
             });
 
-            return { url: imageUrl, prompt };
+            // 2. 如果需要尾幀，繼續生成
+            if (scene.requiresEndFrame && scene.endFrameDescription) {
+                updateStatus(scene.id, { status: 'generating_end_frame' });
+
+                const endFrame = await generateSingleImage(scene, true);
+
+                updateStatus(scene.id, {
+                    status: 'completed',
+                    endFrameUrl: endFrame.url,
+                    endFramePrompt: endFrame.prompt,
+                });
+
+                return {
+                    url: startFrame.url,
+                    prompt: startFrame.prompt,
+                    endFrameUrl: endFrame.url,
+                    endFramePrompt: endFrame.prompt,
+                };
+            }
+
+            // 3. 不需要尾幀，標記完成
+            updateStatus(scene.id, { status: 'completed' });
+
+            return {
+                url: startFrame.url,
+                prompt: startFrame.prompt,
+            };
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : '生成失敗';
             updateStatus(scene.id, {
@@ -159,12 +196,12 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                 updateStatus(scene.id, { status: 'pending' });
             });
 
-            const results = new Map<string, { url: string; prompt: string }>();
+            const results = new Map<string, { url: string; prompt: string; endFrameUrl?: string; endFramePrompt?: string }>();
 
             // 依序生成（避免超過 API 限制）
             for (const scene of scenesWithoutImages) {
                 try {
-                    const result = await generateSingleImage(scene);
+                    const result = await generateSceneImages(scene);
                     results.set(scene.id, result);
                 } catch (error) {
                     console.error(`Failed to generate image for scene ${scene.sceneNumber}:`, error);
@@ -279,6 +316,9 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                                         {status.status === 'generating' && (
                                             <div className="w-5 h-5 border-2 border-blue-400/30 border-t-blue-700 dark:border-t-blue-500 rounded-full animate-spin" />
                                         )}
+                                        {status.status === 'generating_end_frame' && (
+                                            <div className="w-5 h-5 border-2 border-purple-400/30 border-t-purple-700 dark:border-t-purple-500 rounded-full animate-spin" />
+                                        )}
                                         {status.status === 'completed' && (
                                             <CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-400" />
                                         )}
@@ -288,11 +328,18 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
                                     </div>
 
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-slate-900 dark:text-slate-200">
-                                            場景 {scene.sceneNumber}
-                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-sm font-medium text-slate-900 dark:text-slate-200">
+                                                場景 {scene.sceneNumber}
+                                            </p>
+                                            {scene.requiresEndFrame && (
+                                                <span className="text-xs px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                                                    首尾幀
+                                                </span>
+                                            )}
+                                        </div>
                                         <p className="text-xs text-slate-500 truncate">
-                                            {scene.description}
+                                            {status.status === 'generating_end_frame' ? '生成尾幀中...' : scene.description}
                                         </p>
                                         {status.error && (
                                             <p className="text-xs text-red-500 dark:text-red-400 mt-1">{status.error}</p>

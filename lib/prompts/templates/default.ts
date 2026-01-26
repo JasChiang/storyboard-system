@@ -48,8 +48,11 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
       - ❌ requiresEndFrame = false: 雙人對話、特寫表情、商品旋轉展示、推軌近景
    
 5. 尾幀描述 (endFrameDescription) - 只在 requiresEndFrame = true 時填寫：
-   - 描述尾幀的靜態畫面（類似 description 的寫法）
-   - 必須與 description 邏輯一致（起點→終點的合理過渡）
+   - ⚠️ 重要：必須撰寫「完整的獨立場景描述」，包含所有視覺元素
+   - 必須包含：環境、光線、構圖、色調、視角（複製自 description）
+   - 只替換「改變的部分」（如：物體位置、狀態、人物動作）
+   - ❌ 禁止使用：「同樣的」、「相同角度」、「依舊」等相對描述詞
+   - ✅ 正確範例：將 description 的場景設定完整複製，只修改變化的物件
    - 如果 requiresEndFrame = false，此欄位必須留空 ("")
 
 6. 對話/旁白 (dialogue) - 該場景的對白或旁白文字

@@ -68,6 +68,7 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
                     resolution: model === 'seedance' ? seedanceResolution : undefined,
                     enableSound: model === 'kling' ? klingEnableSound : undefined,
                     enableAudio: model === 'seedance' ? seedanceEnableAudio : undefined,
+                    endImageUrl: scene.generatedEndFrame?.url,  // 如果有尾幀，傳遞給 API
                 }),
             });
 
@@ -135,27 +136,60 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
     return (
         <div className="space-y-4">
             {/* 場景資訊 */}
-            <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-                <h3 className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-2">
-                    場景 {scene.sceneNumber}
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">{scene.description}</p>
+            <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
+                <div>
+                    <h3 className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-2">
+                        場景 {scene.sceneNumber}
+                    </h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{scene.description}</p>
+                </div>
 
-                {scene.generatedImage ? (
-                    <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
-                        <img
-                            src={scene.generatedImage.url}
-                            alt={`Scene ${scene.sceneNumber}`}
-                            className="w-full h-full object-cover"
-                        />
-                        <div className="absolute top-2 right-2 px-2 py-1 bg-green-500/90 text-white text-xs rounded shadow-sm">
-                            已生成圖片
-                        </div>
+                {/* 首幀 */}
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-medium text-slate-700 dark:text-slate-300">首幀 (Start Frame)</h4>
+                        {scene.requiresEndFrame && (
+                            <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                                首尾幀模式
+                            </span>
+                        )}
                     </div>
-                ) : (
-                    <div className="aspect-video bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 
-                        flex items-center justify-center">
-                        <p className="text-sm text-slate-500 dark:text-slate-500">尚未生成圖片</p>
+                    {scene.generatedImage ? (
+                        <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+                            <img
+                                src={scene.generatedImage.url}
+                                alt={`Scene ${scene.sceneNumber}`}
+                                className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-2 right-2 px-2 py-1 bg-green-500/90 text-white text-xs rounded shadow-sm">
+                                已生成
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="aspect-video bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700
+                            flex items-center justify-center">
+                            <p className="text-sm text-slate-500 dark:text-slate-500">尚未生成首幀</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* 尾幀（如果存在） */}
+                {scene.generatedEndFrame && (
+                    <div className="space-y-2 p-3 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
+                        <div className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 bg-purple-600 dark:bg-purple-400 rounded-full"></div>
+                            <h4 className="text-xs font-medium text-purple-700 dark:text-purple-300">尾幀 (End Frame)</h4>
+                        </div>
+                        <div className="relative aspect-video rounded-lg overflow-hidden border border-purple-300 dark:border-purple-700">
+                            <img
+                                src={scene.generatedEndFrame.url}
+                                alt={`Scene ${scene.sceneNumber} End Frame`}
+                                className="w-full h-full object-cover"
+                            />
+                            <div className="absolute top-2 right-2 px-2 py-1 bg-purple-500/90 text-white text-xs rounded shadow-sm">
+                                已生成
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

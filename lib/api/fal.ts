@@ -110,6 +110,7 @@ export async function generateVideoKling(
     duration?: 5 | 10;
     aspectRatio?: '16:9' | '9:16' | '1:1';
     enableSound?: boolean;
+    endImageUrl?: string;  // 尾幀圖片 URL
   },
   config: FalConfig
 ): Promise<FalQueueResponse> {
@@ -117,14 +118,20 @@ export async function generateVideoKling(
 
   const endpoint = process.env.FAL_VIDEO_KLING_MODEL || 'fal-ai/kling-video/v2.6/pro/image-to-video';
 
+  const input: Record<string, any> = {
+    start_image_url: imageUrl,  // Kling 使用 start_image_url 而非 image_url
+    prompt,
+    duration: String(options.duration || 5),  // 轉為字串
+    generate_audio: options.enableSound ?? false,
+  };
+
+  // 如果提供了尾幀圖片，加入到 input
+  if (options.endImageUrl) {
+    input.end_image_url = options.endImageUrl;
+  }
+
   const result = await fal.queue.submit(endpoint, {
-    input: {
-      image_url: imageUrl,
-      prompt,
-      duration: options.duration || 5,
-      aspect_ratio: options.aspectRatio || '16:9',
-      generate_audio: options.enableSound ?? false,
-    }
+    input
   });
 
   return {
@@ -142,6 +149,7 @@ export async function generateVideoSeedance(
     aspectRatio?: '21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
     resolution?: '480p' | '720p' | '1080p';
     enableAudio?: boolean;
+    endImageUrl?: string;  // 尾幀圖片 URL
   },
   config: FalConfig
 ): Promise<FalQueueResponse> {
@@ -149,15 +157,22 @@ export async function generateVideoSeedance(
 
   const endpoint = process.env.FAL_VIDEO_SEEDANCE_MODEL || 'fal-ai/bytedance/seedance/v1.5/pro/image-to-video';
 
+  const input: Record<string, any> = {
+    image_url: imageUrl,
+    prompt,
+    duration: String(options.duration || 5),  // API 要求字串格式
+    aspect_ratio: options.aspectRatio || '16:9',
+    resolution: options.resolution || '720p',
+    generate_audio: options.enableAudio ?? false,
+  };
+
+  // 如果提供了尾幀圖片，加入到 input
+  if (options.endImageUrl) {
+    input.end_image_url = options.endImageUrl;
+  }
+
   const result = await fal.queue.submit(endpoint, {
-    input: {
-      image_url: imageUrl,
-      prompt,
-      duration: String(options.duration || 5),  // API 要求字串格式
-      aspect_ratio: options.aspectRatio || '16:9',
-      resolution: options.resolution || '720p',
-      generate_audio: options.enableAudio ?? false,
-    }
+    input
   });
 
   return {

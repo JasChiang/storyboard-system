@@ -10,7 +10,7 @@ export const maxDuration = 60;
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { imageBase64, angle, type } = body;
+        const { imageBase64, angle, type, userNote } = body;
 
         if (!imageBase64) {
             return NextResponse.json(
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
         const angleLabel = angle || 'main';
         const typeLabel = type || 'product';
 
-        const systemPrompt = buildAnalysisPrompt(typeLabel, angleLabel);
+        const systemPrompt = buildAnalysisPrompt(typeLabel, angleLabel, userNote);
 
         // Extract base64 data and mime type
         let mimeType = 'image/png';
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
 /**
  * Build angle and type specific analysis prompt
  */
-function buildAnalysisPrompt(type: string, angle: string): string {
+function buildAnalysisPrompt(type: string, angle: string, userNote?: string): string {
     const angleInstructions: Record<string, string> = {
         front: '正面視角的',
         side: '側面視角的',
@@ -106,10 +106,11 @@ function buildAnalysisPrompt(type: string, angle: string): string {
     };
 
     const angleDesc = angleInstructions[angle] || '';
+    const userNoteSection = userNote ? `\n\n使用者提供的額外資訊：\n${userNote}\n\n請將以上資訊作為參考，並在描述中整合相關細節。` : '';
 
     if (type === 'product') {
         return `請以專業影像生成模型的視角，極度詳細地分析這張${angleDesc}商品參考圖。
-
+${userNoteSection}
 請描述：
 1. **幾何形狀**：整體輪廓、比例、尺寸特徵
 2. **材質紋理**：表面材質（金屬、塑膠、玻璃、布料等）、反光特性、質感細節（如磨砂、拋光、紋理）
@@ -118,13 +119,13 @@ function buildAnalysisPrompt(type: string, angle: string): string {
 5. **特殊細節**：水珠、灰塵、磨損、光澤、透明度等視覺細節
 6. **構圖與角度**：該${angleDesc}視角下的特定可見元素與遮蔽元素
 
-⚠️ 重要：
+重要：
 - 使用具體、可視覺化的語言，避免抽象形容詞
 - 專注於「靜態視覺特徵」，不要描述動作或假設的用途
 - 如果是${angleDesc}視角，請特別強調在這個角度下可見的獨特特徵`;
     } else if (type === 'character') {
         return `請詳細描述這個角色的${angleDesc}外觀特徵，供影像生成模型使用。
-
+${userNoteSection}
 請描述：
 1. **身體特徵**：身高比例、體型、姿態
 2. **臉部特徵**：五官特點、表情、膚色
@@ -132,10 +133,10 @@ function buildAnalysisPrompt(type: string, angle: string): string {
 4. **服裝**：款式、顏色、材質、配件
 5. **整體風格**：寫實、卡通、動漫等視覺風格
 
-⚠️ 使用客觀、具體的描述，避免主觀評價。`;
+使用客觀、具體的描述，避免主觀評價。`;
     } else if (type === 'environment') {
         return `請詳細描述這個${angleDesc}環境場景，供影像生成模型使用。
-
+${userNoteSection}
 請描述：
 1. **空間類型**：室內/室外、場所類別
 2. **光線條件**：自然光/人工光、明暗對比、光源方向
@@ -143,8 +144,10 @@ function buildAnalysisPrompt(type: string, angle: string): string {
 4. **氛圍與色調**：整體色彩、氣氛感受
 5. **景深與構圖**：前景、中景、背景的層次關係
 
-⚠️ 專注於視覺可重現的元素。`;
+專注於視覺可重現的元素。`;
     } else {
-        return `請詳細描述這張${angleDesc}參考圖的視覺特徵，供影像生成模型使用。請使用具體、可視覺化的語言。`;
+        return `請詳細描述這張${angleDesc}參考圖的視覺特徵，供影像生成模型使用。${userNoteSection}
+
+請使用具體、可視覺化的語言。`;
     }
 }

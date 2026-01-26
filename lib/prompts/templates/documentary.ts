@@ -53,7 +53,7 @@ export const DOCUMENTARY_TEMPLATE: PromptTemplate = {
                         },
                         endFrameDescription: {
                             type: 'string',
-                            description: '尾幀描述（requiresEndFrame=true 時填寫）'
+                            description: '尾幀描述（requiresEndFrame=true 時填寫）- 必須包含完整場景設定，不使用相對描述詞'
                         },
                         dialogue: {
                             type: 'string',

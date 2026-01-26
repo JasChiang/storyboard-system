@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
             aspectRatio,
             enableSound,
             enableAudio,
+            endImageUrl,  // 尾幀圖片 URL
         } = body;
         const apiKey = process.env.FAL_API_KEY;
 
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
                     duration: duration as 5 | 10,
                     aspectRatio: aspectRatio as '16:9' | '9:16' | '1:1',
                     enableSound,
+                    endImageUrl,  // 傳遞尾幀圖片 URL
                 },
                 { apiKey }
             );
@@ -60,6 +62,7 @@ export async function POST(request: NextRequest) {
                     aspectRatio,
                     resolution,
                     enableAudio,
+                    endImageUrl,  // 傳遞尾幀圖片 URL
                 },
                 { apiKey }
             );

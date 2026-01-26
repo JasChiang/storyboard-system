@@ -67,6 +67,25 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
           />
         </td>
         <td className="px-4 py-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={editedScene.requiresEndFrame || false}
+              onChange={(e) => setEditedScene({ ...editedScene, requiresEndFrame: e.target.checked })}
+              className="rounded"
+            />
+            {editedScene.requiresEndFrame && (
+              <textarea
+                className="w-full px-2 py-1 border rounded text-xs"
+                value={editedScene.endFrameDescription || ''}
+                onChange={(e) => setEditedScene({ ...editedScene, endFrameDescription: e.target.value })}
+                placeholder="尾幀描述"
+                rows={2}
+              />
+            )}
+          </div>
+        </td>
+        <td className="px-4 py-3">
           <div className="flex gap-2">
             <button
               onClick={handleSave}
@@ -113,6 +132,22 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
       </td>
       <td className="px-4 py-3">
         <div className="text-sm font-mono">{scene.duration}秒</div>
+      </td>
+      <td className="px-4 py-3">
+        {scene.requiresEndFrame ? (
+          <div className="space-y-1">
+            <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+              ✓ 首尾幀
+            </span>
+            {scene.endFrameDescription && (
+              <div className="text-xs text-slate-500 dark:text-slate-400 max-w-xs line-clamp-2" title={scene.endFrameDescription}>
+                尾幀: {scene.endFrameDescription}
+              </div>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400 dark:text-slate-600">—</span>
+        )}
       </td>
       <td className="px-4 py-3">
         <div className="flex gap-2">

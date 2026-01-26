@@ -35,6 +35,7 @@ export function ProjectReferenceUploader({
     const [isUploading, setIsUploading] = useState(false);
     const [editingRef, setEditingRef] = useState<ProjectReference | null>(null);
     const [isDescribing, setIsDescribing] = useState(false);
+    const [userNote, setUserNote] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,6 +70,7 @@ export function ProjectReferenceUploader({
             };
 
             setEditingRef(newRef);
+            setUserNote('');  // 重置使用者說明
         } catch (error) {
             console.error('Upload error:', error);
             alert(error instanceof Error ? error.message : '上傳失敗');
@@ -107,6 +109,7 @@ export function ProjectReferenceUploader({
                     imageBase64,
                     angle: editingRef.angle || 'front',
                     type: editingRef.type,
+                    userNote: userNote.trim() || undefined,
                 }),
             });
 
@@ -138,6 +141,7 @@ export function ProjectReferenceUploader({
 
         onChange([...references, editingRef]);
         setEditingRef(null);
+        setUserNote('');  // 重置使用者說明
     };
 
     const handleRemoveRef = (id: string) => {
@@ -277,6 +281,22 @@ export function ProjectReferenceUploader({
                                 />
                             )}
                         </div>
+                    </div>
+
+                    {/* 參考說明輸入框 */}
+                    <div>
+                        <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
+                            參考說明（選填）
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="提供額外資訊給 AI 參考，例如：商品名稱、特殊材質、風格偏好等"
+                            value={userNote}
+                            onChange={(e) => setUserNote(e.target.value)}
+                            className="w-full px-2 py-1.5 text-sm bg-white dark:bg-slate-800
+                                     border border-slate-300 dark:border-slate-600 rounded-lg
+                                     focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
                     </div>
 
                     {/* 描述輸入 */}

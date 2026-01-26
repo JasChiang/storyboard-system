@@ -19,6 +19,11 @@ export interface Scene {
     prompt: string;
     timestamp: string;
   };
+  generatedEndFrame?: {          // 尾幀圖片 (當 requiresEndFrame=true 時生成)
+    url: string;
+    prompt: string;
+    timestamp: string;
+  };
   motionPrompt?: string;         // 動作提示詞
   generatedVideo?: {
     url: string;
