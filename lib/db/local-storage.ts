@@ -66,7 +66,6 @@ export const projectStorage = {
 // API 金鑰管理
 export interface ApiKeys {
   openrouter?: string;
-  fal?: string;
   gemini?: string;
 }
 

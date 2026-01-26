@@ -18,41 +18,35 @@
 - **`/api/fal/proxy`** - Server Proxy（推薦）
   - 處理所有 Fal API 請求（圖片生成、影片生成、文件上傳等）
   - 文件直接從瀏覽器上傳到 Fal，不經過伺服器
-  - 需要環境變數：`FAL_KEY` 或 `FAL_API_KEY`
+  - 需要環境變數：`FAL_API_KEY`
 
 - **`/api/fal/generate-image`** - 圖片生成
   - 處理圖片生成請求
-  - 支援 localStorage API key 優先，環境變數備援
+  - 使用伺服器端 `FAL_API_KEY`
 
 - **`/api/fal/generate-video`** - 影片生成
   - 處理影片生成請求（Kling / Seedance）
-  - 支援 localStorage API key 優先，環境變數備援
+  - 使用伺服器端 `FAL_API_KEY`
 
 - **`/api/fal/check-status`** - 狀態檢查
   - 檢查異步任務的執行狀態
 
-### ⚠️ 已棄用
+### ⚠️ 已移除
 
-- **`/api/fal/upload`** - 舊的文件上傳代理（已被 Server Proxy 取代）
-- **`/api/fal/upload-file`** - 舊的文件上傳（已被 Server Proxy 取代）
+- `upload` 與 `upload-file` 路由已移除，避免誤用（改由 `/api/fal/proxy` 處理）
 
 ## 🔧 前端設定
 
-前端在 `FalConfigProvider` 中自動設定 Fal Client：
+前端在 `FalConfigProvider` 中固定使用 Proxy：
 
 ```typescript
-// 有 localStorage key
-fal.config({ credentials: localApiKey });
-
-// 沒有 localStorage key
 fal.config({ proxyUrl: '/api/fal/proxy' });
 ```
 
-## 🔑 API Key 優先順序
+## 🔑 API Key
 
-1. **前端 localStorage** - 使用者自己的 API key（優先）
-2. **後端環境變數** - 伺服器的 API key（備援）
-3. 兩者都沒有 → 返回錯誤
+- 僅使用伺服器端 `FAL_API_KEY`
+- 前端不保存、不傳送 Fal API Key
 
 ## 📚 相關文檔
 

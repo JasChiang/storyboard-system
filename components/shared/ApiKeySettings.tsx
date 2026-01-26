@@ -8,7 +8,6 @@ export function ApiKeySettings() {
     const [showKeys, setShowKeys] = useState(false);
 
     const [openrouterKey, setOpenrouterKey] = useState('');
-    const [falKey, setFalKey] = useState('');
     const [geminiKey, setGeminiKey] = useState('');
 
     const [saved, setSaved] = useState(false);
@@ -16,13 +15,11 @@ export function ApiKeySettings() {
     useEffect(() => {
         // 載入已儲存的 API Keys
         setOpenrouterKey(localStorage.getItem('openrouter_api_key') || '');
-        setFalKey(localStorage.getItem('fal_api_key') || '');
         setGeminiKey(localStorage.getItem('gemini_api_key') || '');
     }, []);
 
     const handleSave = () => {
         localStorage.setItem('openrouter_api_key', openrouterKey);
-        localStorage.setItem('fal_api_key', falKey);
         localStorage.setItem('gemini_api_key', geminiKey);
 
         setSaved(true);
@@ -81,7 +78,7 @@ export function ApiKeySettings() {
                     {/* 說明 */}
                     <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-lg">
                         <p className="text-sm text-blue-700 dark:text-blue-200">
-                            API 金鑰將儲存在瀏覽器的 LocalStorage 中，不會傳送到伺服器
+                            OpenRouter 與 Gemini 金鑰會儲存在瀏覽器的 LocalStorage 中，不會傳送到伺服器
                         </p>
                     </div>
 
@@ -113,33 +110,6 @@ export function ApiKeySettings() {
                         />
                         <a
                             href="https://openrouter.ai/settings/keys"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-700 hover:text-blue-800 dark:text-blue-500 dark:hover:text-blue-400"
-                        >
-                            取得 API Key →
-                        </a>
-                    </div>
-
-                    {/* Fal AI API Key */}
-                    <div className="space-y-2">
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                            Fal AI API Key
-                        </label>
-                        <p className="text-xs text-slate-500 dark:text-slate-500 mb-2">
-                            用於圖片和影片生成
-                        </p>
-                        <input
-                            type={showKeys ? "text" : "password"}
-                            value={falKey}
-                            onChange={(e) => setFalKey(e.target.value)}
-                            placeholder="..."
-                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg
-                       text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-600
-                       focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
-                        />
-                        <a
-                            href="https://fal.ai/dashboard/keys"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-xs text-blue-700 hover:text-blue-800 dark:text-blue-500 dark:hover:text-blue-400"
