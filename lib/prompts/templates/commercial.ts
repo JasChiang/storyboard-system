@@ -46,6 +46,38 @@ export const COMMERCIAL_TEMPLATE: PromptTemplate = {
 7. 時長建議 (duration)
 8. 備註 (notes) - 特效、音樂提示等
 
+9. 🆕 與下一場景的轉場設定 (transitionToNext) - **商業廣告轉場策略**：
+
+   【轉場類型說明】：
+   - cut: 硬切 - 快節奏、動感（適合促銷廣告）
+   - dissolve: 交叉溶解 - 優雅過渡（適合品牌形象片）
+   - fade_black: 淡入黑場 - 段落分隔、結尾鋪墊
+   - fade_white: 淡入白場 - 科技感、純淨感（適合美妝、科技產品）
+   - continuation: 延續 - 產品動作連續（適合開箱、使用示範）
+   - match_cut: 匹配剪接 - 創意轉場（產品形狀→Logo）
+   - wipe: 擦除 - 有方向感的切換
+   - push: 推出 - 動態感強
+
+   【商業廣告專用判斷邏輯】：
+   a) 產品展示 → 產品使用場景：
+      → type = "dissolve" 或 "match_cut"
+      
+   b) 使用場景 → 滿意表情：
+      → type = "cut"（快節奏）或 "dissolve"（情感延續）
+      
+   c) 多個產品特點輪播：
+      → type = "cut" + 快節奏
+      
+   d) 產品動作連續（如：開瓶、倒飲料、喝下）：
+      → type = "continuation"
+      → useEndFrameAsNextStart = true
+      → requiresEndFrame = true
+      
+   e) 最後一個場景（CTA 或品牌 Logo）：
+      → type = "fade_black" 或 "fade_white"
+
+   必須在 reason 欄位說明選擇此轉場類型的原因。
+
 ⚠️ 記住：商業廣告對品牌形象要求極高，寧可犧牲動態流暢度，也不能讓 Logo 變形。`,
 
     outputSchema: {
@@ -91,12 +123,37 @@ export const COMMERCIAL_TEMPLATE: PromptTemplate = {
                         notes: {
                             type: 'string',
                             description: '額外備註'
+                        },
+                        transitionToNext: {
+                            type: 'object',
+                            description: '與下一場景的轉場設定',
+                            properties: {
+                                type: {
+                                    type: 'string',
+                                    enum: ['cut', 'dissolve', 'fade_black', 'fade_white', 'continuation', 'match_cut', 'wipe', 'push'],
+                                    description: '轉場類型'
+                                },
+                                reason: {
+                                    type: 'string',
+                                    description: 'AI 選擇此轉場的原因'
+                                },
+                                duration: {
+                                    type: 'number',
+                                    description: '轉場時長（秒），預設 0.5'
+                                },
+                                useEndFrameAsNextStart: {
+                                    type: 'boolean',
+                                    description: '是否讓下一場景使用此場景的 endFrame 作為開始幀'
+                                }
+                            },
+                            required: ['type', 'reason']
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration', 'transitionToNext']
                 }
             }
         },
         required: ['title', 'scenes']
     }
 };
+

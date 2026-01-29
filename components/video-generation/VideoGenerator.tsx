@@ -11,10 +11,11 @@ type VideoModel = 'kling' | 'seedance';
 
 interface VideoGeneratorProps {
     scene: Scene;
+    previousEndFrameUrl?: string; // 當前一場景的 continuation 轉場時，傳入其 endFrame URL
     onVideoGenerated: (videoUrl: string, prompt: string, model: VideoModel) => void;
 }
 
-export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps) {
+export function VideoGenerator({ scene, previousEndFrameUrl, onVideoGenerated }: VideoGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [model, setModel] = useState<VideoModel>('kling');
     // 優先使用 AI 生成的運鏡指令，如果沒有則使用已儲存的 motionPrompt
@@ -55,12 +56,16 @@ export function VideoGenerator({ scene, onVideoGenerated }: VideoGeneratorProps)
         setIsGenerating(true);
 
         try {
+            // Continuation 轉場邏輯：如果有 previousEndFrameUrl，使用它作為起始幀
+            // 這讓影片生成能從前一場景的結束畫面開始，實現無縫銜接
+            const startImageUrl = previousEndFrameUrl || scene.generatedImage.url;
+
             // 呼叫生成 API
             const response = await fetch('/api/fal/generate-video', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    imageUrl: scene.generatedImage.url,
+                    imageUrl: startImageUrl,
                     prompt: motionPrompt,
                     model,
                     duration: model === 'kling' ? klingDuration : seedanceDuration,

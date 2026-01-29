@@ -202,7 +202,7 @@ export async function checkQueueStatus(
     return {
       status: status.status as 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED',
       response_url: status.response_url,
-      logs: status.logs?.map((log) => log.message),
+      logs: status.logs?.map((log) => log.message).filter((msg): msg is string => msg !== undefined),
       error: status.error,
       metrics: status.metrics,
     };

@@ -377,29 +377,21 @@ def add_blur_effect(seq_editor, strip, size: float = 3.0, channel: int = 22):
         return None
 
 def add_transform_effect(seq_editor, strip, scale: float = 1.1, channel: int = 23):
-    """添加變換效果（縮放）"""
+    """添加變換效果（縮放）- 使用 strip.transform 而非 TRANSFORM 效果"""
     if not strip:
         return None
     
     try:
-        duration = strip.frame_final_end - strip.frame_final_start
-
-        effect = seq_editor.strips.new_effect(
-            name=f"Transform_{strip.name}",
-            type='TRANSFORM',
-            channel=channel,
-            frame_start=strip.frame_final_start,
-            length=duration,
-            input1=strip # 修正: 改用 input1
-        )
-        
-        if hasattr(effect, 'scale_x'):
-            effect.scale_x = scale
-        if hasattr(effect, 'scale_y'):
-            effect.scale_y = scale
-        
-        print(f"✓ 添加變換效果: {strip.name} (縮放={scale})")
-        return effect
+        # Blender VSE 沒有 TRANSFORM 效果類型
+        # 改用 strip 的內建 transform 屬性
+        if hasattr(strip, 'transform'):
+            strip.transform.scale_x = scale
+            strip.transform.scale_y = scale
+            print(f"✓ 添加變換效果: {strip.name} (縮放={scale})")
+            return strip.transform
+        else:
+            print(f"⚠ {strip.name} 不支援 transform 屬性")
+            return None
     except Exception as e:
         print(f"⚠ 添加變換效果失敗: {e}")
         return None
@@ -483,13 +475,138 @@ def add_gamma_cross_transition(seq_editor, strip1, strip2, channel: int = 10):
         print(f"⚠ 添加 Gamma Cross 轉場失敗: {e}")
         return None
 
+def add_fade_out_effect(seq_editor, strip, channel: int = 10, color: str = 'black'):
+    """添加淡出效果 (淡出到黑色或白色)"""
+    if not strip:
+        return None
+    
+    try:
+        fade_frames = TRANSITION_FRAMES
+        fade_start = strip.frame_final_end - fade_frames
+        
+        # 創建顏色條
+        color_strip = seq_editor.strips.new_effect(
+            name=f"FadeOut_{strip.name}",
+            type='COLOR',
+            channel=channel,
+            frame_start=fade_start,
+            length=fade_frames
+        )
+        
+        if color == 'white':
+            color_strip.color = (1.0, 1.0, 1.0)
+        else:
+            color_strip.color = (0.0, 0.0, 0.0)
+        
+        # 設定透明度動畫 (從 0 到 1)
+        color_strip.blend_alpha = 0.0
+        color_strip.keyframe_insert(data_path="blend_alpha", frame=fade_start)
+        color_strip.blend_alpha = 1.0
+        color_strip.keyframe_insert(data_path="blend_alpha", frame=strip.frame_final_end)
+        
+        print(f"✓ 添加淡出效果: {strip.name}")
+        return color_strip
+    except Exception as e:
+        print(f"⚠ 添加淡出效果失敗: {e}")
+        return None
+
+def add_fade_in_effect(seq_editor, strip, channel: int = 10, color: str = 'black'):
+    """添加淡入效果 (從黑色或白色淡入)"""
+    if not strip:
+        return None
+    
+    try:
+        fade_frames = TRANSITION_FRAMES
+        fade_end = strip.frame_final_start + fade_frames
+        
+        # 創建顏色條
+        color_strip = seq_editor.strips.new_effect(
+            name=f"FadeIn_{strip.name}",
+            type='COLOR',
+            channel=channel,
+            frame_start=strip.frame_final_start,
+            length=fade_frames
+        )
+        
+        if color == 'white':
+            color_strip.color = (1.0, 1.0, 1.0)
+        else:
+            color_strip.color = (0.0, 0.0, 0.0)
+        
+        # 設定透明度動畫 (從 1 到 0)
+        color_strip.blend_alpha = 1.0
+        color_strip.keyframe_insert(data_path="blend_alpha", frame=strip.frame_final_start)
+        color_strip.blend_alpha = 0.0
+        color_strip.keyframe_insert(data_path="blend_alpha", frame=fade_end)
+        
+        print(f"✓ 添加淡入效果: {strip.name}")
+        return color_strip
+    except Exception as e:
+        print(f"⚠ 添加淡入效果失敗: {e}")
+        return None
+
+def add_wipe_transition(seq_editor, strip1, strip2, channel: int = 10, wipe_type: str = 'DOUBLE'):
+    """添加擦除/推出轉場效果"""
+    if not strip1 or not strip2:
+        print("⚠ 無法添加轉場: 缺少片段")
+        return None
+    
+    try:
+        overlap_start = strip2.frame_final_start
+        overlap_end = strip1.frame_final_end
+        
+        if overlap_start >= overlap_end:
+            print("⚠ 片段沒有重疊，無法創建轉場")
+            return None
+        
+        duration = overlap_end - overlap_start
+        
+        transition = seq_editor.strips.new_effect(
+            name=f"Wipe_{strip1.name}_to_{strip2.name}",
+            type='WIPE',
+            channel=channel,
+            frame_start=overlap_start,
+            length=duration,
+            input1=strip1,
+            input2=strip2
+        )
+        
+        # 設定擦除類型
+        if hasattr(transition, 'transition_type'):
+            transition.transition_type = wipe_type  # 'SINGLE', 'DOUBLE', 'IRIS', 'CLOCK'
+        if hasattr(transition, 'direction'):
+            transition.direction = 'OUT'
+        
+        print(f"✓ 添加擦除轉場: {strip1.name} → {strip2.name}")
+        return transition
+    except Exception as e:
+        print(f"⚠ 添加擦除轉場失敗: {e}")
+        return None
+
 # ===== 條帶修飾器 (Strip Modifiers) =====
+
+# 輔助函數：確保 strip 被選取以便添加修飾器
+def ensure_strip_selected(strip):
+    """確保 strip 被選取，某些操作需要正確的 context"""
+    try:
+        # 取消所有選取
+        for s in bpy.context.scene.sequence_editor.strips:
+            s.select = False
+        # 選取目標 strip
+        strip.select = True
+        bpy.context.scene.sequence_editor.active_strip = strip
+        return True
+    except Exception as e:
+        print(f"⚠ 無法選取 strip: {e}")
+        return False
+
 def add_brightness_contrast_modifier(strip, brightness: float = 0.0, contrast: float = 1.0):
     """添加亮度/對比度修飾器"""
     if not strip:
         return None
     
     try:
+        # 直接使用 strip.modifiers.new() 不需要選取 context
         modifier = strip.modifiers.new(name="BrightnessContrast", type='BRIGHT_CONTRAST')
         modifier.bright = brightness
         modifier.contrast = contrast
@@ -614,10 +731,48 @@ ${generateVideoDataSection(videoMappings, editingSuggestion, fps, transitionFram
             current_frame = strip.frame_final_end
 ${generateEffectsApplicationSection(videoMappings, editingSuggestion)}
     
-    # ===== 添加轉場 =====
+    # ===== 添加轉場 (根據場景設定) =====
     print("\\n--- 添加轉場 ---")
     for i in range(1, len(strips)):
-        add_transition(seq_editor, strips[i-1], strips[i], channel=10+i)
+        prev_video = VIDEO_DATA[i-1]
+        transition_type = prev_video.get("transition_type", "dissolve")
+        transition_duration = prev_video.get("transition_duration", 0.5)
+        
+        if transition_type == "cut":
+            # 硬切: 不加轉場效果，直接接合
+            print(f"  ✂️ 硬切: {strips[i-1].name} → {strips[i].name}")
+            pass
+        elif transition_type == "continuation":
+            # 延續: 無縫接合 (影片本身已使用前一場景的 endFrame)
+            print(f"  🔗 延續: {strips[i-1].name} → {strips[i].name}")
+            pass
+        elif transition_type == "fade_black":
+            # 淡入黑場
+            print(f"  ⬛ 淡入黑場: {strips[i-1].name} → {strips[i].name}")
+            # 先淡出到黑，再從黑淡入
+            add_fade_out_effect(seq_editor, strips[i-1], channel=10+i*2-1)
+            add_fade_in_effect(seq_editor, strips[i], channel=10+i*2)
+        elif transition_type == "fade_white":
+            # 淡入白場
+            print(f"  ⬜ 淡入白場: {strips[i-1].name} → {strips[i].name}")
+            add_fade_out_effect(seq_editor, strips[i-1], channel=10+i*2-1, color='white')
+            add_fade_in_effect(seq_editor, strips[i], channel=10+i*2, color='white')
+        elif transition_type == "wipe":
+            # 擦除轉場
+            print(f"  ➡️ 擦除: {strips[i-1].name} → {strips[i].name}")
+            add_wipe_transition(seq_editor, strips[i-1], strips[i], channel=10+i)
+        elif transition_type == "push":
+            # 推出轉場 (用 WIPE 實現)
+            print(f"  📤 推出: {strips[i-1].name} → {strips[i].name}")
+            add_wipe_transition(seq_editor, strips[i-1], strips[i], channel=10+i, wipe_type='SINGLE')
+        elif transition_type == "match_cut":
+            # 匹配剪接: 快速 Cross (短時間)
+            print(f"  🎯 匹配剪接: {strips[i-1].name} → {strips[i].name}")
+            add_transition(seq_editor, strips[i-1], strips[i], channel=10+i)
+        else:
+            # 預設: 交叉溶解
+            print(f"  🔀 交叉溶解: {strips[i-1].name} → {strips[i].name}")
+            add_transition(seq_editor, strips[i-1], strips[i], channel=10+i)
     
     # ===== 設定預覽範圍 =====
     scene = bpy.context.scene
@@ -712,6 +867,10 @@ function generateVideoDataSection(
         // 速度因子
         const speedFactor = sceneEditInfo?.speedFactor || 1.0;
 
+        // 轉場設定 (從場景的 transitionToNext 讀取)
+        const transitionType = scene.transitionToNext?.type || 'dissolve';
+        const transitionDuration = scene.transitionToNext?.duration || 0.5;
+
         return `        {
             "name": "Scene_${scene.sceneNumber}",
             "url": "${scene.generatedVideo!.url.replace(/\\/g, '\\\\')}",
@@ -720,7 +879,9 @@ function generateVideoDataSection(
             "effects": ${JSON.stringify(effects)},
             "modifiers": ${JSON.stringify(modifiers)},
             "speed_factor": ${speedFactor},
-            "transition": "${sceneEditInfo?.transition || 'crossfade'}"
+            "transition": "${sceneEditInfo?.transition || 'crossfade'}",
+            "transition_type": "${transitionType}",
+            "transition_duration": ${transitionDuration}
         }`;
     });
 
@@ -742,57 +903,13 @@ function generateEffectsApplicationSection(
             add_glow_effect(seq_editor, strip, threshold=0.6, channel=21+i*3)`;
     }
 
-    return `            # [CRITICAL FIX] 先添加 Modifiers
-            # 使用 bpy.ops 配合 context override 來安全添加 Modifier，避免直接 API 呼叫導致的 Crash
-            def add_modifier_safe(strip, type_name):
-                try:
-                    # 必須先選中該 Strip 並設為活動
-                    for s in seq_editor.strips: s.select = False
-                    strip.select = True
-                    seq_editor.active_strip = strip
-                    
-                    # 尋找 VSE 區域
-                    area = None
-                    for a in bpy.context.screen.areas:
-                        if a.type == 'SEQUENCE_EDITOR':
-                            area = a
-                            break
-                    
-                    if not area:
-                        # 如果找不到，嘗試新建一個或使用當前
-                        area = bpy.context.area
-                    
-                    with bpy.context.temp_override(area=area, scene=bpy.context.scene):
-                        bfs = bpy.ops.sequencer.strip_modifier_add(type=type_name)
-                        if 'FINISHED' in bfs:
-                            return strip.modifiers[-1]
-                    return None
-                except Exception as e:
-                    print(f"⚠ Modifier 添加失敗 ({type_name}): {e}")
-                    return None
-
+    return `            # [DISABLED] Modifiers 在 Blender 5.0 會導致 Crash (SIGSEGV)
+            # 原因: strip.modifiers.new() 在 strip 時間資訊未完全初始化時調用會崩潰
+            # 暫時禁用調色 Modifiers，只使用 Effect Strips
+            
             video_modifiers = video_info.get("modifiers", [])
             if video_modifiers:
-                print(f"→ 套用修飾器 ({len(video_modifiers)})")
-            
-            for modifier in video_modifiers:
-                modifier_lower = modifier.lower()
-                mod = None
-                if "brightness" in modifier_lower or "contrast" in modifier_lower:
-                    mod = add_modifier_safe(strip, 'BRIGHT_CONTRAST')
-                    if mod:
-                        mod.bright = 0.05
-                        mod.contrast = 1.1
-                elif "hue" in modifier_lower or "saturation" in modifier_lower:
-                    mod = add_modifier_safe(strip, 'HUE_CORRECT')
-                    if mod and hasattr(mod, 'color_saturation'):
-                        mod.color_saturation = 1.15
-                elif "curves" in modifier_lower:
-                    add_modifier_safe(strip, 'CURVES')
-                elif "white_balance" in modifier_lower or "white balance" in modifier_lower:
-                    add_modifier_safe(strip, 'WHITE_BALANCE')
-                elif "tone" in modifier_lower or "tonemap" in modifier_lower:
-                    add_modifier_safe(strip, 'TONEMAP')
+                print(f"⚠ 跳過修飾器 ({len(video_modifiers)}) - Blender 5.0 相容性問題")
 
             # 之後再添加 Effects (這些 Effects 會依賴於 strip)
             video_effects = video_info.get("effects", [])

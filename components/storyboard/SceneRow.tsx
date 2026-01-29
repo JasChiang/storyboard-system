@@ -1,15 +1,26 @@
 'use client';
 
 import { useState } from 'react';
-import { Scene } from '@/lib/types/storyboard';
+import { Scene, TransitionType } from '@/lib/types/storyboard';
 import { Pencil, Trash2, Check, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 interface SceneRowProps {
   scene: Scene;
   onUpdate: (updates: Partial<Scene>) => void;
   onDelete: () => void;
 }
+
+// 轉場類型顯示設定
+const TRANSITION_LABELS: Record<TransitionType, { label: string; color: string; icon: string }> = {
+  cut: { label: '硬切', color: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300', icon: '✂️' },
+  dissolve: { label: '溶解', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: '🔀' },
+  fade_black: { label: '黑場', color: 'bg-gray-800 text-white dark:bg-gray-900 dark:text-gray-100', icon: '⬛' },
+  fade_white: { label: '白場', color: 'bg-gray-100 text-gray-700 dark:bg-gray-200 dark:text-gray-800', icon: '⬜' },
+  continuation: { label: '延續', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: '🔗' },
+  match_cut: { label: '匹配', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', icon: '🎯' },
+  wipe: { label: '擦除', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: '➡️' },
+  push: { label: '推出', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', icon: '📤' },
+};
 
 export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -23,6 +34,23 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
   const handleCancel = () => {
     setEditedScene(scene);
     setIsEditing(false);
+  };
+
+  const handleTransitionChange = (type: TransitionType) => {
+    const updates = {
+      ...editedScene,
+      transitionToNext: {
+        ...editedScene.transitionToNext,
+        type,
+        // 自動設定 continuation 的相關選項
+        useEndFrameAsNextStart: type === 'continuation',
+      },
+    };
+    // 如果選擇 continuation，自動勾選 requiresEndFrame
+    if (type === 'continuation') {
+      updates.requiresEndFrame = true;
+    }
+    setEditedScene(updates);
   };
 
   if (isEditing) {
@@ -85,6 +113,25 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
             )}
           </div>
         </td>
+        {/* 轉場編輯 */}
+        <td className="px-4 py-3">
+          <select
+            className="w-full px-2 py-1 border rounded text-sm"
+            value={editedScene.transitionToNext?.type || 'dissolve'}
+            onChange={(e) => handleTransitionChange(e.target.value as TransitionType)}
+          >
+            {Object.entries(TRANSITION_LABELS).map(([type, { label, icon }]) => (
+              <option key={type} value={type}>
+                {icon} {label}
+              </option>
+            ))}
+          </select>
+          {editedScene.transitionToNext?.reason && (
+            <div className="text-xs text-slate-500 mt-1 line-clamp-2">
+              {editedScene.transitionToNext.reason}
+            </div>
+          )}
+        </td>
         <td className="px-4 py-3">
           <div className="flex gap-2">
             <button
@@ -106,6 +153,9 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
       </tr>
     );
   }
+
+  const transitionType = scene.transitionToNext?.type || 'dissolve';
+  const transitionInfo = TRANSITION_LABELS[transitionType];
 
   return (
     <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
@@ -149,6 +199,24 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
           <span className="text-xs text-slate-400 dark:text-slate-600">—</span>
         )}
       </td>
+      {/* 轉場顯示 */}
+      <td className="px-4 py-3">
+        <div className="space-y-1">
+          <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded ${transitionInfo.color}`}>
+            {transitionInfo.icon} {transitionInfo.label}
+          </span>
+          {scene.transitionToNext?.useEndFrameAsNextStart && (
+            <div className="text-xs text-green-600 dark:text-green-400">
+              → 延續至下一幕
+            </div>
+          )}
+          {scene.transitionToNext?.reason && (
+            <div className="text-xs text-slate-500 dark:text-slate-400 max-w-xs line-clamp-2" title={scene.transitionToNext.reason}>
+              {scene.transitionToNext.reason}
+            </div>
+          )}
+        </div>
+      </td>
       <td className="px-4 py-3">
         <div className="flex gap-2">
           <button
@@ -170,3 +238,4 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
     </tr>
   );
 }
+

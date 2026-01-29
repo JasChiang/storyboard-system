@@ -198,16 +198,34 @@ export default function VideosPage() {
 
           {/* Video Generator */}
           <div className="col-span-8">
-            {selectedScene ? (
-              <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
-                <VideoGenerator
-                  scene={selectedScene}
-                  onVideoGenerated={(url, prompt, model) =>
-                    handleVideoGenerated(selectedScene.id, url, prompt, model)
-                  }
-                />
-              </div>
-            ) : (
+            {selectedScene ? (() => {
+              // 計算 previousEndFrameUrl（用於 continuation 轉場）
+              const sceneIndex = scenes.findIndex(s => s.id === selectedSceneId);
+              const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
+              const previousEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
+                ? previousScene.generatedEndFrame?.url
+                : undefined;
+
+              return (
+                <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
+                  {/* Continuation 提示 */}
+                  {previousEndFrameUrl && (
+                    <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg">
+                      <p className="text-sm text-purple-700 dark:text-purple-300">
+                        🔗 <strong>Continuation 轉場</strong>：將使用場景 {previousScene?.sceneNumber} 的尾幀作為起始畫面
+                      </p>
+                    </div>
+                  )}
+                  <VideoGenerator
+                    scene={selectedScene}
+                    previousEndFrameUrl={previousEndFrameUrl}
+                    onVideoGenerated={(url, prompt, model) =>
+                      handleVideoGenerated(selectedScene.id, url, prompt, model)
+                    }
+                  />
+                </div>
+              );
+            })() : (
               <div className="h-full flex items-center justify-center bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 backdrop-blur-sm">
                 <div className="text-center">
                   <Film className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto mb-3" />

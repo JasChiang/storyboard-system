@@ -59,6 +59,41 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
 7. 時長建議 (duration) - 以秒為單位的建議時長
 8. 備註 (notes) - 任何額外的製作提示、特效需求等
 
+9. 🆕 與下一場景的轉場設定 (transitionToNext) - 分析此場景與下一場景的關係，智慧判斷轉場類型：
+
+   【轉場類型說明】：
+   - cut: 硬切 - 直接接合，無任何轉場效果（時空完全不同）
+   - dissolve: 交叉溶解 - 柔和過渡（同空間時間跳躍、情緒延續）
+   - fade_black: 淡入黑場 - 明確的段落分隔（結束語、轉折點）
+   - fade_white: 淡入白場 - 夢境或閃回結束
+   - continuation: 延續 - 用此場景的 endFrame 作為下一場景的 startFrame（動作連續）
+   - match_cut: 匹配剪接 - 形狀或動作相似的畫面接續（球→月亮、眼睛→窗戶）
+   - wipe: 擦除 - 有方向感的畫面替換
+   - push: 推出 - 新畫面推開舊畫面
+
+   【判斷邏輯】：
+   a) 如果下一場景是「同一動作的延續」（同主體、動作連續）：
+      → type = "continuation"
+      → useEndFrameAsNextStart = true
+      → ⚠️ 此時 requiresEndFrame 也必須設為 true
+      
+   b) 如果下一場景是「同一空間但時間跳躍」（如：白天→黑夜）：
+      → type = "dissolve"
+      → useEndFrameAsNextStart = false
+      
+   c) 如果下一場景是「完全不同的時空」（換場景、換角色）：
+      → type = "cut"
+      → useEndFrameAsNextStart = false
+      
+   d) 如果下一場景是「視覺形狀相關」（相似形狀或動作）：
+      → type = "match_cut"
+      → useEndFrameAsNextStart = false
+      
+   e) 如果是最後一個場景：
+      → type = "fade_black"（作為結束）
+
+   必須在 reason 欄位說明選擇此轉場類型的原因。
+
 請確保場景之間有良好的敘事連貫性和視覺節奏。`,
 
     outputSchema: {
@@ -104,12 +139,37 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                         notes: {
                             type: 'string',
                             description: '額外備註'
+                        },
+                        transitionToNext: {
+                            type: 'object',
+                            description: '與下一場景的轉場設定',
+                            properties: {
+                                type: {
+                                    type: 'string',
+                                    enum: ['cut', 'dissolve', 'fade_black', 'fade_white', 'continuation', 'match_cut', 'wipe', 'push'],
+                                    description: '轉場類型'
+                                },
+                                reason: {
+                                    type: 'string',
+                                    description: 'AI 選擇此轉場的原因'
+                                },
+                                duration: {
+                                    type: 'number',
+                                    description: '轉場時長（秒），預設 0.5'
+                                },
+                                useEndFrameAsNextStart: {
+                                    type: 'boolean',
+                                    description: '是否讓下一場景使用此場景的 endFrame 作為開始幀'
+                                }
+                            },
+                            required: ['type', 'reason']
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration', 'transitionToNext']
                 }
             }
         },
         required: ['title', 'scenes']
     }
 };
+
