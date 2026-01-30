@@ -9,6 +9,7 @@ export interface Project {
   storyboard?: Storyboard;
   blenderScript?: string;
   editingSuggestions?: EditingSuggestion;
+  openreelProjectJson?: string;
   status: ProjectStatus;
   createdAt: string;
   updatedAt: string;

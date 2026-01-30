@@ -40,6 +40,10 @@ next-env.d.ts
 
 # temp
 /tmp
+/temp
+
+# FFmpeg renders
+/public/renders
 
 # Claude Code
 .claude/

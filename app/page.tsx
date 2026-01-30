@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Clapperboard, Plus, Sparkles, Film, Image as ImageIcon, Wand2 } from "lucide-react";
+import { Clapperboard, Plus, Sparkles, Film, Image as ImageIcon, Wand2, Users } from "lucide-react";
 import { useProjectStore } from '@/stores/project-store';
 import { ProjectCard } from '@/components/project/ProjectCard';
 import { CreateProjectDialog } from '@/components/project/CreateProjectDialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils'; // Assuming global util
+import Link from 'next/link';
 
 export default function Home() {
   const { projects, loadProjects, createProject, deleteProject } = useProjectStore();
@@ -38,14 +39,26 @@ export default function Home() {
               Storyboard System
             </h1>
           </div>
-          <Button
-            onClick={() => setIsCreateDialogOpen(true)}
-            size="sm"
-            className="shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all font-medium"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            新專案
-          </Button>
+          <div className="flex items-center gap-3">
+            <Link href="/characters">
+              <Button
+                variant="outline"
+                size="sm"
+                className="shadow-sm hover:shadow-md transition-all"
+              >
+                <Users className="w-4 h-4 mr-2" />
+                角色库
+              </Button>
+            </Link>
+            <Button
+              onClick={() => setIsCreateDialogOpen(true)}
+              size="sm"
+              className="shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all font-medium"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              新專案
+            </Button>
+          </div>
         </div>
       </header>
 

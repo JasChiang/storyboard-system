@@ -2,11 +2,13 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Scissors, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, Scissors, CheckCircle2, XCircle, Zap, Wand2 } from 'lucide-react';
 import Link from 'next/link';
 import { useProjectStore } from '@/stores/project-store';
 import { VideoAnalyzer } from '@/components/export/VideoAnalyzer';
 import { BlenderScriptViewer } from '@/components/export/BlenderScriptViewer';
+import { FFmpegRenderer } from '@/components/export/FFmpegRenderer';
+import { OpenReelEditor } from '@/components/export/OpenReelEditor';
 import type { EditingSuggestion } from '@/lib/types/project';
 
 export default function ExportPage() {
@@ -15,6 +17,7 @@ export default function ExportPage() {
 
   const { currentProject, setCurrentProject, updateProject } = useProjectStore();
   const [editingSuggestion, setEditingSuggestion] = useState<EditingSuggestion | null>(null);
+  const [renderMode, setRenderMode] = useState<'openreel' | 'ffmpeg' | 'blender'>('openreel');
 
   useEffect(() => {
     setCurrentProject(projectId);
@@ -72,10 +75,10 @@ export default function ExportPage() {
             <div>
               <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Scissors className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                Blender 腳本匯出
+                视频导出
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                {currentProject.name} · AI 分析與自動剪輯
+                {currentProject.name} · {renderMode === 'openreel' ? 'OpenReel 線上編輯' : renderMode === 'ffmpeg' ? 'FFmpeg 快速渲染' : 'Blender 专业导出'}
               </p>
             </div>
           </div>
@@ -83,6 +86,110 @@ export default function ExportPage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {/* 渲染模式选择 */}
+        <div className="max-w-4xl mx-auto mb-8">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+            选择渲染方式
+          </h2>
+          <div className="grid grid-cols-3 gap-4">
+            <button
+              onClick={() => setRenderMode('openreel')}
+              className={`p-6 rounded-xl border-2 transition-all text-left ${
+                renderMode === 'openreel'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 bg-white/50 dark:bg-slate-900/50'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`p-2 rounded-lg ${
+                  renderMode === 'openreel' ? 'bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'
+                }`}>
+                  <Wand2 className={`w-6 h-6 ${
+                    renderMode === 'openreel' ? 'text-white' : 'text-slate-600 dark:text-slate-400'
+                  }`} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 dark:text-white">
+                    OpenReel 線上編輯
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">推荐</p>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                完整線上剪輯器，支援多軌時間軸、轉場與字幕。
+              </p>
+              <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <CheckCircle2 className="w-3 h-3 text-green-500" />
+                可保存專案並直接匯出
+              </div>
+            </button>
+
+            <button
+              onClick={() => setRenderMode('ffmpeg')}
+              className={`p-6 rounded-xl border-2 transition-all text-left ${
+                renderMode === 'ffmpeg'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 bg-white/50 dark:bg-slate-900/50'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`p-2 rounded-lg ${
+                  renderMode === 'ffmpeg' ? 'bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'
+                }`}>
+                  <Zap className={`w-6 h-6 ${
+                    renderMode === 'ffmpeg' ? 'text-white' : 'text-slate-600 dark:text-slate-400'
+                  }`} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 dark:text-white">
+                    FFmpeg 快速渲染
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">快速</p>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                自动合成所有场景，包含转场和字幕。一键完成。
+              </p>
+              <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <CheckCircle2 className="w-3 h-3 text-green-500" />
+                服务器端渲染，极速
+              </div>
+            </button>
+
+            <button
+              onClick={() => setRenderMode('blender')}
+              className={`p-6 rounded-xl border-2 transition-all text-left ${
+                renderMode === 'blender'
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 bg-white/50 dark:bg-slate-900/50'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`p-2 rounded-lg ${
+                  renderMode === 'blender' ? 'bg-blue-500' : 'bg-slate-200 dark:bg-slate-700'
+                }`}>
+                  <Scissors className={`w-6 h-6 ${
+                    renderMode === 'blender' ? 'text-white' : 'text-slate-600 dark:text-slate-400'
+                  }`} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-900 dark:text-white">
+                    Blender 专业导出
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">进阶</p>
+                </div>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                导出 Python 脚本，在 Blender 中手动精修。支持复杂特效。
+              </p>
+              <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <CheckCircle2 className="w-3 h-3 text-green-500" />
+                完全控制，高级调色
+              </div>
+            </button>
+          </div>
+        </div>
+
         {/* 完成度檢查 */}
         <div className="max-w-4xl mx-auto mb-8">
           <div className="p-4 bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 backdrop-blur-sm">
@@ -122,26 +229,56 @@ export default function ExportPage() {
           </div>
         </div>
 
-        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
-          {/* 左側：影片分析 */}
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">步驟 1: AI 影片分析</h2>
-            <VideoAnalyzer
-              storyboard={currentProject.storyboard}
-              onAnalysisComplete={handleAnalysisComplete}
-            />
-          </div>
-
-          {/* 右側：Blender 腳本 */}
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">步驟 2: Blender 腳本</h2>
-            <BlenderScriptViewer
+        {/* OpenReel 编辑模式 */}
+        {renderMode === 'openreel' && (
+          <div className="max-w-6xl mx-auto">
+            <OpenReelEditor
+              projectId={projectId}
               projectName={currentProject.name}
-              scenes={scenes}
-              editingSuggestion={editingSuggestion || undefined}
+              storyboard={currentProject.storyboard}
+              editingSuggestion={editingSuggestion}
+              savedProjectJson={currentProject.openreelProjectJson}
+              onSaveProjectJson={(json) => {
+                updateProject(projectId, { openreelProjectJson: json });
+              }}
             />
           </div>
-        </div>
+        )}
+
+        {/* FFmpeg 渲染模式 */}
+        {renderMode === 'ffmpeg' && (
+          <div className="max-w-4xl mx-auto">
+            <FFmpegRenderer
+              projectId={projectId}
+              projectName={currentProject.name}
+              storyboard={currentProject.storyboard}
+            />
+          </div>
+        )}
+
+        {/* Blender 导出模式 */}
+        {renderMode === 'blender' && (
+          <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
+            {/* 左側：影片分析 */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">步骤 1: AI 影片分析</h2>
+              <VideoAnalyzer
+                storyboard={currentProject.storyboard}
+                onAnalysisComplete={handleAnalysisComplete}
+              />
+            </div>
+
+            {/* 右側：Blender 腳本 */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">步骤 2: Blender 脚本</h2>
+              <BlenderScriptViewer
+                projectName={currentProject.name}
+                scenes={scenes}
+                editingSuggestion={editingSuggestion || undefined}
+              />
+            </div>
+          </div>
+        )}
 
         {/* 影片列表 */}
         {scenesWithVideos.length > 0 && (

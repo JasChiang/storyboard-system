@@ -5,8 +5,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { TEMPLATES } from '@/lib/prompts';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Users } from 'lucide-react';
 import { ProjectReferenceUploader } from './ProjectReferenceUploader';
+import { CharacterSelector } from '@/components/character-library/CharacterSelector';
 import type { ProjectReference } from '@/lib/types/storyboard';
 
 interface StoryPromptInputProps {
@@ -18,10 +19,16 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
   const [prompt, setPrompt] = useState('');
   const [templateId, setTemplateId] = useState(TEMPLATES[0].id);
   const [references, setReferences] = useState<ProjectReference[]>([]);
+  const [showCharacterSelector, setShowCharacterSelector] = useState(false);
 
   const handleSubmit = async () => {
     if (!prompt.trim()) return;
     await onGenerate(prompt, templateId, references);
+  };
+
+  const handleSelectFromLibrary = (newReferences: ProjectReference[]) => {
+    // 合并角色库选择的角色和已有的临时上传
+    setReferences([...references, ...newReferences]);
   };
 
   const templateOptions = TEMPLATES.map(t => ({
@@ -51,19 +58,48 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
           </div>
         )}
 
-        {/* 參考圖上傳區 */}
-        <ProjectReferenceUploader
-          references={references}
-          onChange={setReferences}
-          disabled={isLoading}
-        />
+        {/* 参考图管理 */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              参考图片（选填）
+            </label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCharacterSelector(true)}
+              disabled={isLoading}
+            >
+              <Users className="w-4 h-4 mr-2" />
+              从角色库选择
+            </Button>
+          </div>
 
-        {/* 參考圖提示 */}
+          <ProjectReferenceUploader
+            references={references}
+            onChange={setReferences}
+            disabled={isLoading}
+          />
+        </div>
+
+        {/* 参考图提示 */}
         {references.length > 0 && (
           <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
             <p className="text-sm text-green-800 dark:text-green-200">
-              ✅ 已設定 {references.length} 張參考圖。AI 生成的分鏡描述會使用 &lt;角色名&gt; 或 &lt;商品名&gt; 格式標記，不會重複描述外觀。
+              ✅ 已设定 {references.length} 张参考图。AI 生成的分镜描述会使用 &lt;角色名&gt; 或 &lt;商品名&gt; 格式标记，不会重复描述外观。
             </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {references.map(ref => (
+                <span
+                  key={ref.id}
+                  className="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-slate-800
+                           text-xs rounded border border-green-300 dark:border-green-700"
+                >
+                  {ref.name ? `<${ref.name}>` : ref.type}
+                  {ref.descriptionSource === 'ai' && ' 🤖'}
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
@@ -91,6 +127,13 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
           )}
         </Button>
       </div>
+
+      {/* 角色库选择器 */}
+      <CharacterSelector
+        isOpen={showCharacterSelector}
+        onClose={() => setShowCharacterSelector(false)}
+        onSelect={handleSelectFromLibrary}
+      />
     </div>
   );
 }

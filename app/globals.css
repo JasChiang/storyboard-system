@@ -95,3 +95,34 @@
     text-wrap: balance;
   }
 }
+
+@layer utilities {
+  .timeline-editor {
+    border-radius: 1rem;
+  }
+
+  .timeline-editor .timeline-editor-edit-row {
+    background-color: #14161a;
+  }
+
+  .timeline-editor .timeline-editor-time-area {
+    background-color: #0f1115;
+  }
+
+  .timeline-editor .timeline-editor-action {
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  .timeline-editor .action-effect-video {
+    background: linear-gradient(135deg, rgba(65, 105, 225, 0.9), rgba(52, 211, 153, 0.7));
+  }
+
+  .timeline-editor .action-effect-transition {
+    background: linear-gradient(135deg, rgba(244, 114, 182, 0.9), rgba(251, 191, 36, 0.8));
+  }
+
+  .timeline-editor .action-effect-subtitle {
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.9), rgba(148, 163, 184, 0.8));
+  }
+}
