@@ -10,6 +10,7 @@ export interface CharacterLibraryItem {
   name: string;                    // 角色名称（如 "吉祥物小熊"）
   type: 'character' | 'product' | 'environment' | 'style';
   description: string;              // 全局描述
+  guidelines?: string;              // 規則/限制（提供給生成提示詞）
   tags: string[];                   // 标签（用于搜索和分类）
 
   // 多视角参考图
@@ -51,5 +52,6 @@ export function characterLibraryItemToProjectReference(
     name: item.name,
     angle: view.angle,
     descriptionSource: 'ai',
+    guidelines: item.guidelines,
   };
 }

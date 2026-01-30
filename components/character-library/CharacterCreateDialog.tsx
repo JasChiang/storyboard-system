@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Plus, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fal } from '@fal-ai/client';
@@ -44,6 +44,7 @@ export function CharacterCreateDialog({
   const [name, setName] = useState(editingCharacter?.name || '');
   const [type, setType] = useState<CharacterLibraryItem['type']>(editingCharacter?.type || 'character');
   const [description, setDescription] = useState(editingCharacter?.description || '');
+  const [guidelines, setGuidelines] = useState(editingCharacter?.guidelines || '');
   const [tags, setTags] = useState<string[]>(editingCharacter?.tags || []);
   const [views, setViews] = useState<ViewUpload[]>(editingCharacter?.views || []);
   const [currentTag, setCurrentTag] = useState('');
@@ -51,6 +52,26 @@ export function CharacterCreateDialog({
   const [uploadingAngle, setUploadingAngle] = useState<ViewUpload['angle'] | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (editingCharacter) {
+      setName(editingCharacter.name || '');
+      setType(editingCharacter.type || 'character');
+      setDescription(editingCharacter.description || '');
+      setGuidelines(editingCharacter.guidelines || '');
+      setTags(editingCharacter.tags || []);
+      setViews(editingCharacter.views || []);
+    } else {
+      setName('');
+      setType('character');
+      setDescription('');
+      setGuidelines('');
+      setTags([]);
+      setViews([]);
+    }
+  }, [isOpen, editingCharacter]);
 
   if (!isOpen) return null;
 
@@ -133,6 +154,7 @@ export function CharacterCreateDialog({
       name: name.trim(),
       type,
       description: description.trim() || `${name} - ${TYPE_OPTIONS.find(t => t.value === type)?.label}`,
+      guidelines: guidelines.trim() || undefined,
       tags,
       views,
     });
@@ -141,6 +163,7 @@ export function CharacterCreateDialog({
     setName('');
     setType('character');
     setDescription('');
+    setGuidelines('');
     setTags([]);
     setViews([]);
     onClose();
@@ -214,6 +237,22 @@ export function CharacterCreateDialog({
             </div>
 
             <div>
+              <label className="block text-sm font-medium mb-2">角色規則 / 限制</label>
+              <textarea
+                value={guidelines}
+                onChange={(e) => setGuidelines(e.target.value)}
+                placeholder="例如：不可穿鞋、永遠微笑、手上必須拿藍色杯子..."
+                rows={2}
+                className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
+                         bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500
+                         resize-none"
+              />
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                會加入到生成提示詞中，確保角色遵守設定
+              </p>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium mb-2">标签</label>
               <div className="flex gap-2 mb-2">
                 <input
@@ -260,53 +299,60 @@ export function CharacterCreateDialog({
                 const existingView = views.find(v => v.angle === angle.value);
 
                 return (
-                  <div
-                    key={angle.value}
-                    className="relative aspect-square border-2 border-dashed border-slate-300 dark:border-slate-600
-                             rounded-lg overflow-hidden group hover:border-blue-400 transition-colors"
-                  >
-                    {existingView ? (
-                      <>
-                        <img
-                          src={existingView.url}
-                          alt={angle.label}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100
-                                      transition-opacity flex items-center justify-center">
-                          <button
-                            onClick={() => handleRemoveView(angle.value)}
-                            className="p-2 bg-red-500 hover:bg-red-600 rounded-lg"
-                          >
-                            <X className="w-5 h-5 text-white" />
-                          </button>
-                        </div>
-                        <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded text-white text-xs">
-                          {angle.emoji} {angle.label}
-                        </div>
-                      </>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center h-full cursor-pointer">
-                        {isUploading && uploadingAngle === angle.value ? (
-                          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                        ) : (
-                          <>
-                            <span className="text-3xl mb-2">{angle.emoji}</span>
-                            <span className="text-sm font-medium">{angle.label}</span>
-                            <span className="text-xs text-slate-500 mt-1">点击上传</span>
-                          </>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleFileSelect(angle.value, file);
-                          }}
-                          disabled={isUploading}
-                        />
-                      </label>
+                  <div key={angle.value} className="space-y-2">
+                    <div
+                      className="relative aspect-square border-2 border-dashed border-slate-300 dark:border-slate-600
+                               rounded-lg overflow-hidden group hover:border-blue-400 transition-colors"
+                    >
+                      {existingView ? (
+                        <>
+                          <img
+                            src={existingView.url}
+                            alt={angle.label}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100
+                                        transition-opacity flex items-center justify-center">
+                            <button
+                              onClick={() => handleRemoveView(angle.value)}
+                              className="p-2 bg-red-500 hover:bg-red-600 rounded-lg"
+                            >
+                              <X className="w-5 h-5 text-white" />
+                            </button>
+                          </div>
+                          <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 rounded text-white text-xs">
+                            {angle.emoji} {angle.label}
+                          </div>
+                        </>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center h-full cursor-pointer">
+                          {isUploading && uploadingAngle === angle.value ? (
+                            <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                          ) : (
+                            <>
+                              <span className="text-3xl mb-2">{angle.emoji}</span>
+                              <span className="text-sm font-medium">{angle.label}</span>
+                              <span className="text-xs text-slate-500 mt-1">点击上传</span>
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleFileSelect(angle.value, file);
+                            }}
+                            disabled={isUploading}
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    {existingView?.description && (
+                      <div className="text-xs text-slate-600 dark:text-slate-400 line-clamp-3">
+                        {existingView.description}
+                      </div>
                     )}
                   </div>
                 );

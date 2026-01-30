@@ -231,17 +231,19 @@ export default function ExportPage() {
 
         {/* OpenReel 编辑模式 */}
         {renderMode === 'openreel' && (
-          <div className="max-w-6xl mx-auto">
-            <OpenReelEditor
-              projectId={projectId}
-              projectName={currentProject.name}
-              storyboard={currentProject.storyboard}
-              editingSuggestion={editingSuggestion}
-              savedProjectJson={currentProject.openreelProjectJson}
-              onSaveProjectJson={(json) => {
-                updateProject(projectId, { openreelProjectJson: json });
-              }}
-            />
+          <div className="relative left-1/2 right-1/2 w-screen -mx-[50vw] px-4 sm:px-6 lg:px-8">
+            <div className="max-w-none">
+              <OpenReelEditor
+                projectId={projectId}
+                projectName={currentProject.name}
+                storyboard={currentProject.storyboard}
+                editingSuggestion={editingSuggestion}
+                savedProjectJson={currentProject.openreelProjectJson}
+                onSaveProjectJson={(json) => {
+                  updateProject(projectId, { openreelProjectJson: json });
+                }}
+              />
+            </div>
           </div>
         )}
 

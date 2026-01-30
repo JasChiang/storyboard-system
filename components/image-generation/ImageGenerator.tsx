@@ -53,7 +53,8 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                 parts.push('Context from references:');
                 selectedRefs.forEach(ref => {
                     const nameTag = ref.name ? `<${ref.name}>` : ref.type;
-                    parts.push(`${nameTag}: ${ref.description}`);
+                    const guidelineText = ref.guidelines ? ` (Rules: ${ref.guidelines})` : '';
+                    parts.push(`${nameTag}: ${ref.description}${guidelineText}`);
                 });
             }
         }

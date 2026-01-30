@@ -32,7 +32,8 @@ export function buildSystemPrompt(
             characterRefs.forEach(r => {
                 const charName = r.name || '未命名角色';
                 const angleInfo = r.angle ? ` [${angleMap[r.angle] || r.angle}]` : '';
-                prompt += `- **<${charName}>**${angleInfo}: ${r.description}\n`;
+                const guidelineText = r.guidelines ? ` | 規則：${r.guidelines}` : '';
+                prompt += `- **<${charName}>**${angleInfo}: ${r.description}${guidelineText}\n`;
             });
             prompt += '\n';
         }

@@ -76,6 +76,7 @@ export interface ProjectReference {
   type: 'character' | 'product' | 'environment' | 'style';
   name?: string;                 // 角色名稱 或 商品名稱
   descriptionSource: 'manual' | 'ai';  // 描述來源
+  guidelines?: string;           // 規則/限制（生成提示詞用）
 
   // Multi-Angle Support (多視角支援)
   angle?: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';  // 視角標籤
