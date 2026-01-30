@@ -99,6 +99,34 @@ interface OpenReelSubtitle {
   };
 }
 
+interface OpenReelTextClip {
+  id: string;
+  trackId: string;
+  startTime: number;
+  duration: number;
+  text: string;
+  style: {
+    fontFamily: string;
+    fontSize: number;
+    fontWeight: number | 'normal' | 'bold';
+    fontStyle: 'normal' | 'italic';
+    color: string;
+    backgroundColor?: string;
+    textAlign: 'left' | 'center' | 'right' | 'justify';
+    verticalAlign: 'top' | 'middle' | 'bottom';
+    lineHeight: number;
+    letterSpacing: number;
+  };
+  transform: {
+    position: { x: number; y: number };
+    scale: { x: number; y: number };
+    rotation: number;
+    anchor: { x: number; y: number };
+    opacity: number;
+  };
+  keyframes: unknown[];
+}
+
 interface OpenReelTimeline {
   tracks: OpenReelTrack[];
   subtitles: OpenReelSubtitle[];
@@ -114,6 +142,7 @@ interface OpenReelProject {
   settings: OpenReelProjectSettings;
   mediaLibrary: { items: OpenReelMediaItem[] };
   timeline: OpenReelTimeline;
+  textClips?: OpenReelTextClip[];
 }
 
 interface OpenReelProjectFile {
@@ -227,11 +256,14 @@ export function convertToOpenReelProjectFile(
   const clips: OpenReelClip[] = [];
   const transitions: OpenReelTransition[] = [];
   const subtitles: OpenReelSubtitle[] = [];
+  const textClips: OpenReelTextClip[] = [];
   const markers: OpenReelMarker[] = [];
 
-  let currentTime = 0;
-  const trackId = generateId('track');
+  const tracks: OpenReelTrack[] = [];
+  const videoTrackId = generateId('track');
+  let captionsTrackId: string | null = null;
 
+  let currentTime = 0;
   storyboard.scenes.forEach((scene, index) => {
     const mediaId = `media-${scene.id}`;
     const clipId = `clip-${scene.id}`;
@@ -270,7 +302,7 @@ export function convertToOpenReelProjectFile(
     clips.push({
       id: clipId,
       mediaId,
-      trackId,
+      trackId: videoTrackId,
       startTime: currentTime,
       duration,
       inPoint: 0,
@@ -291,18 +323,51 @@ export function convertToOpenReelProjectFile(
 
     const subtitleText = scene.dialogue || scene.description;
     if (subtitleText) {
+      const subtitleId = `subtitle-${scene.id}`;
       subtitles.push({
-        id: `subtitle-${scene.id}`,
+        id: subtitleId,
         text: subtitleText,
         startTime: currentTime,
         endTime: currentTime + duration,
         style: {
-          fontFamily: 'Arial',
+          fontFamily: 'Inter',
           fontSize: 42,
           color: '#FFFFFF',
           backgroundColor: 'rgba(0, 0, 0, 0.6)',
           position: 'bottom',
         },
+      });
+
+      if (!captionsTrackId) {
+        captionsTrackId = generateId('track');
+      }
+
+      textClips.push({
+        id: `text-${scene.id}`,
+        trackId: captionsTrackId,
+        startTime: currentTime,
+        duration,
+        text: subtitleText,
+        style: {
+          fontFamily: 'Inter',
+          fontSize: 42,
+          fontWeight: 600,
+          fontStyle: 'normal',
+          color: '#FFFFFF',
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          textAlign: 'center',
+          verticalAlign: 'bottom',
+          lineHeight: 1.2,
+          letterSpacing: 0,
+        },
+        transform: {
+          position: { x: 0.5, y: 0.85 },
+          scale: { x: 1, y: 1 },
+          rotation: 0,
+          anchor: { x: 0.5, y: 0.5 },
+          opacity: 1,
+        },
+        keyframes: [],
       });
     }
 
@@ -337,21 +402,35 @@ export function convertToOpenReelProjectFile(
     });
   }
 
+  tracks.push({
+    id: videoTrackId,
+    type: 'video',
+    name: 'Video Track',
+    clips,
+    transitions,
+    locked: false,
+    hidden: false,
+    muted: false,
+    solo: false,
+  });
+
+  if (captionsTrackId) {
+    tracks.push({
+      id: captionsTrackId,
+      type: 'text',
+      name: 'Captions',
+      clips: [],
+      transitions: [],
+      locked: false,
+      hidden: false,
+      muted: false,
+      solo: false,
+    });
+  }
+
   const timeline: OpenReelTimeline = {
-    tracks: [
-      {
-        id: trackId,
-        type: 'video',
-        name: 'Video Track',
-        clips,
-        transitions,
-        locked: false,
-        hidden: false,
-        muted: false,
-        solo: false,
-      },
-    ],
-    subtitles,
+    tracks,
+    subtitles: [],
     duration: currentTime,
     markers,
   };
@@ -364,6 +443,7 @@ export function convertToOpenReelProjectFile(
     settings,
     mediaLibrary: { items: mediaItems },
     timeline,
+    textClips: textClips.length > 0 ? textClips : undefined,
   };
 
   return {
