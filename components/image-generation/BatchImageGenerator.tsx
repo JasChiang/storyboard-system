@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
-import type { Scene, ProjectReference } from '@/lib/types/storyboard';
+import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 
 interface BatchImageGeneratorProps {
     scenes: Scene[];
     projectReferences?: ProjectReference[];
+    styleProfile?: StyleProfile;
     onBatchComplete: (results: Map<string, { url: string; prompt: string; endFrameUrl?: string; endFramePrompt?: string }>) => void;
 }
 
@@ -20,7 +21,20 @@ interface GenerationStatus {
     error?: string;
 }
 
-export function BatchImageGenerator({ scenes, projectReferences = [], onBatchComplete }: BatchImageGeneratorProps) {
+export function BatchImageGenerator({
+    scenes,
+    projectReferences = [],
+    styleProfile,
+    onBatchComplete
+}: BatchImageGeneratorProps) {
+    const contentProjectReferences = projectReferences.filter(ref => ref.type !== 'style');
+    const styleProjectReferences = projectReferences.filter(ref => ref.type === 'style');
+    const selectedStyleReferenceUrls = styleProfile?.styleReferenceIds?.length
+        ? styleProjectReferences
+            .filter(ref => styleProfile.styleReferenceIds!.includes(ref.id))
+            .map(ref => ref.url)
+        : styleProjectReferences.map(ref => ref.url);
+
     const [isGenerating, setIsGenerating] = useState(false);
     const [statuses, setStatuses] = useState<Map<string, GenerationStatus>>(new Map());
     const [aspectRatio, setAspectRatio] = useState<string>('16:9');
@@ -41,10 +55,27 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
     const buildImagePrompt = (scene: Scene, isEndFrame: boolean = false) => {
         const parts = [];
 
+        if (styleProfile?.stylePrompt) {
+            parts.push(`Style direction: ${styleProfile.stylePrompt}`);
+        }
+        if (styleProfile?.negativePrompt) {
+            parts.push(`Negative constraints: ${styleProfile.negativePrompt}`);
+        }
+
         // 1. 加入專案參考圖的描述作為上下文
-        if (projectReferences.length > 0) {
-            parts.push('Context from references:');
-            projectReferences.forEach(ref => {
+        if (selectedStyleReferenceUrls.length > 0) {
+            parts.push('Style references:');
+            styleProjectReferences
+                .filter(ref => selectedStyleReferenceUrls.includes(ref.url))
+                .forEach(ref => {
+                    parts.push(`[style] ${ref.description}`);
+                });
+            parts.push('Preserve rendering style, texture language, color treatment, and lighting grammar from style references.');
+        }
+
+        if (contentProjectReferences.length > 0) {
+            parts.push('Content references:');
+            contentProjectReferences.forEach(ref => {
                 const nameTag = ref.name ? `<${ref.name}>` : ref.type;
                 parts.push(`${nameTag}: ${ref.description}`);
             });
@@ -57,7 +88,7 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
             parts.push(scene.description);
         }
 
-        if (scene.referenceImage || projectReferences.length > 0) {
+        if (scene.referenceImage || contentProjectReferences.length > 0) {
             parts.push('Maintain the exact appearance, facial features, clothing, and style from the uploaded reference image.');
             parts.push('保持參考圖中的外觀、面部特徵、服裝和風格。');
         }
@@ -75,8 +106,9 @@ export function BatchImageGenerator({ scenes, projectReferences = [], onBatchCom
             body: JSON.stringify({
                 prompt,
                 referenceImage: [
+                    ...selectedStyleReferenceUrls,
                     ...(scene.referenceImage ? [scene.referenceImage] : []),
-                    ...projectReferences.map(r => r.url)
+                    ...contentProjectReferences.map(r => r.url)
                 ], // 結合場景個別參考圖與專案級參考圖
                 aspectRatio,
                 resolution,

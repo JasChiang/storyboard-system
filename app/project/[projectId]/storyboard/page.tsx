@@ -7,6 +7,7 @@ import { apiKeyStorage } from '@/lib/db/local-storage';
 import { StoryPromptInput } from '@/components/storyboard/StoryPromptInput';
 import { StoryboardTable } from '@/components/storyboard/StoryboardTable';
 import { Scene, Storyboard, StoryboardGenerationResponse, ProjectReference } from '@/lib/types/storyboard';
+import { DEFAULT_STYLE_PROFILE_ID } from '@/lib/constants/style-profiles';
 import { ArrowLeft, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -78,6 +79,7 @@ export default function StoryboardPage() {
         templateUsed: result.templateUsed,
         scenes,
         projectReferences: references.length > 0 ? references : undefined,
+        selectedStyleProfileId: DEFAULT_STYLE_PROFILE_ID,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

@@ -1,18 +1,26 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Settings2, Image as ImageIcon } from 'lucide-react';
+import { Sparkles, Settings2 } from 'lucide-react';
 import { ReferenceUploader } from './ReferenceUploader';
 import { ImagePreview } from './ImagePreview';
-import type { Scene, ProjectReference } from '@/lib/types/storyboard';
+import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 
 interface ImageGeneratorProps {
     scene: Scene;
     onImageGenerated: (imageUrl: string, prompt: string, endFrameUrl?: string, endFramePrompt?: string) => void;
     projectReferences?: ProjectReference[];
+    styleProfile?: StyleProfile;
 }
 
-export function ImageGenerator({ scene, onImageGenerated, projectReferences = [] }: ImageGeneratorProps) {
+export function ImageGenerator({
+    scene,
+    onImageGenerated,
+    projectReferences = [],
+    styleProfile,
+}: ImageGeneratorProps) {
+    const contentProjectReferences = projectReferences.filter(ref => ref.type !== 'style');
+    const styleProjectReferences = projectReferences.filter(ref => ref.type === 'style');
     const [isGeneratingStart, setIsGeneratingStart] = useState(false);
     const [isGeneratingEnd, setIsGeneratingEnd] = useState(false);
     const [referenceImage, setReferenceImage] = useState<string | null>(
@@ -25,13 +33,20 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
     const [showAdvanced, setShowAdvanced] = useState(false);
     // 專案參考圖選擇狀態
     const [selectedProjectRefs, setSelectedProjectRefs] = useState<string[]>(
-        projectReferences.map(r => r.id)  // 預設全選
+        contentProjectReferences.map(r => r.id)  // 預設全選（不含 style refs）
     );
+
+    const selectedStyleReferenceUrls = styleProfile?.styleReferenceIds?.length
+        ? styleProjectReferences
+            .filter(ref => styleProfile.styleReferenceIds!.includes(ref.id))
+            .map(ref => ref.url)
+        : styleProjectReferences.map(ref => ref.url);
 
     // 取得選中的專案參考圖 URL
     const getSelectedReferenceUrls = (): string[] => {
         const urls: string[] = [];
-        projectReferences.forEach(r => {
+        urls.push(...selectedStyleReferenceUrls);
+        contentProjectReferences.forEach(r => {
             if (selectedProjectRefs.includes(r.id)) {
                 urls.push(r.url);
             }
@@ -46,11 +61,29 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
     const buildImagePrompt = (isEndFrame: boolean = false) => {
         const parts = [];
 
+        if (styleProfile?.stylePrompt) {
+            parts.push(`Style direction: ${styleProfile.stylePrompt}`);
+        }
+        if (styleProfile?.negativePrompt) {
+            parts.push(`Negative constraints: ${styleProfile.negativePrompt}`);
+        }
+
         // 1. 加入專案參考圖的描述作為上下文
+        const selectedStyleRefs = styleProjectReferences.filter((ref) =>
+            selectedStyleReferenceUrls.includes(ref.url)
+        );
+        if (selectedStyleRefs.length > 0) {
+            parts.push('Style references:');
+            selectedStyleRefs.forEach(ref => {
+                parts.push(`[style] ${ref.description}`);
+            });
+            parts.push('Preserve rendering style, texture language, color treatment, and lighting grammar from style references.');
+        }
+
         if (selectedProjectRefs.length > 0) {
-            const selectedRefs = projectReferences.filter(r => selectedProjectRefs.includes(r.id));
+            const selectedRefs = contentProjectReferences.filter(r => selectedProjectRefs.includes(r.id));
             if (selectedRefs.length > 0) {
-                parts.push('Context from references:');
+                parts.push('Content references:');
                 selectedRefs.forEach(ref => {
                     const nameTag = ref.name ? `<${ref.name}>` : ref.type;
                     const guidelineText = ref.guidelines ? ` (Rules: ${ref.guidelines})` : '';
@@ -91,7 +124,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
         }
 
         // 4. 如果有場景參考圖，加強保持外觀特徵的指令
-        if (referenceImage) {
+        if (referenceImage || selectedProjectRefs.length > 0) {
             parts.push('Maintain the exact appearance, facial features, clothing, and style from the uploaded reference image.');
             parts.push('保持參考圖中的外觀、面部特徵、服裝和風格。');
         }
@@ -344,13 +377,52 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
             </div>
 
             {/* 專案參考圖（來自分鏡階段） */}
-            {projectReferences.length > 0 && (
+            {styleProjectReferences.length > 0 && (
+                <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        風格參考圖（自動套用）
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                        {styleProjectReferences.map((ref) => {
+                            const isActive = selectedStyleReferenceUrls.includes(ref.url);
+                            return (
+                                <div
+                                    key={ref.id}
+                                    className={`
+                                        relative rounded-lg overflow-hidden border-2
+                                        ${isActive
+                                            ? 'border-emerald-600'
+                                            : 'border-slate-200 dark:border-slate-700 opacity-60'
+                                        }
+                                    `}
+                                >
+                                    <img
+                                        src={ref.url}
+                                        alt={ref.description}
+                                        className="w-full h-16 object-cover"
+                                    />
+                                    <div className="absolute bottom-0 left-0 right-0 p-1 bg-black/70">
+                                        <p className="text-[10px] text-white truncate">
+                                            {ref.name ? `<${ref.name}>` : 'style'}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <p className="text-xs text-slate-500">
+                        套用中：{selectedStyleReferenceUrls.length}/{styleProjectReferences.length} 張
+                    </p>
+                </div>
+            )}
+
+            {contentProjectReferences.length > 0 && (
                 <div className="space-y-3">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                        專案參考圖
+                        內容參考圖
                     </label>
                     <div className="grid grid-cols-3 gap-2">
-                        {projectReferences.map((ref) => (
+                        {contentProjectReferences.map((ref) => (
                             <button
                                 key={ref.id}
                                 onClick={() => {
@@ -389,7 +461,7 @@ export function ImageGenerator({ scene, onImageGenerated, projectReferences = []
                         ))}
                     </div>
                     <p className="text-xs text-slate-500">
-                        點擊選擇/取消要使用的參考圖（已選 {selectedProjectRefs.length}/{projectReferences.length}）
+                        點擊選擇/取消要使用的參考圖（已選 {selectedProjectRefs.length}/{contentProjectReferences.length}）
                     </p>
                 </div>
             )}

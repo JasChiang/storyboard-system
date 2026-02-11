@@ -64,8 +64,19 @@ export interface Storyboard {
   templateUsed: string;          // 使用的提示詞模板
   scenes: Scene[];
   projectReferences?: ProjectReference[];  // 專案級參考圖
+  selectedStyleProfileId?: string;
+  customStyleProfiles?: StyleProfile[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StyleProfile {
+  id: string;
+  name: string;
+  stylePrompt: string;
+  negativePrompt?: string;
+  styleReferenceIds?: string[];
+  isPreset?: boolean;
 }
 
 // 專案級參考圖

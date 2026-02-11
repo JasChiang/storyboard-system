@@ -7,7 +7,9 @@ import Link from 'next/link';
 import { useProjectStore } from '@/stores/project-store';
 import { ImageGenerator } from '@/components/image-generation/ImageGenerator';
 import { BatchImageGenerator } from '@/components/image-generation/BatchImageGenerator';
-import type { Scene } from '@/lib/types/storyboard';
+import { StyleProfileSelector } from '@/components/image-generation/StyleProfileSelector';
+import { DEFAULT_STYLE_PROFILE_ID, findStyleProfileById } from '@/lib/constants/style-profiles';
+import type { StyleProfile } from '@/lib/types/storyboard';
 
 export default function ImagesPage() {
   const params = useParams();
@@ -16,13 +18,47 @@ export default function ImagesPage() {
   const { currentProject, setCurrentProject, updateProject } = useProjectStore();
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'individual' | 'batch'>('individual');
+  const [selectedStyleProfileId, setSelectedStyleProfileId] = useState<string>(DEFAULT_STYLE_PROFILE_ID);
+  const [customStyleProfiles, setCustomStyleProfiles] = useState<StyleProfile[]>([]);
 
   useEffect(() => {
     setCurrentProject(projectId);
   }, [projectId, setCurrentProject]);
 
+  useEffect(() => {
+    if (!currentProject?.storyboard) return;
+    setSelectedStyleProfileId(
+      currentProject.storyboard.selectedStyleProfileId || DEFAULT_STYLE_PROFILE_ID
+    );
+    setCustomStyleProfiles(currentProject.storyboard.customStyleProfiles || []);
+  }, [currentProject?.storyboard]);
+
   const scenes = currentProject?.storyboard?.scenes || [];
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
+  const activeStyleProfile = findStyleProfileById(selectedStyleProfileId, customStyleProfiles);
+
+  const persistStyleSettings = (nextId: string, nextCustomProfiles: StyleProfile[]) => {
+    if (!currentProject?.storyboard) return;
+
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        selectedStyleProfileId: nextId,
+        customStyleProfiles: nextCustomProfiles.length > 0 ? nextCustomProfiles : undefined,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  };
+
+  const handleStyleProfileChange = (nextId: string) => {
+    setSelectedStyleProfileId(nextId);
+    persistStyleSettings(nextId, customStyleProfiles);
+  };
+
+  const handleCustomStyleProfilesChange = (profiles: StyleProfile[]) => {
+    setCustomStyleProfiles(profiles);
+    persistStyleSettings(selectedStyleProfileId, profiles);
+  };
 
   const handleImageGenerated = (sceneId: string, imageUrl: string, prompt: string, endFrameUrl?: string, endFramePrompt?: string) => {
     if (!currentProject?.storyboard) return;
@@ -166,6 +202,15 @@ export default function ImagesPage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        <div className="max-w-3xl mx-auto mb-6">
+          <StyleProfileSelector
+            selectedProfileId={selectedStyleProfileId}
+            customProfiles={customStyleProfiles}
+            onChange={handleStyleProfileChange}
+            onCustomProfilesChange={handleCustomStyleProfilesChange}
+          />
+        </div>
+
         {viewMode === 'individual' ? (
           <div className="grid grid-cols-12 gap-6">
             {/* Scene List */}
@@ -212,6 +257,7 @@ export default function ImagesPage() {
                       handleImageGenerated(selectedScene.id, url, prompt, endFrameUrl, endFramePrompt)
                     }
                     projectReferences={currentProject.storyboard?.projectReferences}
+                    styleProfile={activeStyleProfile}
                   />
                 </div>
               ) : (
@@ -229,6 +275,7 @@ export default function ImagesPage() {
             <BatchImageGenerator
               scenes={scenes}
               projectReferences={currentProject.storyboard?.projectReferences}
+              styleProfile={activeStyleProfile}
               onBatchComplete={handleBatchComplete}
             />
 
