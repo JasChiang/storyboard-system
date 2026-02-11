@@ -182,6 +182,35 @@ function clampDuration(value: number, fallback = 0.5) {
   return value;
 }
 
+/**
+ * 根據 canvas 寬度和字體大小自動斷行。
+ * CJK 字元每個約佔 fontSize px，Latin 字元約佔 fontSize * 0.6 px。
+ */
+function wrapText(text: string, canvasWidth: number, fontSize: number): string {
+  const maxLineWidth = canvasWidth * 0.85;
+  const isCJK = (ch: string) => /[\u3000-\u9fff\uf900-\ufaff\uff01-\uff60\u4e00-\u2a6df]/.test(ch);
+  const charWidth = (ch: string) => isCJK(ch) ? fontSize : fontSize * 0.6;
+
+  const lines: string[] = [];
+  for (const paragraph of text.split('\n')) {
+    let line = '';
+    let lineWidth = 0;
+    for (const ch of paragraph) {
+      const w = charWidth(ch);
+      if (lineWidth + w > maxLineWidth && line.length > 0) {
+        lines.push(line);
+        line = ch;
+        lineWidth = w;
+      } else {
+        line += ch;
+        lineWidth += w;
+      }
+    }
+    lines.push(line);
+  }
+  return lines.join('\n');
+}
+
 function mapTransitionType(type?: TransitionType): OpenReelTransitionType | null {
   if (!type) return null;
   switch (type) {
@@ -323,15 +352,17 @@ export function convertToOpenReelProjectFile(
 
     const subtitleText = scene.dialogue || scene.description;
     if (subtitleText) {
+      const SUBTITLE_FONT_SIZE = 42;
+      const wrappedText = wrapText(subtitleText, width, SUBTITLE_FONT_SIZE);
       const subtitleId = `subtitle-${scene.id}`;
       subtitles.push({
         id: subtitleId,
-        text: subtitleText,
+        text: wrappedText,
         startTime: currentTime,
         endTime: currentTime + duration,
         style: {
           fontFamily: 'Inter',
-          fontSize: 42,
+          fontSize: SUBTITLE_FONT_SIZE,
           color: '#FFFFFF',
           backgroundColor: 'rgba(0, 0, 0, 0.6)',
           position: 'bottom',
@@ -347,10 +378,10 @@ export function convertToOpenReelProjectFile(
         trackId: captionsTrackId,
         startTime: currentTime,
         duration,
-        text: subtitleText,
+        text: wrappedText,
         style: {
           fontFamily: 'Inter',
-          fontSize: 42,
+          fontSize: SUBTITLE_FONT_SIZE,
           fontWeight: 600,
           fontStyle: 'normal',
           color: '#FFFFFF',
