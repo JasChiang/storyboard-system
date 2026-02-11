@@ -39,7 +39,7 @@ export function scenesToTimeline(scenes: Scene[]): TimelineData {
     const start = currentTime;
     const end = currentTime + scene.duration;
 
-    // 視頻/圖片軌道
+    // 影片/圖片軌道
     videoActions.push({
       id: `scene-${scene.id}`,
       start,

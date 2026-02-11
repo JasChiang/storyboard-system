@@ -49,7 +49,7 @@ export function CharacterSelector({
     if (newSelected.has(character.id)) {
       newSelected.delete(character.id);
     } else {
-      // 默认选择正面视角
+      // 預設選擇正面視角
       newSelected.set(character.id, 'front');
     }
     setSelectedCharacters(newSelected);
@@ -71,10 +71,10 @@ export function CharacterSelector({
           const ref = characterLibraryItemToProjectReference(character, angle);
           references.push(ref);
 
-          // 增加使用次数
+          // 增加使用次數
           characterLibraryStorage.incrementUsage(characterId);
         } catch (error) {
-          console.error(`转换角色 ${character.name} 失败:`, error);
+          console.error(`轉換角色 ${character.name} 失敗:`, error);
         }
       }
     });
@@ -95,12 +95,12 @@ export function CharacterSelector({
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-800 rounded-xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* 标题栏 */}
+        {/* 標題列 */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
           <div>
-            <h2 className="text-2xl font-bold">从角色库选择</h2>
+            <h2 className="text-2xl font-bold">從角色庫選擇</h2>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              已选择 {selectedCharacters.size} 个角色
+              已選擇 {selectedCharacters.size} 個角色
             </p>
           </div>
           <button
@@ -111,13 +111,13 @@ export function CharacterSelector({
           </button>
         </div>
 
-        {/* 搜索和筛选 */}
+        {/* 搜尋和篩選 */}
         <div className="p-6 border-b border-slate-200 dark:border-slate-700 space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
             <input
               type="text"
-              placeholder="搜索角色名称或标签..."
+              placeholder="搜尋角色名稱或標籤..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600
@@ -140,18 +140,18 @@ export function CharacterSelector({
                 {type === 'all' ? '全部' :
                  type === 'character' ? '角色' :
                  type === 'product' ? '商品' :
-                 type === 'environment' ? '环境' : '风格'}
+                 type === 'environment' ? '環境' : '風格'}
               </button>
             ))}
           </div>
         </div>
 
-        {/* 角色列表（可滚动） */}
+        {/* 角色列表（可捲動） */}
         <div className="flex-1 overflow-y-auto p-6">
           {filteredCharacters.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-slate-500 dark:text-slate-400">
-                {searchQuery || filterType !== 'all' ? '没有找到匹配的角色' : '角色库为空'}
+                {searchQuery || filterType !== 'all' ? '沒有找到匹配的角色' : '角色庫為空'}
               </p>
             </div>
           ) : (
@@ -172,7 +172,7 @@ export function CharacterSelector({
                     onClick={() => handleToggleCharacter(character)}
                   >
                     <div className="flex gap-4 p-4">
-                      {/* 缩略图 */}
+                      {/* 縮圖 */}
                       {previewView && (
                         <div className="relative w-24 h-24 flex-shrink-0 bg-slate-100 dark:bg-slate-900 rounded-lg overflow-hidden">
                           <img
@@ -190,14 +190,14 @@ export function CharacterSelector({
                         </div>
                       )}
 
-                      {/* 信息 */}
+                      {/* 資訊 */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between mb-2">
                           <h3 className="font-semibold text-lg">{character.name}</h3>
                           <span className={`text-xs px-2 py-1 rounded ${typeColors[character.type]}`}>
                             {character.type === 'character' ? '角色' :
                              character.type === 'product' ? '商品' :
-                             character.type === 'environment' ? '环境' : '风格'}
+                             character.type === 'environment' ? '環境' : '風格'}
                           </span>
                         </div>
 
@@ -205,7 +205,7 @@ export function CharacterSelector({
                           {character.description}
                         </p>
 
-                        {/* 视角选择 */}
+                        {/* 視角選擇 */}
                         {isSelected && character.views.length > 1 && (
                           <div className="mt-3 flex gap-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
                             {character.views.map(view => (
@@ -219,10 +219,10 @@ export function CharacterSelector({
                                 }`}
                               >
                                 {view.angle === 'front' ? '正面' :
-                                 view.angle === 'side' ? '侧面' :
-                                 view.angle === 'three_quarter' ? '3/4侧' :
+                                 view.angle === 'side' ? '側面' :
+                                 view.angle === 'three_quarter' ? '3/4 側' :
                                  view.angle === 'back' ? '背面' :
-                                 view.angle === 'top' ? '顶部' : '其他'}
+                                 view.angle === 'top' ? '頂部' : '其他'}
                               </button>
                             ))}
                           </div>
@@ -236,7 +236,7 @@ export function CharacterSelector({
           )}
         </div>
 
-        {/* 底部按钮 */}
+        {/* 底部按鈕 */}
         <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-700">
           <Button variant="outline" onClick={onClose}>
             取消
@@ -245,7 +245,7 @@ export function CharacterSelector({
             onClick={handleConfirm}
             disabled={selectedCharacters.size === 0}
           >
-            确认选择 ({selectedCharacters.size})
+            確認選擇 ({selectedCharacters.size})
           </Button>
         </div>
       </div>

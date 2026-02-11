@@ -1,38 +1,38 @@
 /**
- * 全局角色库（Global Character Library）
- * 用于存储可复用的 IP 角色、商品、风格等参考资源
+ * 全局角色庫（Global Character Library）
+ * 用於儲存可重複使用的 IP 角色、商品、風格等參考資源
  */
 
 import type { ProjectReference } from './storyboard';
 
 export interface CharacterLibraryItem {
   id: string;
-  name: string;                    // 角色名称（如 "吉祥物小熊"）
+  name: string;                    // 角色名稱（如 "吉祥物小熊"）
   type: 'character' | 'product' | 'environment' | 'style';
   description: string;              // 全局描述
   guidelines?: string;              // 規則/限制（提供給生成提示詞）
-  tags: string[];                   // 标签（用于搜索和分类）
+  tags: string[];                   // 標籤（用於搜尋和分類）
 
-  // 多视角参考图
+  // 多視角參考圖
   views: {
     angle: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
     url: string;                    // Fal Storage URL
-    description: string;            // 该视角的描述
+    description: string;            // 该視角的描述
   }[];
 
-  // 元数据
+  // 中繼資料
   createdAt: string;
   updatedAt: string;
-  usageCount: number;               // 被引用次数
+  usageCount: number;               // 被引用次數
 }
 
 export interface CharacterLibrary {
   items: CharacterLibraryItem[];
-  version: number;                  // 用于未来迁移
+  version: number;                  // 用於未来迁移
 }
 
 /**
- * 将角色库项目转换为 ProjectReference 格式
+ * 將角色庫專案轉換為 ProjectReference 格式
  */
 export function characterLibraryItemToProjectReference(
   item: CharacterLibraryItem,
@@ -41,7 +41,7 @@ export function characterLibraryItemToProjectReference(
   const view = item.views.find(v => v.angle === selectedAngle) || item.views[0];
 
   if (!view) {
-    throw new Error(`角色 ${item.name} 没有可用的视角图片`);
+    throw new Error(`角色 ${item.name} 沒有可用的視角圖片`);
   }
 
   return {

@@ -1,6 +1,6 @@
 /**
- * FFmpeg 视频渲染 API
- * 自动合成场景、添加转场和字幕
+ * FFmpeg 影片渲染 API
+ * 自動合成場景、加入轉場和字幕
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,7 +12,7 @@ import path from 'path';
 import { pipeline } from 'stream/promises';
 import type { Scene } from '@/lib/types/storyboard';
 
-// 设置 FFmpeg 路径
+// 設定 FFmpeg 路径
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 export const maxDuration = 300; // 最长5分钟
@@ -32,19 +32,19 @@ interface ProcessedScene {
 }
 
 /**
- * 下载文件到本地
+ * 下載文件到本地
  */
 async function downloadFile(url: string, outputPath: string): Promise<void> {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`下载失败: ${url}`);
+    throw new Error(`下載失敗: ${url}`);
   }
   const fileStream = createWriteStream(outputPath);
   await pipeline(response.body as any, fileStream);
 }
 
 /**
- * 将图片转换为视频片段
+ * 將圖片轉換為影片片段
  */
 async function imageToVideo(
   imagePath: string,
@@ -103,7 +103,7 @@ async function generateSubtitles(
 }
 
 /**
- * 合并视频片段（带转场效果）
+ * 合並影片片段（帶轉場效果）
  */
 async function concatenateVideos(
   scenes: ProcessedScene[],
@@ -113,26 +113,26 @@ async function concatenateVideos(
   return new Promise((resolve, reject) => {
     const command = ffmpeg();
 
-    // 添加所有输入
+    // 加入所有輸入
     scenes.forEach(scene => {
       command.input(scene.path);
     });
 
-    // 构建复杂过滤器（场景拼接 + 淡入淡出转场）
+    // 建構複雜過濾器（場景拼接 + 淡入淡出轉場）
     const filterComplex: string[] = [];
-    const transitionDuration = 0.5; // 转场时长 0.5 秒
+    const transitionDuration = 0.5; // 轉場時長 0.5 秒
 
     scenes.forEach((scene, index) => {
-      // 为每个场景添加 scale 确保尺寸一致
+      // 為每個場景加入 scale 確保尺寸一致
       filterComplex.push(`[${index}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v${index}]`);
     });
 
-    // 构建转场链
+    // 建構轉場鏈
     let currentLabel = 'v0';
     for (let i = 1; i < scenes.length; i++) {
       const nextLabel = i === scenes.length - 1 ? 'outv' : `v${i}tmp`;
 
-      // xfade 转场效果
+      // xfade 轉場效果
       filterComplex.push(
         `[${currentLabel}][v${i}]xfade=transition=fade:duration=${transitionDuration}:offset=${scenes.slice(0, i).reduce((sum, s) => sum + s.duration, 0) - transitionDuration}[${nextLabel}]`
       );
@@ -140,7 +140,7 @@ async function concatenateVideos(
       currentLabel = nextLabel;
     }
 
-    // 如果只有一个场景，直接使用
+    // 如果只有一個場景，直接使用
     if (scenes.length === 1) {
       filterComplex.push('[v0]copy[outv]');
     }
@@ -167,14 +167,14 @@ async function concatenateVideos(
         console.log('[FFmpeg] 命令:', commandLine);
       })
       .on('progress', (progress) => {
-        console.log(`[FFmpeg] 进度: ${progress.percent?.toFixed(1)}%`);
+        console.log(`[FFmpeg] 進度: ${progress.percent?.toFixed(1)}%`);
       })
       .on('end', () => {
         console.log('[FFmpeg] 渲染完成');
         resolve();
       })
       .on('error', (err) => {
-        console.error('[FFmpeg] 错误:', err);
+        console.error('[FFmpeg] 錯誤:', err);
         reject(err);
       })
       .run();
@@ -190,35 +190,35 @@ export async function POST(request: NextRequest) {
 
     if (!scenes || scenes.length === 0) {
       return NextResponse.json(
-        { error: '没有可渲染的场景' },
+        { error: '沒有可渲染的場景' },
         { status: 400 }
       );
     }
 
-    // 过滤出有视频或图片的场景
+    // 過濾出有影片或圖片的場景
     const renderableScenes = scenes.filter(
       scene => scene.generatedVideo?.url || scene.generatedImage?.url
     );
 
     if (renderableScenes.length === 0) {
       return NextResponse.json(
-        { error: '没有可用的视频或图片素材' },
+        { error: '沒有可用的影片或圖片素材' },
         { status: 400 }
       );
     }
 
-    console.log(`[FFmpeg] 开始渲染项目: ${projectId}`);
-    console.log(`[FFmpeg] 场景数: ${renderableScenes.length}`);
+    console.log(`[FFmpeg] 開始渲染專案: ${projectId}`);
+    console.log(`[FFmpeg] 場景数: ${renderableScenes.length}`);
 
-    // 创建临时目录
+    // 建立暫時目錄
     await mkdir(tempDir, { recursive: true });
 
-    // 确保输出目录存在
+    // 確保輸出目錄存在
     const outputDir = path.resolve(process.cwd(), 'public', 'renders');
     await mkdir(outputDir, { recursive: true });
 
-    // 步骤 1: 下载所有素材并转换
-    console.log('[FFmpeg] 步骤 1: 下载素材');
+    // 步驟 1: 下載所有素材並轉換
+    console.log('[FFmpeg] 步驟 1: 下載素材');
     const processedScenes: ProcessedScene[] = [];
 
     for (let i = 0; i < renderableScenes.length; i++) {
@@ -226,9 +226,9 @@ export async function POST(request: NextRequest) {
       const sceneIndex = i + 1;
 
       if (scene.generatedVideo?.url) {
-        // 处理视频
+        // 處理影片
         const videoPath = path.join(tempDir, `scene-${sceneIndex}.mp4`);
-        console.log(`[FFmpeg] 下载视频 ${sceneIndex}/${renderableScenes.length}`);
+        console.log(`[FFmpeg] 下載影片 ${sceneIndex}/${renderableScenes.length}`);
         await downloadFile(scene.generatedVideo.url, videoPath);
 
         processedScenes.push({
@@ -238,14 +238,14 @@ export async function POST(request: NextRequest) {
           isImage: false,
         });
       } else if (scene.generatedImage?.url) {
-        // 处理图片 -> 转换为视频
+        // 處理圖片 -> 轉換為影片
         const imagePath = path.join(tempDir, `scene-${sceneIndex}.jpg`);
         const videoPath = path.join(tempDir, `scene-${sceneIndex}.mp4`);
 
-        console.log(`[FFmpeg] 下载图片 ${sceneIndex}/${renderableScenes.length}`);
+        console.log(`[FFmpeg] 下載圖片 ${sceneIndex}/${renderableScenes.length}`);
         await downloadFile(scene.generatedImage.url, imagePath);
 
-        console.log(`[FFmpeg] 转换图片为视频 ${sceneIndex}/${renderableScenes.length}`);
+        console.log(`[FFmpeg] 轉換圖片為影片 ${sceneIndex}/${renderableScenes.length}`);
         await imageToVideo(imagePath, scene.duration, videoPath);
 
         processedScenes.push({
@@ -257,23 +257,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 步骤 2: 生成字幕文件（可選）
+    // 步驟 2: 生成字幕文件（可選）
     let subtitlePath: string | null = null;
     if (includeSubtitles) {
-      console.log('[FFmpeg] 步骤 2: 生成字幕');
+      console.log('[FFmpeg] 步驟 2: 生成字幕');
       subtitlePath = path.join(tempDir, 'subtitles.srt');
       await generateSubtitles(processedScenes, subtitlePath);
     } else {
-      console.log('[FFmpeg] 步骤 2: 跳過字幕');
+      console.log('[FFmpeg] 步驟 2: 跳過字幕');
     }
 
-    // 步骤 3: 合并视频
-    console.log('[FFmpeg] 步骤 3: 合并视频');
+    // 步驟 3: 合並影片
+    console.log('[FFmpeg] 步驟 3: 合並影片');
     const outputPath = path.join(outputDir, `${projectId}.mp4`);
     await concatenateVideos(processedScenes, outputPath, subtitlePath);
 
-    // 步骤 4: 清理临时文件
-    console.log('[FFmpeg] 步骤 4: 清理临时文件');
+    // 步驟 4: 清理暫時文件
+    console.log('[FFmpeg] 步驟 4: 清理暫時文件');
     await rm(tempDir, { recursive: true, force: true });
 
     const totalDuration = processedScenes.reduce((sum, s) => sum + s.duration, 0);
@@ -286,16 +286,16 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[FFmpeg] 渲染错误:', error);
+    console.error('[FFmpeg] 渲染錯誤:', error);
 
-    // 清理临时文件
+    // 清理暫時文件
     if (existsSync(tempDir)) {
       await rm(tempDir, { recursive: true, force: true }).catch(console.error);
     }
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : '渲染失败',
+        error: error instanceof Error ? error.message : '渲染失敗',
         details: error instanceof Error ? error.stack : undefined,
       },
       { status: 500 }

@@ -1,5 +1,5 @@
 /**
- * 全局角色库本地存储管理
+ * 全局角色庫本地儲存管理
  */
 
 import type { CharacterLibrary, CharacterLibraryItem } from '@/lib/types/character-library';
@@ -30,14 +30,14 @@ class CharacterLibraryStorage {
   }
 
   /**
-   * 获取所有角色
+   * 取得所有角色
    */
   getAll(): CharacterLibraryItem[] {
     return this.getLibrary().items;
   }
 
   /**
-   * 根据 ID 获取单个角色
+   * 根据 ID 取得单个角色
    */
   getById(id: string): CharacterLibraryItem | undefined {
     return this.getLibrary().items.find(item => item.id === id);
@@ -82,7 +82,7 @@ class CharacterLibraryStorage {
   }
 
   /**
-   * 删除角色
+   * 刪除角色
    */
   delete(id: string): void {
     const library = this.getLibrary();
@@ -91,7 +91,7 @@ class CharacterLibraryStorage {
   }
 
   /**
-   * 增加使用次数
+   * 增加使用次數
    */
   incrementUsage(id: string): void {
     const library = this.getLibrary();
@@ -104,7 +104,7 @@ class CharacterLibraryStorage {
   }
 
   /**
-   * 搜索角色
+   * 搜尋角色
    */
   search(query: string): CharacterLibraryItem[] {
     const lowerQuery = query.toLowerCase();
@@ -117,14 +117,14 @@ class CharacterLibraryStorage {
   }
 
   /**
-   * 按类型筛选
+   * 按類型篩選
    */
   filterByType(type: CharacterLibraryItem['type']): CharacterLibraryItem[] {
     return this.getLibrary().items.filter(item => item.type === type);
   }
 
   /**
-   * 清空角色库（谨慎使用）
+   * 清空角色庫（谨慎使用）
    */
   clear(): void {
     if (typeof window === 'undefined') return;

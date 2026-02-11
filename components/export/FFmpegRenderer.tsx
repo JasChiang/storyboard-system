@@ -33,7 +33,7 @@ export function FFmpegRenderer({
     setRenderProgress(0);
 
     try {
-      // 模拟进度
+      // 模拟進度
       const progressInterval = setInterval(() => {
         setRenderProgress(prev => {
           if (prev >= 95) {
@@ -61,7 +61,7 @@ export function FFmpegRenderer({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || '渲染失败');
+        throw new Error(errorData.error || '渲染失敗');
       }
 
       const result = await response.json();
@@ -71,12 +71,12 @@ export function FFmpegRenderer({
         setVideoUrl(result.videoUrl);
         console.log('渲染成功:', result);
       } else {
-        throw new Error(result.error || '渲染失败');
+        throw new Error(result.error || '渲染失敗');
       }
 
     } catch (err) {
-      console.error('FFmpeg 渲染错误:', err);
-      setError(err instanceof Error ? err.message : '渲染失败');
+      console.error('FFmpeg 渲染錯誤:', err);
+      setError(err instanceof Error ? err.message : '渲染失敗');
     } finally {
       setIsRendering(false);
     }
@@ -91,16 +91,16 @@ export function FFmpegRenderer({
             FFmpeg 快速渲染
           </h3>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            自动合成所有场景，无需手动操作
+            自動合成所有場景，無需手動操作
           </p>
         </div>
       </div>
 
-      {/* 统计信息 */}
+      {/* 統計資訊 */}
       <div className="grid grid-cols-3 gap-3 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg">
         <div className="text-center">
           <div className="text-2xl font-bold text-slate-900 dark:text-white">{scenes.length}</div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">场景数</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">場景数</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-slate-900 dark:text-white">{scenesWithMedia.length}</div>
@@ -108,7 +108,7 @@ export function FFmpegRenderer({
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-slate-900 dark:text-white">{totalDuration.toFixed(1)}s</div>
-          <div className="text-xs text-slate-500 dark:text-slate-400">总时长</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">總時長</div>
         </div>
       </div>
 
@@ -126,27 +126,27 @@ export function FFmpegRenderer({
         />
       </div>
 
-      {/* 功能说明 */}
+      {/* 功能說明 */}
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <h4 className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">
-          自动处理功能：
+          自動處理功能：
         </h4>
         <ul className="text-xs text-blue-800 dark:text-blue-300 space-y-1">
-          <li>✅ 场景自动拼接</li>
-          <li>✅ 转场效果（Fade/Dissolve）</li>
-          <li>{includeSubtitles ? '✅' : '☐'} 字幕自动叠加</li>
-          <li>✅ H.264 编码，1080p 输出</li>
+          <li>✅ 場景自動拼接</li>
+          <li>✅ 轉場效果（Fade/Dissolve）</li>
+          <li>{includeSubtitles ? '✅' : '☐'} 字幕自動叠加</li>
+          <li>✅ H.264 编码，1080p 輸出</li>
         </ul>
       </div>
 
-      {/* 渲染按钮 */}
+      {/* 渲染按鈕 */}
       {!videoUrl && !isRendering && (
         <>
           {scenesWithMedia.length === 0 ? (
             <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
               <p className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" />
-                至少需要一个场景生成了图片或视频才能渲染
+                至少需要一個場景生成了圖片或影片才能渲染
               </p>
             </div>
           ) : (
@@ -157,17 +157,17 @@ export function FFmpegRenderer({
               size="lg"
             >
               <Play className="w-5 h-5 mr-2" />
-              开始渲染
+              開始渲染
             </Button>
           )}
         </>
       )}
 
-      {/* 渲染进度 */}
+      {/* 渲染進度 */}
       {isRendering && (
         <div className="space-y-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-600 dark:text-slate-400">渲染进度</span>
+            <span className="text-slate-600 dark:text-slate-400">渲染進度</span>
             <span className="font-medium text-slate-900 dark:text-white">{renderProgress}%</span>
           </div>
           <div className="relative h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -178,12 +178,12 @@ export function FFmpegRenderer({
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
-            正在使用 FFmpeg 合成视频，请稍候...
+            正在使用 FFmpeg 合成影片，請稍候...
           </p>
         </div>
       )}
 
-      {/* 错误信息 */}
+      {/* 錯誤資訊 */}
       {error && (
         <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
           <p className="text-sm text-red-800 dark:text-red-200 flex items-center gap-2">
@@ -201,7 +201,7 @@ export function FFmpegRenderer({
         </div>
       )}
 
-      {/* 渲染完成 - 视频播放器 */}
+      {/* 渲染完成 - 影片播放器 */}
       {videoUrl && (
         <div className="space-y-4">
           <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
@@ -210,18 +210,18 @@ export function FFmpegRenderer({
               渲染完成！
             </p>
 
-            {/* 视频播放器 */}
+            {/* 影片播放器 */}
             <video
               src={videoUrl}
               controls
               className="w-full rounded-lg bg-black"
               style={{ maxHeight: '500px' }}
             >
-              您的浏览器不支持视频播放
+              您的瀏覽器不支援影片播放
             </video>
           </div>
 
-          {/* 下载按钮 */}
+          {/* 下載按鈕 */}
           <div className="flex gap-3">
             <Button
               onClick={() => {
@@ -233,7 +233,7 @@ export function FFmpegRenderer({
               className="flex-1"
             >
               <Download className="w-4 h-4 mr-2" />
-              下载视频
+              下載影片
             </Button>
             <Button
               variant="outline"
@@ -248,10 +248,10 @@ export function FFmpegRenderer({
         </div>
       )}
 
-      {/* 说明 */}
+      {/* 說明 */}
       <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          💡 提示：FFmpeg 在服务器端渲染，速度快且免费。如需精细編輯，請使用 OpenReel 或 Blender。
+          💡 提示：FFmpeg 在伺服器端渲染，速度快且免费。如需精细編輯，請使用 OpenReel 或 Blender。
         </p>
       </div>
     </div>

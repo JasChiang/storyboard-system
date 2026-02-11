@@ -81,7 +81,7 @@ export function TimelineEditor({
 
       if (response.ok) {
         const result = await response.json();
-        alert('視頻渲染已開始！請切換到 FFmpeg 渲染模式查看進度。');
+        alert('影片渲染已開始！請切換到 FFmpeg 渲染模式查看進度。');
       } else {
         const error = await response.json();
         alert(`渲染失敗: ${error.error}`);
@@ -133,12 +133,12 @@ export function TimelineEditor({
             disabled={isExporting}
           >
             <Download className="w-4 h-4 mr-1" />
-            {isExporting ? '渲染中...' : '導出視頻'}
+            {isExporting ? '渲染中...' : '匯出影片'}
           </Button>
         </div>
       </div>
 
-      {/* 統計信息 */}
+      {/* 統計資訊 */}
       <div className="grid grid-cols-3 gap-3 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg">
         <div className="text-center">
           <div className="text-2xl font-bold text-slate-900 dark:text-white">{scenes.length}</div>
@@ -211,7 +211,7 @@ export function TimelineEditor({
                       />
                     )}
 
-                    {/* 場景信息 */}
+                    {/* 場景資訊 */}
                     <div className="relative h-full p-2 flex flex-col justify-between text-white">
                       <div className="text-xs font-bold">場景 {scene.sceneNumber}</div>
                       <div className="text-xs">{scene.duration.toFixed(1)}s</div>
@@ -268,7 +268,7 @@ export function TimelineEditor({
                   <div>
                     <label className="text-xs text-blue-800 dark:text-blue-300">類型</label>
                     <div className="mt-1 px-3 py-2 bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 rounded text-sm">
-                      {scene.generatedVideo ? '視頻' : scene.generatedImage ? '圖片' : '未生成'}
+                      {scene.generatedVideo ? '影片' : scene.generatedImage ? '圖片' : '未生成'}
                     </div>
                   </div>
                 </div>
@@ -295,7 +295,7 @@ export function TimelineEditor({
           <li>⏱️ 點擊場景後可調整時長</li>
           <li>✂️ 選中場景後可刪除</li>
           <li>💾 編輯完成後記得保存</li>
-          <li>🎥 保存後可直接導出為視頻</li>
+          <li>🎥 保存後可直接匯出為影片</li>
         </ul>
       </div>
     </div>

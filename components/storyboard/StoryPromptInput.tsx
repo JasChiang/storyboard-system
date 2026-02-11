@@ -27,7 +27,7 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
   };
 
   const handleSelectFromLibrary = (newReferences: ProjectReference[]) => {
-    // 合并角色库选择的角色和已有的临时上传
+    // 合並角色庫選擇的角色和已有的暫時上傳
     setReferences([...references, ...newReferences]);
   };
 
@@ -58,11 +58,11 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
           </div>
         )}
 
-        {/* 参考图管理 */}
+        {/* 參考圖管理 */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              参考图片（选填）
+              參考圖片（選填）
             </label>
             <Button
               variant="outline"
@@ -71,7 +71,7 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
               disabled={isLoading}
             >
               <Users className="w-4 h-4 mr-2" />
-              从角色库选择
+              從角色庫選擇
             </Button>
           </div>
 
@@ -82,11 +82,11 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
           />
         </div>
 
-        {/* 参考图提示 */}
+        {/* 參考圖提示 */}
         {references.length > 0 && (
           <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
             <p className="text-sm text-green-800 dark:text-green-200">
-              ✅ 已设定 {references.length} 张参考图。AI 生成的分镜描述会使用 &lt;角色名&gt; 或 &lt;商品名&gt; 格式标记，不会重复描述外观。
+              ✅ 已設定 {references.length} 張參考圖。AI 生成的分鏡描述會使用 &lt;角色名&gt; 或 &lt;商品名&gt; 格式標記，不會重複描述外觀。
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {references.map(ref => (
@@ -128,7 +128,7 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
         </Button>
       </div>
 
-      {/* 角色库选择器 */}
+      {/* 角色庫選擇器 */}
       <CharacterSelector
         isOpen={showCharacterSelector}
         onClose={() => setShowCharacterSelector(false)}

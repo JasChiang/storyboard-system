@@ -21,18 +21,18 @@ interface ViewUpload {
 
 const ANGLE_OPTIONS = [
   { value: 'front' as const, label: '正面', emoji: '⬛' },
-  { value: 'side' as const, label: '侧面', emoji: '◼️' },
-  { value: 'three_quarter' as const, label: '3/4 侧', emoji: '📐' },
+  { value: 'side' as const, label: '側面', emoji: '◼️' },
+  { value: 'three_quarter' as const, label: '3/4 側', emoji: '📐' },
   { value: 'back' as const, label: '背面', emoji: '⬜' },
-  { value: 'top' as const, label: '顶部', emoji: '🔼' },
+  { value: 'top' as const, label: '頂部', emoji: '🔼' },
   { value: 'other' as const, label: '其他', emoji: '⚪' },
 ];
 
 const TYPE_OPTIONS = [
-  { value: 'character' as const, label: '角色', hint: '人物、动物角色' },
-  { value: 'product' as const, label: '商品', hint: '产品、道具' },
-  { value: 'environment' as const, label: '环境', hint: '场景、背景' },
-  { value: 'style' as const, label: '风格', hint: '视觉风格参考' },
+  { value: 'character' as const, label: '角色', hint: '人物、動物角色' },
+  { value: 'product' as const, label: '商品', hint: '產品、道具' },
+  { value: 'environment' as const, label: '環境', hint: '場景、背景' },
+  { value: 'style' as const, label: '風格', hint: '視覺風格參考' },
 ];
 
 export function CharacterCreateDialog({
@@ -77,7 +77,7 @@ export function CharacterCreateDialog({
 
   const handleFileSelect = async (angle: ViewUpload['angle'], file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('请上传图片文件');
+      alert('請上傳圖片文件');
       return;
     }
 
@@ -87,7 +87,7 @@ export function CharacterCreateDialog({
     try {
       const uploadedUrl = await fal.storage.upload(file);
 
-      // 使用 AI 分析图片
+      // 使用 AI 分析圖片
       setIsAnalyzing(true);
       const imageBase64 = await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -115,8 +115,8 @@ export function CharacterCreateDialog({
         description: aiDescription,
       }]);
     } catch (error) {
-      console.error('上传错误:', error);
-      alert(error instanceof Error ? error.message : '上传失败');
+      console.error('上傳錯誤:', error);
+      alert(error instanceof Error ? error.message : '上傳失敗');
     } finally {
       setIsUploading(false);
       setUploadingAngle(null);
@@ -141,12 +141,12 @@ export function CharacterCreateDialog({
 
   const handleSave = () => {
     if (!name.trim()) {
-      alert('请输入名称');
+      alert('請輸入名稱');
       return;
     }
 
     if (views.length === 0) {
-      alert('至少上传一个视角的图片');
+      alert('至少上傳一個視角的圖片');
       return;
     }
 
@@ -159,7 +159,7 @@ export function CharacterCreateDialog({
       views,
     });
 
-    // 重置表单
+    // 重置表單
     setName('');
     setType('character');
     setDescription('');
@@ -172,10 +172,10 @@ export function CharacterCreateDialog({
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-800 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* 标题栏 */}
+        {/* 標題列 */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-2xl font-bold">
-            {editingCharacter ? '编辑角色' : '新增角色'}
+            {editingCharacter ? '編輯角色' : '新增角色'}
           </h2>
           <button
             onClick={onClose}
@@ -185,12 +185,12 @@ export function CharacterCreateDialog({
           </button>
         </div>
 
-        {/* 内容区（可滚动） */}
+        {/* 內容區（可捲動） */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* 基本信息 */}
+          {/* 基本資訊 */}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">名称 *</label>
+              <label className="block text-sm font-medium mb-2">名稱 *</label>
               <input
                 type="text"
                 value={name}
@@ -202,7 +202,7 @@ export function CharacterCreateDialog({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">类型 *</label>
+              <label className="block text-sm font-medium mb-2">類型 *</label>
               <div className="grid grid-cols-4 gap-3">
                 {TYPE_OPTIONS.map(opt => (
                   <button
@@ -228,7 +228,7 @@ export function CharacterCreateDialog({
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="角色的整体描述、特征、用途等..."
+                placeholder="角色的整體描述、特徵、用途等..."
                 rows={3}
                 className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
                          bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500
@@ -253,20 +253,20 @@ export function CharacterCreateDialog({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">标签</label>
+              <label className="block text-sm font-medium mb-2">標籤</label>
               <div className="flex gap-2 mb-2">
                 <input
                   type="text"
                   value={currentTag}
                   onChange={(e) => setCurrentTag(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
-                  placeholder="输入标签后按 Enter"
+                  placeholder="輸入標籤後按 Enter"
                   className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
                            bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <Button onClick={handleAddTag} disabled={!currentTag.trim()}>
                   <Plus className="w-4 h-4 mr-2" />
-                  添加
+                  新增
                 </Button>
               </div>
               {tags.length > 0 && (
@@ -291,9 +291,9 @@ export function CharacterCreateDialog({
             </div>
           </div>
 
-          {/* 视角图片上传 */}
+          {/* 視角圖片上傳 */}
           <div>
-            <label className="block text-sm font-medium mb-3">视角图片 *</label>
+            <label className="block text-sm font-medium mb-3">視角圖片 *</label>
             <div className="grid grid-cols-3 gap-4">
               {ANGLE_OPTIONS.map(angle => {
                 const existingView = views.find(v => v.angle === angle.value);
@@ -332,7 +332,7 @@ export function CharacterCreateDialog({
                             <>
                               <span className="text-3xl mb-2">{angle.emoji}</span>
                               <span className="text-sm font-medium">{angle.label}</span>
-                              <span className="text-xs text-slate-500 mt-1">点击上传</span>
+                              <span className="text-xs text-slate-500 mt-1">點擊上傳</span>
                             </>
                           )}
                           <input
@@ -361,13 +361,13 @@ export function CharacterCreateDialog({
             {isAnalyzing && (
               <div className="mt-3 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
                 <Sparkles className="w-4 h-4 animate-pulse" />
-                AI 正在分析图片...
+                AI 正在分析圖片...
               </div>
             )}
           </div>
         </div>
 
-        {/* 底部按钮 */}
+        {/* 底部按鈕 */}
         <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-700">
           <Button variant="outline" onClick={onClose}>
             取消
@@ -376,7 +376,7 @@ export function CharacterCreateDialog({
             onClick={handleSave}
             disabled={!name.trim() || views.length === 0 || isUploading}
           >
-            {editingCharacter ? '保存修改' : '创建角色'}
+            {editingCharacter ? '保存修改' : '建立角色'}
           </Button>
         </div>
       </div>

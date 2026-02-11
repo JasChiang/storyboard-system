@@ -34,7 +34,7 @@ export default function CharacterLibraryPage() {
   });
 
   const handleDelete = (id: string) => {
-    if (confirm('确定要删除此角色？此操作无法撤销。')) {
+    if (confirm('確定要刪除此角色？此操作無法撤銷。')) {
       characterLibraryStorage.delete(id);
       loadCharacters();
     }
@@ -65,8 +65,8 @@ export default function CharacterLibraryPage() {
     { value: 'all', label: '全部', count: characters.length },
     { value: 'character', label: '角色', count: characters.filter(c => c.type === 'character').length },
     { value: 'product', label: '商品', count: characters.filter(c => c.type === 'product').length },
-    { value: 'environment', label: '环境', count: characters.filter(c => c.type === 'environment').length },
-    { value: 'style', label: '风格', count: characters.filter(c => c.type === 'style').length },
+    { value: 'environment', label: '環境', count: characters.filter(c => c.type === 'environment').length },
+    { value: 'style', label: '風格', count: characters.filter(c => c.type === 'style').length },
   ];
 
   return (
@@ -75,14 +75,14 @@ export default function CharacterLibraryPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">角色库</h1>
+              <h1 className="text-2xl font-bold">角色庫</h1>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                管理可复用的 IP 角色、商品与风格参考
+                管理可重複使用的 IP 角色、商品與風格參考
               </p>
             </div>
             <Link href="/">
               <Button variant="outline" size="sm">
-                返回首页
+                返回首頁
               </Button>
             </Link>
           </div>
@@ -98,7 +98,7 @@ export default function CharacterLibraryPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="搜索角色名称或标签..."
+                  placeholder="搜尋角色名稱或標籤..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600
@@ -112,7 +112,7 @@ export default function CharacterLibraryPage() {
               </Button>
             </div>
 
-            {/* 类型筛选 */}
+            {/* 類型篩選 */}
             <div className="flex gap-2">
               {typeOptions.map(opt => (
                 <button
@@ -137,18 +137,18 @@ export default function CharacterLibraryPage() {
             <div className="text-center py-16">
               <ImageIcon className="w-16 h-16 mx-auto text-slate-300 dark:text-slate-600 mb-4" />
               <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                {searchQuery || filterType !== 'all' ? '没有找到匹配的角色' : '角色库为空'}
+                {searchQuery || filterType !== 'all' ? '沒有找到匹配的角色' : '角色庫為空'}
               </h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                 {searchQuery || filterType !== 'all'
-                  ? '尝试调整搜索条件或筛选器'
-                  : '点击「新增角色」按钮开始添加可复用的 IP 角色'
+                  ? '嘗試調整搜尋條件或篩選器'
+                  : '點擊「新增角色」按鈕開始新增可重複使用的 IP 角色'
                 }
               </p>
               {!searchQuery && filterType === 'all' && (
                 <Button onClick={() => setShowCreateDialog(true)}>
                   <Plus className="w-4 h-4 mr-2" />
-                  新增第一个角色
+                  新增第一個角色
                 </Button>
               )}
             </div>
@@ -167,7 +167,7 @@ export default function CharacterLibraryPage() {
         </div>
       </main>
 
-      {/* 创建/编辑角色对话框 */}
+      {/* 建立/編輯角色對話框 */}
       <CharacterCreateDialog
         isOpen={showCreateDialog}
         onClose={handleCloseDialog}
@@ -198,7 +198,7 @@ function CharacterCard({
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-lg transition-shadow">
-      {/* 主图 */}
+      {/* 主圖 */}
       {frontView && (
         <div className="relative aspect-video bg-slate-100 dark:bg-slate-900">
           <img
@@ -223,14 +223,14 @@ function CharacterCard({
         </div>
       )}
 
-      {/* 信息 */}
+      {/* 資訊 */}
       <div className="p-4">
         <div className="flex items-start justify-between mb-2">
           <h3 className="font-semibold text-lg">{character.name}</h3>
           <span className={`text-xs px-2 py-1 rounded ${typeColors[character.type]}`}>
             {character.type === 'character' ? '角色' :
              character.type === 'product' ? '商品' :
-             character.type === 'environment' ? '环境' : '风格'}
+             character.type === 'environment' ? '環境' : '風格'}
           </span>
         </div>
 
@@ -238,7 +238,7 @@ function CharacterCard({
           {character.description}
         </p>
 
-        {/* 标签 */}
+        {/* 標籤 */}
         {character.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
             {character.tags.slice(0, 3).map(tag => (
@@ -258,9 +258,9 @@ function CharacterCard({
           </div>
         )}
 
-        {/* 统计 */}
+        {/* 統計 */}
         <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-          <span>{character.views.length} 个视角</span>
+          <span>{character.views.length} 個視角</span>
           <span>使用 {character.usageCount} 次</span>
         </div>
       </div>

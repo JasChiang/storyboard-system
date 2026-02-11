@@ -1,164 +1,164 @@
-# 实现指南 - 角色库 + Remotion
+# 實現指南 - 角色庫 + Remotion
 
 ## 🎯 已完成功能
 
-### ✅ 任务 #1: 全局角色库基础
-- [x] 数据类型定义 (`lib/types/character-library.ts`)
-- [x] 本地存储管理器 (`lib/db/character-library-storage.ts`)
-- [x] 角色库管理页面 (`app/characters/page.tsx`)
-- [x] 首页增加「角色库」入口
+### ✅ 任務 #1: 全局角色庫基礎
+- [x] 資料類型定义 (`lib/types/character-library.ts`)
+- [x] 本地儲存管理器 (`lib/db/character-library-storage.ts`)
+- [x] 角色庫管理頁面 (`app/characters/page.tsx`)
+- [x] 首頁增加「角色庫」入口
 
-**访问方式**: http://localhost:3000/characters
+**造訪方式**: http://localhost:3000/characters
 
-### ✅ 任务 #3: Remotion 基础架构
-- [x] 安装依赖配置 (`package.json`)
-- [x] Remotion 配置 (`remotion.config.ts`)
-- [x] 视频组件结构 (`remotion/` 目录)
+### ✅ 任務 #3: Remotion 基礎架构
+- [x] 安裝依赖設定 (`package.json`)
+- [x] Remotion 設定 (`remotion.config.ts`)
+- [x] 影片组件结构 (`remotion/` 目錄)
   - `Root.tsx` - 根组件
-  - `StoryboardVideo.tsx` - 主视频合成
-  - `SceneComponent.tsx` - 场景渲染
-  - `TransitionComponent.tsx` - 转场效果
+  - `StoryboardVideo.tsx` - 主影片合成
+  - `SceneComponent.tsx` - 場景渲染
+  - `TransitionComponent.tsx` - 轉場效果
 - [x] 本地渲染 API (`app/api/remotion/render/route.ts`)
 
 ---
 
-## 🚀 立即开始
+## 🚀 立即開始
 
-### 1. 安装依赖
+### 1. 安裝依赖
 
 ```bash
 npm install
 ```
 
-这会安装：
-- `remotion` - Remotion 核心库
+這會安裝：
+- `remotion` - Remotion 核心庫
 - `@remotion/cli` - 命令行工具
 - `@remotion/bundler` - 打包工具
 - `@remotion/renderer` - 渲染引擎
 
-### 2. 启动开发服务器
+### 2. 啟動開發伺服器
 
 ```bash
 npm run dev
 ```
 
-### 3. 测试角色库
+### 3. 測試角色庫
 
-1. 访问 http://localhost:3000
-2. 点击右上角「角色库」按钮
-3. 目前显示空状态（创建功能待完成）
+1. 造訪 http://localhost:3000
+2. 點擊右上角「角色庫」按鈕
+3. 目前顯示空狀態（建立功能待完成）
 
-### 4. 测试 Remotion 渲染（可选）
+### 4. 測試 Remotion 渲染（可選）
 
 ```bash
-# 打开 Remotion Studio（可视化预览）
+# 開啟 Remotion Studio（視覺化預覽）
 npm run remotion:studio
 
-# 或直接渲染（需要先有项目数据）
+# 或直接渲染（需要先有專案資料）
 npm run remotion:render
 ```
 
 ---
 
-## 📋 待完成任务
+## 📋 待完成任務
 
-### 🔨 任务 #2: 增强角色选择功能
-**预计时间**: 20分钟
+### 🔨 任務 #2: 增強角色選擇功能
+**預計时间**: 20分鐘
 
-需要实现：
-1. 创建角色创建/编辑对话框组件
-2. 修改 `StoryPromptInput` 增加「从角色库选择」按钮
-3. 创建角色选择器对话框
-4. 实现「将临时角色加入库」功能
+需要實現：
+1. 建立角色建立/編輯對話框组件
+2. 修改 `StoryPromptInput` 增加「從角色庫選擇」按鈕
+3. 建立角色選擇器對話框
+4. 實現「將暫時角色加入庫」功能
 
-**文件清单**:
+**文件清單**:
 - `components/character-library/CharacterCreateDialog.tsx` (新建)
 - `components/character-library/CharacterSelector.tsx` (新建)
 - `components/storyboard/StoryPromptInput.tsx` (修改)
 
-### 🎬 任务 #4: Remotion 合成优化
-**预计时间**: 30分钟
+### 🎬 任務 #4: Remotion 合成優化
+**預計时间**: 30分鐘
 
-需要改进：
-1. 支持更多转场效果
-2. 优化字幕显示样式
-3. 添加背景音乐轨道（可选）
-4. Ken Burns 效果参数调整
+需要改善：
+1. 支援更多轉場效果
+2. 優化字幕顯示樣式
+3. 加入背景音樂軌道（可選）
+4. Ken Burns 效果參數调整
 
-### 🎨 任务 #5: 导出页面双模式
-**预计时间**: 30分钟
+### 🎨 任務 #5: 匯出頁面双模式
+**預計时间**: 30分鐘
 
-需要实现：
-1. 在 `app/project/[projectId]/export/page.tsx` 增加渲染模式选择
-2. 创建 Remotion 渲染按钮
-3. 显示渲染进度
-4. 保留原有 Blender 脚本导出功能
-
----
-
-## 🔥 使用场景对比
-
-### 场景 A：既有 IP 角色（推荐角色库）
-```
-工作流程：
-1. 预先在角色库上传公司吉祥物多视角图
-2. 创建新项目时从角色库选择角色
-3. AI 自动引用角色生成剧本
-4. 生成图片/视频时保持角色一致性
-```
-
-**适用**: 公司IP、长期使用的角色、多项目复用
-
-### 场景 B：一次性角色（保留临时上传）
-```
-工作流程：
-1. 创建项目
-2. 在分镜脚本页面临时上传参考图
-3. 生成完成后可选择「加入角色库」
-```
-
-**适用**: 单次项目、测试角色、不常用资源
+需要實現：
+1. 在 `app/project/[projectId]/export/page.tsx` 增加渲染模式選擇
+2. 建立 Remotion 渲染按鈕
+3. 顯示渲染進度
+4. 保留原有 Blender 腳本匯出功能
 
 ---
 
-## 🎯 Remotion vs Blender 选择建议
+## 🔥 使用場景对比
+
+### 場景 A：既有 IP 角色（推薦角色庫）
+```
+工作流程：
+1. 預先在角色庫上傳公司吉祥物多視角圖
+2. 建立新專案时從角色庫選擇角色
+3. AI 自動引用角色生成劇本
+4. 生成圖片/影片时保持角色一致性
+```
+
+**適用**: 公司IP、長期使用的角色、多專案重複使用
+
+### 場景 B：一次性角色（保留暫時上傳）
+```
+工作流程：
+1. 建立專案
+2. 在分鏡腳本頁面暫時上傳參考圖
+3. 生成完成後可選擇「加入角色庫」
+```
+
+**適用**: 單次專案、測試角色、不常用資源
+
+---
+
+## 🎯 Remotion vs Blender 選擇建議
 
 ### 使用 Remotion（快速渲染）当：
-- ✅ 需要快速出片（一键渲染）
-- ✅ 转场简单（Cut/Dissolve/Fade）
-- ✅ 不需要复杂特效
-- ✅ 希望在代码中管理视频逻辑
+- ✅ 需要快速出片（一鍵渲染）
+- ✅ 轉場簡單（Cut/Dissolve/Fade）
+- ✅ 不需要複雜特效
+- ✅ 希望在程式碼中管理影片邏輯
 
-### 使用 Blender（专业导出）当：
-- ✅ 需要复杂特效（Compositor）
-- ✅ 需要手动精修
-- ✅ 需要高级调色
+### 使用 Blender（專業匯出）当：
+- ✅ 需要複雜特效（Compositor）
+- ✅ 需要手動精修
+- ✅ 需要高級調色
 - ✅ 已有 Blender 工作流程
 
-**建议**: 两者共存，给用户选择权！
+**建議**: 兩者共存，给使用者選擇權！
 
 ---
 
-## 💡 快速测试建议
+## 💡 快速測試建議
 
-### 测试角色库
+### 測試角色庫
 ```bash
-# 1. 启动服务
+# 1. 啟動服務
 npm run dev
 
-# 2. 访问角色库页面
+# 2. 造訪角色庫頁面
 # http://localhost:3000/characters
 
-# 3. 尝试创建第一个角色（待实现创建对话框）
+# 3. 嘗試建立第一個角色（待實作建立對話框）
 ```
 
-### 测试 Remotion 渲染
+### 測試 Remotion 渲染
 ```bash
-# 1. 创建测试项目并生成分镜
-# 2. 生成至少2个场景的图片或视频
-# 3. 在导出页面调用 Remotion 渲染 API（待实现UI）
+# 1. 建立測試專案並生成分鏡
+# 2. 生成至少2個場景的圖片或影片
+# 3. 在匯出頁面呼叫 Remotion 渲染 API（待實作UI）
 
-# 或使用 Remotion Studio 预览：
+# 或使用 Remotion Studio 預覽：
 npm run remotion:studio
 ```
 
@@ -166,31 +166,31 @@ npm run remotion:studio
 
 ## 🐛 已知限制
 
-1. **角色库创建对话框**: 目前是占位符，需要实现完整的多视角上传功能
-2. **Remotion 渲染按钮**: Export 页面尚未集成，需要手动调用 API
-3. **渲染进度显示**: 当前只在服务器日志，需要实现实时进度通知
-4. **视频下载**: 渲染完成后需要从 `/renders/` 目录手动获取
+1. **角色庫建立對話框**: 目前是佔位符，需要實現完整的多視角上傳功能
+2. **Remotion 渲染按鈕**: Export 頁面尚未整合，需要手動呼叫 API
+3. **渲染進度顯示**: 目前只在伺服器日誌，需要實現實时進度通知
+4. **影片下載**: 渲染完成後需要從 `/renders/` 目錄手動取得
 
 ---
 
-## 📚 参考资料
+## 📚 參考资料
 
-- [Remotion 官方文档](https://www.remotion.dev/docs)
+- [Remotion 官方文件](https://www.remotion.dev/docs)
 - [Remotion 本地渲染](https://www.remotion.dev/docs/renderer)
-- [Fal AI 文档](https://fal.ai/docs)
+- [Fal AI 文件](https://fal.ai/docs)
 
 ---
 
 ## 🤝 下一步行动
 
 **立即可做**:
-1. 运行 `npm install` 安装新依赖
-2. 测试角色库页面访问
-3. 继续实现任务 #2（角色创建功能）
+1. 运行 `npm install` 安裝新依赖
+2. 測試角色庫頁面造訪
+3. 繼續實現任務 #2（角色建立功能）
 
-**并行开发**:
-- 前端：完成角色创建对话框和选择器
-- 后端：Remotion 渲染 API 已就绪
-- 集成：Export 页面添加 Remotion 渲染按钮
+**並行開發**:
+- 前端：完成角色建立對話框和選擇器
+- 後端：Remotion 渲染 API 已就绪
+- 整合：Export 頁面加入 Remotion 渲染按鈕
 
-需要我继续实现剩余任务吗？
+需要我繼續實現剩餘任務嗎？

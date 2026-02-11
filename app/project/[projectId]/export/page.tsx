@@ -75,10 +75,10 @@ export default function ExportPage() {
             <div>
               <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Scissors className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                视频导出
+                影片匯出
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                {currentProject.name} · {renderMode === 'openreel' ? 'OpenReel 線上編輯' : renderMode === 'ffmpeg' ? 'FFmpeg 快速渲染' : 'Blender 专业导出'}
+                {currentProject.name} · {renderMode === 'openreel' ? 'OpenReel 線上編輯' : renderMode === 'ffmpeg' ? 'FFmpeg 快速渲染' : 'Blender 專業匯出'}
               </p>
             </div>
           </div>
@@ -86,10 +86,10 @@ export default function ExportPage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {/* 渲染模式选择 */}
+        {/* 渲染模式選擇 */}
         <div className="max-w-4xl mx-auto mb-8">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-            选择渲染方式
+            選擇渲染方式
           </h2>
           <div className="grid grid-cols-3 gap-4">
             <button
@@ -112,7 +112,7 @@ export default function ExportPage() {
                   <h3 className="font-semibold text-slate-900 dark:text-white">
                     OpenReel 線上編輯
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">推荐</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">推薦</p>
                 </div>
               </div>
               <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -148,11 +148,11 @@ export default function ExportPage() {
                 </div>
               </div>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                自动合成所有场景，包含转场和字幕。一键完成。
+                自動合成所有場景，包含轉場和字幕。一鍵完成。
               </p>
               <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 <CheckCircle2 className="w-3 h-3 text-green-500" />
-                服务器端渲染，极速
+                伺服器端渲染，极速
               </div>
             </button>
 
@@ -174,17 +174,17 @@ export default function ExportPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-900 dark:text-white">
-                    Blender 专业导出
+                    Blender 專業匯出
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">进阶</p>
                 </div>
               </div>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                导出 Python 脚本，在 Blender 中手动精修。支持复杂特效。
+                匯出 Python 腳本，在 Blender 中手動精修。支援複雜特效。
               </p>
               <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 <CheckCircle2 className="w-3 h-3 text-green-500" />
-                完全控制，高级调色
+                完全控制，高級調色
               </div>
             </button>
           </div>
@@ -229,7 +229,7 @@ export default function ExportPage() {
           </div>
         </div>
 
-        {/* OpenReel 编辑模式 */}
+        {/* OpenReel 編輯模式 */}
         {renderMode === 'openreel' && (
           <div className="relative left-1/2 right-1/2 w-screen -mx-[50vw] px-4 sm:px-6 lg:px-8">
             <div className="max-w-none">
@@ -258,12 +258,12 @@ export default function ExportPage() {
           </div>
         )}
 
-        {/* Blender 导出模式 */}
+        {/* Blender 匯出模式 */}
         {renderMode === 'blender' && (
           <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-6">
             {/* 左側：影片分析 */}
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">步骤 1: AI 影片分析</h2>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">步驟 1: AI 影片分析</h2>
               <VideoAnalyzer
                 storyboard={currentProject.storyboard}
                 onAnalysisComplete={handleAnalysisComplete}
@@ -272,7 +272,7 @@ export default function ExportPage() {
 
             {/* 右側：Blender 腳本 */}
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">步骤 2: Blender 脚本</h2>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">步驟 2: Blender 腳本</h2>
               <BlenderScriptViewer
                 projectName={currentProject.name}
                 scenes={scenes}
