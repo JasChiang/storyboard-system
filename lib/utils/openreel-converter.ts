@@ -188,7 +188,7 @@ function clampDuration(value: number, fallback = 0.5) {
  */
 function wrapText(text: string, canvasWidth: number, fontSize: number): string {
   const maxLineWidth = canvasWidth * 0.85;
-  const isCJK = (ch: string) => /[\u3000-\u9fff\uf900-\ufaff\uff01-\uff60\u4e00-\u2a6df]/.test(ch);
+  const isCJK = (ch: string) => /[\u3000-\u9fff\uf900-\ufaff\uff01-\uff60]/.test(ch);
   const charWidth = (ch: string) => isCJK(ch) ? fontSize : fontSize * 0.6;
 
   const lines: string[] = [];
