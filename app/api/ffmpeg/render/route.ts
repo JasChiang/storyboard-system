@@ -21,6 +21,7 @@ interface RenderRequest {
   projectId: string;
   scenes: Scene[];
   projectTitle: string;
+  includeSubtitles?: boolean;
 }
 
 interface ProcessedScene {
@@ -107,7 +108,7 @@ async function generateSubtitles(
 async function concatenateVideos(
   scenes: ProcessedScene[],
   outputPath: string,
-  subtitlePath: string
+  subtitlePath: string | null
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const command = ffmpeg();
@@ -144,8 +145,12 @@ async function concatenateVideos(
       filterComplex.push('[v0]copy[outv]');
     }
 
-    // 添加字幕
-    filterComplex.push(`[outv]subtitles=${subtitlePath}:force_style='FontName=Arial,FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2,Shadow=1'[outfinal]`);
+    // 有字幕則燒入，否則直接輸出
+    if (subtitlePath) {
+      filterComplex.push(`[outv]subtitles=${subtitlePath}:force_style='FontName=Arial,FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2,Shadow=1'[outfinal]`);
+    } else {
+      filterComplex.push('[outv]copy[outfinal]');
+    }
 
     command
       .complexFilter(filterComplex)
@@ -181,7 +186,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: RenderRequest = await request.json();
-    const { projectId, scenes, projectTitle } = body;
+    const { projectId, scenes, projectTitle, includeSubtitles = true } = body;
 
     if (!scenes || scenes.length === 0) {
       return NextResponse.json(
@@ -252,10 +257,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 步骤 2: 生成字幕文件
-    console.log('[FFmpeg] 步骤 2: 生成字幕');
-    const subtitlePath = path.join(tempDir, 'subtitles.srt');
-    await generateSubtitles(processedScenes, subtitlePath);
+    // 步骤 2: 生成字幕文件（可選）
+    let subtitlePath: string | null = null;
+    if (includeSubtitles) {
+      console.log('[FFmpeg] 步骤 2: 生成字幕');
+      subtitlePath = path.join(tempDir, 'subtitles.srt');
+      await generateSubtitles(processedScenes, subtitlePath);
+    } else {
+      console.log('[FFmpeg] 步骤 2: 跳過字幕');
+    }
 
     // 步骤 3: 合并视频
     console.log('[FFmpeg] 步骤 3: 合并视频');

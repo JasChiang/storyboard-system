@@ -20,6 +20,7 @@ export function FFmpegRenderer({
   const [renderProgress, setRenderProgress] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [includeSubtitles, setIncludeSubtitles] = useState(true);
 
   const scenes = storyboard.scenes;
   const scenesWithMedia = scenes.filter(s => s.generatedImage || s.generatedVideo);
@@ -52,6 +53,7 @@ export function FFmpegRenderer({
           projectId,
           scenes,
           projectTitle: projectName,
+          includeSubtitles,
         }),
       });
 
@@ -110,6 +112,20 @@ export function FFmpegRenderer({
         </div>
       </div>
 
+      {/* 渲染選項 */}
+      <div className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-800 rounded-lg">
+        <label htmlFor="include-subtitles" className="text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+          燒入字幕
+        </label>
+        <input
+          id="include-subtitles"
+          type="checkbox"
+          checked={includeSubtitles}
+          onChange={e => setIncludeSubtitles(e.target.checked)}
+          className="w-4 h-4 accent-orange-600 cursor-pointer"
+        />
+      </div>
+
       {/* 功能说明 */}
       <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <h4 className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">
@@ -118,7 +134,7 @@ export function FFmpegRenderer({
         <ul className="text-xs text-blue-800 dark:text-blue-300 space-y-1">
           <li>✅ 场景自动拼接</li>
           <li>✅ 转场效果（Fade/Dissolve）</li>
-          <li>✅ 字幕自动叠加</li>
+          <li>{includeSubtitles ? '✅' : '☐'} 字幕自动叠加</li>
           <li>✅ H.264 编码，1080p 输出</li>
         </ul>
       </div>
