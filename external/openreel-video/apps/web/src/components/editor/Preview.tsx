@@ -619,14 +619,8 @@ export const Preview: React.FC = () => {
    * Update preview at 60fps when dragging to resize
    */
   useEffect(() => {
-    if (rendererRef.current && canvasRef.current) {
-      const canvas = canvasRef.current;
-      if (
-        canvas.width !== settings.width ||
-        canvas.height !== settings.height
-      ) {
-        rendererRef.current.resize(settings.width, settings.height);
-      }
+    if (rendererRef.current && rendererInitializedRef.current) {
+      rendererRef.current.resize(settings.width, settings.height);
     }
   }, [settings.width, settings.height]);
 

@@ -9,10 +9,34 @@ import { convertToOpenReelProjectFile, serializeOpenReelProjectFile } from '@/li
 
 const OPENREEL_URL = process.env.NEXT_PUBLIC_OPENREEL_URL || 'http://localhost:5173';
 
+type AspectRatio = '16:9' | '9:16' | '1:1';
+
+async function detectAspectRatioFromUrl(url: string): Promise<AspectRatio> {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    const timer = setTimeout(() => { video.src = ''; resolve('16:9'); }, 5000);
+    video.onloadedmetadata = () => {
+      clearTimeout(timer);
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      video.src = '';
+      if (!w || !h) return resolve('16:9');
+      const r = w / h;
+      if (Math.abs(r - 9 / 16) < 0.15) return resolve('9:16');
+      if (Math.abs(r - 1) < 0.1) return resolve('1:1');
+      resolve('16:9');
+    };
+    video.onerror = () => { clearTimeout(timer); resolve('16:9'); };
+    video.src = url;
+  });
+}
+
 interface OpenReelEditorProps {
   projectId: string;
   projectName: string;
   storyboard: Storyboard;
+  aspectRatio?: AspectRatio;
   editingSuggestion?: EditingSuggestion | null;
   savedProjectJson?: string | null;
   onSaveProjectJson?: (json: string) => void;
@@ -27,6 +51,7 @@ export function OpenReelEditor({
   projectId,
   projectName,
   storyboard,
+  aspectRatio: aspectRatioProp,
   editingSuggestion,
   savedProjectJson,
   onSaveProjectJson,
@@ -36,9 +61,21 @@ export function OpenReelEditor({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [forceRegenerate, setForceRegenerate] = useState(false);
   const [pendingSend, setPendingSend] = useState(false);
+  const [resolvedAspectRatio, setResolvedAspectRatio] = useState<AspectRatio>(aspectRatioProp ?? '16:9');
+
+  const firstVideoUrl = storyboard.scenes[0]?.generatedVideo?.url;
+  const firstImageUrl = storyboard.scenes[0]?.generatedImage?.url;
+
+  useEffect(() => {
+    if (aspectRatioProp) return;
+    const url = firstVideoUrl || firstImageUrl;
+    if (!url) return;
+    detectAspectRatioFromUrl(url).then(setResolvedAspectRatio);
+  }, [firstVideoUrl, firstImageUrl, aspectRatioProp]);
 
   const buildProjectJson = () => {
     const projectFile = convertToOpenReelProjectFile(storyboard, projectName, {
+      aspectRatio: resolvedAspectRatio,
       editingSuggestion: editingSuggestion ?? undefined,
     });
     return serializeOpenReelProjectFile(projectFile);
@@ -49,7 +86,8 @@ export function OpenReelEditor({
       return savedProjectJson;
     }
     return buildProjectJson();
-  }, [savedProjectJson, storyboard, projectName, editingSuggestion, forceRegenerate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedProjectJson, storyboard, projectName, editingSuggestion, forceRegenerate, resolvedAspectRatio]);
 
   const postMessage = (message: Record<string, unknown>) => {
     if (!iframeRef.current?.contentWindow) return;
