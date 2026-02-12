@@ -92,6 +92,10 @@ export interface ProjectReference {
   // Multi-Angle Support (多視角支援)
   angle?: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';  // 視角標籤
   aiDescription?: string;        // Vision AI 自動生成的詳細描述
+  mustKeepFeatures?: string[];   // 生成時不可改變的關鍵特徵
+  identityCore?: string;         // 核心身份描述（形狀/比例/Logo）
+  styleTraits?: string;          // 風格特徵描述
+  angleVisibility?: string;      // 此視角可見/不可見重點
 }
 
 // 提示詞模板

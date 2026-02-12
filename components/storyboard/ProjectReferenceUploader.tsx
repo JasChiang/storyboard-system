@@ -123,6 +123,13 @@ export function ProjectReferenceUploader({
                 ...editingRef,
                 description: data.description,
                 aiDescription: data.description,  // 🆕 儲存 AI 描述
+                mustKeepFeatures: data.analysis?.mustKeep || [],
+                identityCore: data.analysis?.identityCore,
+                styleTraits: data.analysis?.styleTraits,
+                angleVisibility: data.analysis?.angleVisibility,
+                guidelines: data.analysis?.mustKeep?.length
+                    ? `不可改變：${data.analysis.mustKeep.join('；')}`
+                    : editingRef.guidelines,
                 descriptionSource: 'ai',
             });
         } catch (error) {

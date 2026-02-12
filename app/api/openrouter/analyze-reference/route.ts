@@ -3,6 +3,15 @@ import { analyzeReferenceImage } from '@/lib/api/openrouter';
 
 export const maxDuration = 60;
 
+interface StructuredReferenceAnalysis {
+    description: string;
+    mustKeep: string[];
+    identityCore?: string;
+    materialLighting?: string;
+    styleTraits?: string;
+    angleVisibility?: string;
+}
+
 /**
  * OpenRouter Vision API for Reference Image Analysis
  * Automatically generates detailed visual descriptions for uploaded reference images using OpenRouter models
@@ -36,15 +45,17 @@ export async function POST(request: NextRequest) {
         const systemPrompt = buildAnalysisPrompt(typeLabel, angleLabel, userNote);
 
         // Call OpenRouter
-        const description = await analyzeReferenceImage(
+        const rawAnalysis = await analyzeReferenceImage(
             imageBase64,
             systemPrompt,
             { apiKey }
         );
+        const analysis = parseStructuredAnalysis(rawAnalysis);
 
         return NextResponse.json({
             success: true,
-            description,
+            description: analysis.description,
+            analysis,
             metadata: {
                 angle: angleLabel,
                 type: typeLabel,
@@ -76,48 +87,75 @@ function buildAnalysisPrompt(type: string, angle: string, userNote?: string): st
     };
 
     const angleDesc = angleInstructions[angle] || '';
-    const userNoteSection = userNote ? `\n\n使用者提供的額外資訊：\n${userNote}\n\n請將以上資訊作為參考，並在描述中整合相關細節。` : '';
+    const userNoteSection = userNote
+        ? `\n使用者補充：${userNote}`
+        : '';
 
-    if (type === 'product') {
-        return `請以專業影像生成模型的視角，極度詳細地分析這張${angleDesc}商品參考圖。
+    const typeFocus: Record<string, string> = {
+        product: '重點提取不可變商品特徵：外型輪廓、比例、Logo 位置、按鍵/介面配置、材質細節。',
+        character: '重點提取不可變角色特徵：臉型與五官、髮型、服裝結構與代表性配件。',
+        environment: '重點提取不可變場景特徵：主要構圖元素、空間關係、光源方向與色調。',
+        style: '重點提取風格語言：筆觸/材質、色彩處理、光影語法、畫面顆粒或渲染方式。',
+    };
+
+    return `你是影像生成前處理器。請分析一張${angleDesc || ''}${type}參考圖，並輸出結構化 JSON。
+${typeFocus[type] || typeFocus.product}
 ${userNoteSection}
-請描述：
-1. **幾何形狀**：整體輪廓、比例、尺寸特徵
-2. **材質紋理**：表面材質（金屬、塑膠、玻璃、布料等）、反光特性、質感細節（如磨砂、拋光、紋理）
-3. **顏色與光影**：主色調、色彩分布、高光與陰影位置、環境反射
-4. **品牌元素**：Logo 位置、大小、顏色、字體特徵；包裝文字的可讀性與排版
-5. **特殊細節**：水珠、灰塵、磨損、光澤、透明度等視覺細節
-6. **構圖與角度**：該${angleDesc}視角下的特定可見元素與遮蔽元素
 
-重要：
-- 使用具體、可視覺化的語言，避免抽象形容詞
-- 專注於「靜態視覺特徵」，不要描述動作或假設的用途
-- 如果是${angleDesc}視角，請特別強調在這個角度下可見的獨特特徵`;
-    } else if (type === 'character') {
-        return `請詳細描述這個角色的${angleDesc}外觀特徵，供影像生成模型使用。
-${userNoteSection}
-請描述：
-1. **身體特徵**：身高比例、體型、姿態
-2. **臉部特徵**：五官特點、表情、膚色
-3. **髮型與髮色**：長度、樣式、顏色、質感
-4. **服裝**：款式、顏色、材質、配件
-5. **整體風格**：寫實、卡通、動漫等視覺風格
+嚴格規則：
+1) 只描述圖中看得見的內容，不可臆測不可見部分。
+2) 不要輸出任何 JSON 以外內容。
+3) mustKeep 必須是「不可改變」的關鍵項目，3-8 點，簡短可執行。
+4) description 請是可直接注入到影像生成 prompt 的單段文字（80-180 字）。
 
-使用客觀、具體的描述，避免主觀評價。`;
-    } else if (type === 'environment') {
-        return `請詳細描述這個${angleDesc}環境場景，供影像生成模型使用。
-${userNoteSection}
-請描述：
-1. **空間類型**：室內/室外、場所類別
-2. **光線條件**：自然光/人工光、明暗對比、光源方向
-3. **主要元素**：建築、家具、植被、道具等位置與特徵
-4. **氛圍與色調**：整體色彩、氣氛感受
-5. **景深與構圖**：前景、中景、背景的層次關係
+輸出 JSON 結構（鍵名不可更改）：
+{
+  "description": "string",
+  "mustKeep": ["string", "string"],
+  "identityCore": "string",
+  "materialLighting": "string",
+  "styleTraits": "string",
+  "angleVisibility": "string"
+}`;
+}
 
-專注於視覺可重現的元素。`;
-    } else {
-        return `請詳細描述這張${angleDesc}參考圖的視覺特徵，供影像生成模型使用。${userNoteSection}
+function parseStructuredAnalysis(raw: string): StructuredReferenceAnalysis {
+    const cleaned = raw
+        .trim()
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/, '');
 
-請使用具體、可視覺化的語言。`;
+    try {
+        const parsed = JSON.parse(cleaned) as Partial<StructuredReferenceAnalysis>;
+        const mustKeep = Array.isArray(parsed.mustKeep)
+            ? parsed.mustKeep.map(item => String(item).trim()).filter(Boolean)
+            : [];
+
+        const description = String(parsed.description || '').trim();
+        const fallbackDescription = [
+            parsed.identityCore,
+            parsed.materialLighting,
+            parsed.styleTraits,
+            parsed.angleVisibility,
+        ]
+            .filter(Boolean)
+            .map(item => String(item).trim())
+            .join('；');
+
+        return {
+            description: description || fallbackDescription || cleaned,
+            mustKeep,
+            identityCore: parsed.identityCore?.trim(),
+            materialLighting: parsed.materialLighting?.trim(),
+            styleTraits: parsed.styleTraits?.trim(),
+            angleVisibility: parsed.angleVisibility?.trim(),
+        };
+    } catch {
+        // 向後相容：若模型回傳純文字，仍可繼續使用
+        return {
+            description: cleaned,
+            mustKeep: [],
+        };
     }
 }

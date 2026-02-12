@@ -17,7 +17,11 @@ export interface CharacterLibraryItem {
   views: {
     angle: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
     url: string;                    // Fal Storage URL
-    description: string;            // 该視角的描述
+    description: string;            // 該視角的描述
+    mustKeepFeatures?: string[];    // 該視角不可變特徵
+    identityCore?: string;
+    styleTraits?: string;
+    angleVisibility?: string;
   }[];
 
   // 中繼資料
@@ -53,5 +57,9 @@ export function characterLibraryItemToProjectReference(
     angle: view.angle,
     descriptionSource: 'ai',
     guidelines: item.guidelines,
+    mustKeepFeatures: view.mustKeepFeatures,
+    identityCore: view.identityCore,
+    styleTraits: view.styleTraits,
+    angleVisibility: view.angleVisibility,
   };
 }

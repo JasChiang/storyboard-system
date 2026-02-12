@@ -17,6 +17,10 @@ interface ViewUpload {
   angle: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
   url: string;
   description: string;
+  mustKeepFeatures?: string[];
+  identityCore?: string;
+  styleTraits?: string;
+  angleVisibility?: string;
 }
 
 const ANGLE_OPTIONS = [
@@ -113,6 +117,10 @@ export function CharacterCreateDialog({
         angle,
         url: uploadedUrl,
         description: aiDescription,
+        mustKeepFeatures: data.analysis?.mustKeep || [],
+        identityCore: data.analysis?.identityCore,
+        styleTraits: data.analysis?.styleTraits,
+        angleVisibility: data.analysis?.angleVisibility,
       }]);
     } catch (error) {
       console.error('上傳錯誤:', error);

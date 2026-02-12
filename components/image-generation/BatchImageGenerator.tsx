@@ -78,6 +78,9 @@ export function BatchImageGenerator({
             contentProjectReferences.forEach(ref => {
                 const nameTag = ref.name ? `<${ref.name}>` : ref.type;
                 parts.push(`${nameTag}: ${ref.description}`);
+                if (ref.mustKeepFeatures?.length) {
+                    parts.push(`${nameTag} must keep: ${ref.mustKeepFeatures.join(', ')}`);
+                }
             });
         }
 

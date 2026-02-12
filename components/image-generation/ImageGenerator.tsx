@@ -88,6 +88,9 @@ export function ImageGenerator({
                     const nameTag = ref.name ? `<${ref.name}>` : ref.type;
                     const guidelineText = ref.guidelines ? ` (Rules: ${ref.guidelines})` : '';
                     parts.push(`${nameTag}: ${ref.description}${guidelineText}`);
+                    if (ref.mustKeepFeatures?.length) {
+                        parts.push(`${nameTag} must keep: ${ref.mustKeepFeatures.join(', ')}`);
+                    }
                 });
             }
         }
