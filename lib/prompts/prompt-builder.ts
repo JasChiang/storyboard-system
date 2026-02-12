@@ -33,7 +33,11 @@ export function buildSystemPrompt(
                 const charName = r.name || '未命名角色';
                 const angleInfo = r.angle ? ` [${angleMap[r.angle] || r.angle}]` : '';
                 const guidelineText = r.guidelines ? ` | 規則：${r.guidelines}` : '';
-                prompt += `- **<${charName}>**${angleInfo}: ${r.description}${guidelineText}\n`;
+                const identityText = r.identityCore ? ` | 核心：${r.identityCore}` : '';
+                const mustKeepText = r.mustKeepFeatures?.length
+                    ? ` | 不可改變：${r.mustKeepFeatures.join('、')}`
+                    : '';
+                prompt += `- **<${charName}>**${angleInfo}: ${r.description}${identityText}${mustKeepText}${guidelineText}\n`;
             });
             prompt += '\n';
         }
@@ -43,7 +47,11 @@ export function buildSystemPrompt(
             productRefs.forEach(r => {
                 const prodName = r.name || '未命名商品';
                 const angleInfo = r.angle ? ` [${angleMap[r.angle] || r.angle}]` : '';
-                prompt += `- **<${prodName}>**${angleInfo}: ${r.description}\n`;
+                const identityText = r.identityCore ? ` | 核心：${r.identityCore}` : '';
+                const mustKeepText = r.mustKeepFeatures?.length
+                    ? ` | 不可改變：${r.mustKeepFeatures.join('、')}`
+                    : '';
+                prompt += `- **<${prodName}>**${angleInfo}: ${r.description}${identityText}${mustKeepText}\n`;
             });
             prompt += '\n';
         }
@@ -83,6 +91,16 @@ ${productRefs.map(r => `   - 使用 \`<${r.name || '商品'}>\` 指代該商品`
    - 與其他元素的相對位置
 
 4. **位置精確**：必須明確描述每個元素在畫面中的位置
+
+5. **不可變特徵優先**：
+   - 若參考圖提供「不可改變」條目，請在所有場景中保持一致
+   - 只允許描述「位置、姿態、構圖、情緒、光線」的變化
+   - 不可重新定義角色/商品的核心外觀
+
+6. **結構化追蹤**：
+   - 每個場景需輸出 \`charactersUsed\`（如 ["<Alice>"]）
+   - 每個場景需輸出 \`productsUsed\`（如 ["<iPhone>"]）
+   - 每個場景需輸出 \`changeFromPrev\`（若為第一場可填 "N/A"）
 
 ✅ 正確範例：「Medium shot. <Alice> 在畫面左側，手持 <iPhone>，面向右方。柔和側光照射在 <iPhone> 的金屬邊框上。」
 ❌ 錯誤範例：「Alice（短髮女性）拿著黑色的 iPhone 16 Pro」

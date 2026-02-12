@@ -35,6 +35,11 @@ export default function ImagesPage() {
 
   const scenes = currentProject?.storyboard?.scenes || [];
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
+  const selectedSceneIndex = scenes.findIndex(s => s.id === selectedSceneId);
+  const previousScene = selectedSceneIndex > 0 ? scenes[selectedSceneIndex - 1] : null;
+  const previousEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
+    ? previousScene.generatedEndFrame?.url
+    : undefined;
   const activeStyleProfile = findStyleProfileById(selectedStyleProfileId, customStyleProfiles);
 
   const persistStyleSettings = (nextId: string, nextCustomProfiles: StyleProfile[]) => {
@@ -258,6 +263,7 @@ export default function ImagesPage() {
                     }
                     projectReferences={currentProject.storyboard?.projectReferences}
                     styleProfile={activeStyleProfile}
+                    previousEndFrameUrl={previousEndFrameUrl}
                   />
                 </div>
               ) : (

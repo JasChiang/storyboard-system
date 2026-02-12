@@ -99,8 +99,20 @@ export function BatchImageGenerator({
         return parts.join('. ');
     };
 
-    const generateSingleImage = async (scene: Scene, isEndFrame: boolean = false) => {
-        const prompt = buildImagePrompt(scene, isEndFrame);
+    const generateSingleImage = async (
+        scene: Scene,
+        isEndFrame: boolean = false,
+        options?: { primaryReferenceUrl?: string; continuityReferenceUrl?: string }
+    ) => {
+        const prompt = [
+            buildImagePrompt(scene, isEndFrame),
+            isEndFrame && options?.primaryReferenceUrl
+                ? 'Use the provided start frame as the primary continuity reference. Only apply the explicit end-frame delta.'
+                : '',
+            !isEndFrame && options?.continuityReferenceUrl
+                ? 'This scene should continue naturally from the previous scene end frame while preserving identity.'
+                : '',
+        ].filter(Boolean).join('. ');
 
         // 呼叫生成 API
         const response = await fetch('/api/fal/generate-image', {
@@ -109,6 +121,8 @@ export function BatchImageGenerator({
             body: JSON.stringify({
                 prompt,
                 referenceImage: [
+                    ...(options?.continuityReferenceUrl ? [options.continuityReferenceUrl] : []),
+                    ...(options?.primaryReferenceUrl ? [options.primaryReferenceUrl] : []),
                     ...selectedStyleReferenceUrls,
                     ...(scene.referenceImage ? [scene.referenceImage] : []),
                     ...contentProjectReferences.map(r => r.url)
@@ -136,12 +150,14 @@ export function BatchImageGenerator({
         return { url: imageUrl, prompt };
     };
 
-    const generateSceneImages = async (scene: Scene) => {
+    const generateSceneImages = async (scene: Scene, previousContinuationEndFrameUrl?: string) => {
         updateStatus(scene.id, { status: 'generating' });
 
         try {
             // 1. 生成首幀
-            const startFrame = await generateSingleImage(scene, false);
+            const startFrame = await generateSingleImage(scene, false, {
+                continuityReferenceUrl: previousContinuationEndFrameUrl,
+            });
 
             updateStatus(scene.id, {
                 imageUrl: startFrame.url,
@@ -152,7 +168,9 @@ export function BatchImageGenerator({
             if (scene.requiresEndFrame && scene.endFrameDescription) {
                 updateStatus(scene.id, { status: 'generating_end_frame' });
 
-                const endFrame = await generateSingleImage(scene, true);
+                const endFrame = await generateSingleImage(scene, true, {
+                    primaryReferenceUrl: startFrame.url,
+                });
 
                 updateStatus(scene.id, {
                     status: 'completed',
@@ -236,7 +254,14 @@ export function BatchImageGenerator({
             // 依序生成（避免超過 API 限制）
             for (const scene of scenesWithoutImages) {
                 try {
-                    const result = await generateSceneImages(scene);
+                    const sceneIndex = scenes.findIndex(s => s.id === scene.id);
+                    const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
+                    const previousResult = previousScene ? results.get(previousScene.id) : undefined;
+                    const previousContinuationEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
+                        ? (previousResult?.endFrameUrl || previousScene.generatedEndFrame?.url)
+                        : undefined;
+
+                    const result = await generateSceneImages(scene, previousContinuationEndFrameUrl);
                     results.set(scene.id, result);
                 } catch (error) {
                     console.error(`Failed to generate image for scene ${scene.sceneNumber}:`, error);

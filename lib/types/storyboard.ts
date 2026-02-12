@@ -26,6 +26,9 @@ export interface Scene {
   dialogue: string;              // 對話/旁白
   duration: number;              // 時長建議 (秒)
   notes?: string;                // 備註
+  changeFromPrev?: string;       // 相對前一場景的變化摘要（用於連貫生成）
+  charactersUsed?: string[];     // 本場景使用的角色標記（如 <Alice>）
+  productsUsed?: string[];       // 本場景使用的商品標記（如 <iPhone>）
 
   // Smart Keyframing (智慧首尾幀)
   requiresEndFrame?: boolean;    // AI 判斷是否需要生成尾幀

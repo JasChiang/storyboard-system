@@ -11,6 +11,7 @@ interface ImageGeneratorProps {
     onImageGenerated: (imageUrl: string, prompt: string, endFrameUrl?: string, endFramePrompt?: string) => void;
     projectReferences?: ProjectReference[];
     styleProfile?: StyleProfile;
+    previousEndFrameUrl?: string;
 }
 
 export function ImageGenerator({
@@ -18,6 +19,7 @@ export function ImageGenerator({
     onImageGenerated,
     projectReferences = [],
     styleProfile,
+    previousEndFrameUrl,
 }: ImageGeneratorProps) {
     const contentProjectReferences = projectReferences.filter(ref => ref.type !== 'style');
     const styleProjectReferences = projectReferences.filter(ref => ref.type === 'style');
@@ -43,8 +45,14 @@ export function ImageGenerator({
         : styleProjectReferences.map(ref => ref.url);
 
     // 取得選中的專案參考圖 URL
-    const getSelectedReferenceUrls = (): string[] => {
+    const getSelectedReferenceUrls = (options?: { includeStartFrameForEnd?: boolean; includePreviousSceneEnd?: boolean }): string[] => {
         const urls: string[] = [];
+        if (options?.includePreviousSceneEnd && previousEndFrameUrl) {
+            urls.push(previousEndFrameUrl);
+        }
+        if (options?.includeStartFrameForEnd && scene.generatedImage?.url) {
+            urls.push(scene.generatedImage.url);
+        }
         urls.push(...selectedStyleReferenceUrls);
         contentProjectReferences.forEach(r => {
             if (selectedProjectRefs.includes(r.id)) {
@@ -131,6 +139,14 @@ export function ImageGenerator({
             parts.push('Maintain the exact appearance, facial features, clothing, and style from the uploaded reference image.');
             parts.push('保持參考圖中的外觀、面部特徵、服裝和風格。');
         }
+        if (isEndFrame && scene.generatedImage?.url) {
+            parts.push('Use the generated start frame as the primary continuity reference.');
+            parts.push('Only change what is explicitly described in the end-frame delta; keep identity, product geometry, logo placement, and material characteristics unchanged.');
+        }
+        if (!isEndFrame && previousEndFrameUrl) {
+            parts.push('This scene continues from the previous scene end frame.');
+            parts.push('Keep subject identity and key object consistency while updating only composition and action as described.');
+        }
 
         return parts.join('. ');
     };
@@ -175,7 +191,10 @@ export function ImageGenerator({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     prompt,
-                    referenceImage: getSelectedReferenceUrls(), // 傳送所有選取的參考圖 URL
+                    referenceImage: getSelectedReferenceUrls({
+                        includeStartFrameForEnd: isEndFrame,
+                        includePreviousSceneEnd: !isEndFrame,
+                    }), // 傳送所有選取的參考圖 URL
                     aspectRatio,
                     resolution,
                 }),

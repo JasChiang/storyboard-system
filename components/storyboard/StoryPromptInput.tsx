@@ -5,9 +5,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { TEMPLATES } from '@/lib/prompts';
-import { Loader2, Users } from 'lucide-react';
+import { Loader2, Plus, Users } from 'lucide-react';
 import { ProjectReferenceUploader } from './ProjectReferenceUploader';
 import { CharacterSelector } from '@/components/character-library/CharacterSelector';
+import { CharacterCreateDialog } from '@/components/character-library/CharacterCreateDialog';
+import { characterLibraryStorage } from '@/lib/db/character-library-storage';
+import { characterLibraryItemToProjectReference } from '@/lib/types/character-library';
 import type { ProjectReference } from '@/lib/types/storyboard';
 
 interface StoryPromptInputProps {
@@ -20,6 +23,7 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
   const [templateId, setTemplateId] = useState(TEMPLATES[0].id);
   const [references, setReferences] = useState<ProjectReference[]>([]);
   const [showCharacterSelector, setShowCharacterSelector] = useState(false);
+  const [showCreateCharacterDialog, setShowCreateCharacterDialog] = useState(false);
 
   const handleSubmit = async () => {
     if (!prompt.trim()) return;
@@ -29,6 +33,14 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
   const handleSelectFromLibrary = (newReferences: ProjectReference[]) => {
     // 合並角色庫選擇的角色和已有的暫時上傳
     setReferences([...references, ...newReferences]);
+  };
+
+  const handleCreateToLibrary = (character: Parameters<typeof characterLibraryStorage.add>[0]) => {
+    const created = characterLibraryStorage.add(character);
+    // 建立後先預設帶入正面視角，讓使用者可立即使用
+    const reference = characterLibraryItemToProjectReference(created, 'front');
+    setReferences(prev => [...prev, reference]);
+    setShowCreateCharacterDialog(false);
   };
 
   const templateOptions = TEMPLATES.map(t => ({
@@ -64,15 +76,26 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
               參考圖片（選填）
             </label>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowCharacterSelector(true)}
-              disabled={isLoading}
-            >
-              <Users className="w-4 h-4 mr-2" />
-              從角色庫選擇
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCharacterSelector(true)}
+                disabled={isLoading}
+              >
+                <Users className="w-4 h-4 mr-2" />
+                從角色庫選擇
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCreateCharacterDialog(true)}
+                disabled={isLoading}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                新增到角色庫
+              </Button>
+            </div>
           </div>
 
           <ProjectReferenceUploader
@@ -133,6 +156,12 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
         isOpen={showCharacterSelector}
         onClose={() => setShowCharacterSelector(false)}
         onSelect={handleSelectFromLibrary}
+      />
+
+      <CharacterCreateDialog
+        isOpen={showCreateCharacterDialog}
+        onClose={() => setShowCreateCharacterDialog(false)}
+        onSave={handleCreateToLibrary}
       />
     </div>
   );

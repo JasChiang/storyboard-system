@@ -58,6 +58,9 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
 6. 對話/旁白 (dialogue) - 該場景的對白或旁白文字
 7. 時長建議 (duration) - 以秒為單位的建議時長
 8. 備註 (notes) - 任何額外的製作提示、特效需求等
+10. 角色引用 (charactersUsed) - 本場景使用的角色標記陣列（如 ["<Alice>"]）
+11. 商品引用 (productsUsed) - 本場景使用的商品標記陣列（如 ["<iPhone>"]）
+12. 場景差異 (changeFromPrev) - 相對前一場景的關鍵變化（第一場填 "N/A"）
 
 9. 🆕 與下一場景的轉場設定 (transitionToNext) - 分析此場景與下一場景的關係，智慧判斷轉場類型：
 
@@ -140,6 +143,20 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                             type: 'string',
                             description: '額外備註'
                         },
+                        charactersUsed: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: '本場景使用的角色標記列表（如 <Alice>）'
+                        },
+                        productsUsed: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: '本場景使用的商品標記列表（如 <iPhone>）'
+                        },
+                        changeFromPrev: {
+                            type: 'string',
+                            description: '相對前一場景的變化摘要（第一場景填 N/A）'
+                        },
                         transitionToNext: {
                             type: 'object',
                             description: '與下一場景的轉場設定',
@@ -165,11 +182,10 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                             required: ['type', 'reason']
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration', 'transitionToNext']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext']
                 }
             }
         },
         required: ['title', 'scenes']
     }
 };
-

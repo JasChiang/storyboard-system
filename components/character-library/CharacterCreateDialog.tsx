@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Plus, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fal } from '@fal-ai/client';
+import { apiKeyStorage } from '@/lib/db/local-storage';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
 
 interface CharacterCreateDialogProps {
@@ -55,7 +56,8 @@ export function CharacterCreateDialog({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadingAngle, setUploadingAngle] = useState<ViewUpload['angle'] | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const [isGeneratingGuidelines, setIsGeneratingGuidelines] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -177,6 +179,59 @@ export function CharacterCreateDialog({
     onClose();
   };
 
+  const generateProfileField = async (target: 'description' | 'guidelines') => {
+    if (!name.trim()) {
+      alert('請先輸入名稱');
+      return;
+    }
+
+    if (views.length === 0) {
+      alert('請先上傳至少一張視角圖片');
+      return;
+    }
+
+    if (target === 'description') {
+      setIsGeneratingDescription(true);
+    } else {
+      setIsGeneratingGuidelines(true);
+    }
+
+    try {
+      const keys = apiKeyStorage.getAll();
+      const apiKey = keys.openrouter || localStorage.getItem('openrouter_api_key') || undefined;
+      const response = await fetch('/api/openrouter/generate-character-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          type,
+          views,
+          apiKey,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '生成失敗');
+      }
+
+      if (target === 'description') {
+        setDescription(data.description || '');
+      } else {
+        setGuidelines(data.guidelines || '');
+      }
+    } catch (error) {
+      console.error('Generate profile field error:', error);
+      alert(error instanceof Error ? error.message : '生成失敗');
+    } finally {
+      if (target === 'description') {
+        setIsGeneratingDescription(false);
+      } else {
+        setIsGeneratingGuidelines(false);
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-slate-800 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -232,7 +287,28 @@ export function CharacterCreateDialog({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">描述</label>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="block text-sm font-medium">描述</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => generateProfileField('description')}
+                  disabled={isGeneratingDescription || isUploading || isAnalyzing}
+                >
+                  {isGeneratingDescription ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      生成中
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-1" />
+                      AI 生成描述
+                    </>
+                  )}
+                </Button>
+              </div>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -245,7 +321,28 @@ export function CharacterCreateDialog({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">角色規則 / 限制</label>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="block text-sm font-medium">角色規則 / 限制</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => generateProfileField('guidelines')}
+                  disabled={isGeneratingGuidelines || isUploading || isAnalyzing}
+                >
+                  {isGeneratingGuidelines ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      生成中
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-1" />
+                      AI 生成規則
+                    </>
+                  )}
+                </Button>
+              </div>
               <textarea
                 value={guidelines}
                 onChange={(e) => setGuidelines(e.target.value)}
@@ -382,7 +479,7 @@ export function CharacterCreateDialog({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!name.trim() || views.length === 0 || isUploading}
+            disabled={!name.trim() || views.length === 0 || isUploading || isGeneratingDescription || isGeneratingGuidelines}
           >
             {editingCharacter ? '保存修改' : '建立角色'}
           </Button>

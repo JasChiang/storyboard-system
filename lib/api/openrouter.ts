@@ -80,7 +80,7 @@ export async function generateStoryboardScript(
     }
 
     return JSON.parse(cleanedContent.trim());
-  } catch (error) {
+  } catch {
     console.error('JSON 解析失敗，完整內容:', content);
     throw new Error('AI 回傳的內容不是有效的 JSON 格式。請檢查 console 查看完整內容。');
   }
@@ -152,4 +152,97 @@ export async function analyzeReferenceImage(
   }
 
   return content;
+}
+
+export interface CharacterProfileGenerationInput {
+  name: string;
+  type: 'character' | 'product' | 'environment' | 'style';
+  views: Array<{
+    angle: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
+    description: string;
+    mustKeepFeatures?: string[];
+    identityCore?: string;
+    styleTraits?: string;
+    angleVisibility?: string;
+  }>;
+}
+
+export interface CharacterProfileGenerationResult {
+  description: string;
+  guidelines: string;
+}
+
+export async function generateCharacterProfile(
+  input: CharacterProfileGenerationInput,
+  config: OpenRouterConfig
+): Promise<CharacterProfileGenerationResult> {
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+
+  const systemPrompt = `你是品牌素材規格編輯器。請根據多視角分析資料，輸出可直接用於影像生成的一致性設定。
+
+規則：
+1) 僅輸出 JSON，不要任何額外文字。
+2) description：80-180 字，聚焦外觀與可視化特徵，不寫宣傳文案。
+3) guidelines：5-8 條「不可改變」規則，以「1.」「2.」編號列出，每條一句。
+4) 若輸入是商品，優先保護比例、Logo、關鍵元件位置、材質與色彩。
+5) 若輸入是角色，優先保護臉部、髮型、服裝、代表配件。
+6) 若資訊不足，請依現有資料保守整理，不可杜撰不存在元素。`;
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+      'X-Title': 'Storyboard System',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        {
+          role: 'user',
+          content: `請整理以下素材資料：\n${JSON.stringify(input, null, 2)}\n\n請輸出 JSON：{"description":"...","guidelines":"..."}`,
+        },
+      ],
+      response_format: { type: 'json_object' },
+    }),
+  });
+
+  if (!response.ok) {
+    let errorDetails = '';
+    try {
+      const errorData = await response.json();
+      errorDetails = errorData.error?.message || JSON.stringify(errorData);
+    } catch {
+      errorDetails = await response.text();
+    }
+    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
+  }
+
+  const data: OpenRouterResponse = await response.json();
+  const content = data.choices[0]?.message?.content;
+
+  if (!content) {
+    throw new Error('OpenRouter 沒有回傳任何內容');
+  }
+
+  const cleaned = content
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/, '');
+
+  try {
+    const parsed = JSON.parse(cleaned) as Partial<CharacterProfileGenerationResult>;
+    return {
+      description: (parsed.description || '').trim(),
+      guidelines: (parsed.guidelines || '').trim(),
+    };
+  } catch {
+    throw new Error('角色設定生成回傳格式錯誤，無法解析 JSON');
+  }
 }

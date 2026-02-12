@@ -20,6 +20,9 @@ export const DOCUMENTARY_TEMPLATE: PromptTemplate = {
 4. 對話/旁白 (dialogue) - 訪談內容或旁白文字
 5. 時長建議 (duration)
 6. 備註 (notes) - 拍攝提示、音效需求
+7. 角色引用 (charactersUsed) - 本場景使用的角色標記陣列（如 ["<Host>"]）
+8. 商品引用 (productsUsed) - 本場景使用的商品標記陣列（如 ["<ProductA>"]）
+9. 場景差異 (changeFromPrev) - 相對前一場景的關鍵變化（第一場填 "N/A"）
 
 ⚠️ 關鍵：description 只寫靜態畫面內容，cameraMovement 只寫鏡頭運動方式。`,
 
@@ -66,9 +69,23 @@ export const DOCUMENTARY_TEMPLATE: PromptTemplate = {
                         notes: {
                             type: 'string',
                             description: '額外備註'
+                        },
+                        charactersUsed: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: '本場景使用的角色標記列表'
+                        },
+                        productsUsed: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: '本場景使用的商品標記列表'
+                        },
+                        changeFromPrev: {
+                            type: 'string',
+                            description: '相對前一場景的變化摘要（第一場景填 N/A）'
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev']
                 }
             }
         },

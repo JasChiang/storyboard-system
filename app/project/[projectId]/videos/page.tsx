@@ -6,7 +6,6 @@ import { ArrowLeft, Film, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { useProjectStore } from '@/stores/project-store';
 import { VideoGenerator } from '@/components/video-generation/VideoGenerator';
-import type { Scene } from '@/lib/types/storyboard';
 
 type VideoModel = 'kling' | 'seedance';
 
@@ -219,6 +218,7 @@ export default function VideosPage() {
                   <VideoGenerator
                     scene={selectedScene}
                     previousEndFrameUrl={previousEndFrameUrl}
+                    projectReferences={currentProject.storyboard?.projectReferences}
                     onVideoGenerated={(url, prompt, model) =>
                       handleVideoGenerated(selectedScene.id, url, prompt, model)
                     }

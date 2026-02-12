@@ -20,6 +20,9 @@ MV 分鏡要點：
 4. 對話/旁白 (dialogue) - 對應的歌詞段落
 5. 時長建議 (duration)
 6. 備註 (notes) - 特效、後製提示
+7. 角色引用 (charactersUsed) - 本場景使用的角色標記陣列
+8. 商品引用 (productsUsed) - 本場景使用的商品標記陣列
+9. 場景差異 (changeFromPrev) - 相對前一場景的關鍵變化（第一場填 "N/A"）
 
 ⚠️ 注意：description 描述靜態視覺，cameraMovement 描述鏡頭動作，兩者分開。`,
 
@@ -66,9 +69,23 @@ MV 分鏡要點：
                         notes: {
                             type: 'string',
                             description: '額外備註'
+                        },
+                        charactersUsed: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: '本場景使用的角色標記列表'
+                        },
+                        productsUsed: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: '本場景使用的商品標記列表'
+                        },
+                        changeFromPrev: {
+                            type: 'string',
+                            description: '相對前一場景的變化摘要（第一場景填 N/A）'
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev']
                 }
             }
         },

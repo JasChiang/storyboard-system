@@ -5,17 +5,18 @@ import { Film, Settings2 } from 'lucide-react';
 import { ModelSelector } from './ModelSelector';
 import { MotionPromptEditor } from './MotionPromptEditor';
 import { VideoPreview } from './VideoPreview';
-import type { Scene } from '@/lib/types/storyboard';
+import type { Scene, ProjectReference } from '@/lib/types/storyboard';
 
 type VideoModel = 'kling' | 'seedance';
 
 interface VideoGeneratorProps {
     scene: Scene;
     previousEndFrameUrl?: string; // 當前一場景的 continuation 轉場時，傳入其 endFrame URL
+    projectReferences?: ProjectReference[];
     onVideoGenerated: (videoUrl: string, prompt: string, model: VideoModel) => void;
 }
 
-export function VideoGenerator({ scene, previousEndFrameUrl, onVideoGenerated }: VideoGeneratorProps) {
+export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences = [], onVideoGenerated }: VideoGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [model, setModel] = useState<VideoModel>('kling');
     // 優先使用 AI 生成的運鏡指令，如果沒有則使用已儲存的 motionPrompt
@@ -41,6 +42,30 @@ export function VideoGenerator({ scene, previousEndFrameUrl, onVideoGenerated }:
         setMotionPrompt(newMotionPrompt);
     }, [scene.id, scene.motionPrompt, scene.cameraMovement]);
 
+    const buildVideoPrompt = () => {
+        const contentRefs = projectReferences.filter(ref => ref.type !== 'style');
+        const mustKeepLines = contentRefs
+            .filter(ref => ref.mustKeepFeatures?.length)
+            .map(ref => {
+                const tag = ref.name ? `<${ref.name}>` : ref.type;
+                return `${tag}: ${ref.mustKeepFeatures!.join(', ')}`;
+            });
+
+        const sections = [
+            'Animate from the provided start frame toward the provided end frame if available.',
+            scene.generatedEndFrame?.url
+                ? 'End-state target: match the provided end frame composition and identity.'
+                : 'No explicit end frame target; preserve identity and object consistency throughout the clip.',
+            mustKeepLines.length
+                ? `Do not change these identity constraints: ${mustKeepLines.join(' | ')}`
+                : '',
+            `Motion and camera direction: ${motionPrompt}`,
+            'Focus on temporal motion only. Do not redesign character/product appearance, logo placement, or core geometry.',
+        ];
+
+        return sections.filter(Boolean).join(' ');
+    };
+
     const handleGenerate = async () => {
         // 檢查是否有生成的圖片
         if (!scene.generatedImage?.url) {
@@ -56,6 +81,7 @@ export function VideoGenerator({ scene, previousEndFrameUrl, onVideoGenerated }:
         setIsGenerating(true);
 
         try {
+            const composedPrompt = buildVideoPrompt();
             // Continuation 轉場邏輯：如果有 previousEndFrameUrl，使用它作為起始幀
             // 這讓影片生成能從前一場景的結束畫面開始，實現無縫銜接
             const startImageUrl = previousEndFrameUrl || scene.generatedImage.url;
@@ -66,7 +92,7 @@ export function VideoGenerator({ scene, previousEndFrameUrl, onVideoGenerated }:
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     imageUrl: startImageUrl,
-                    prompt: motionPrompt,
+                    prompt: composedPrompt,
                     model,
                     duration: model === 'kling' ? klingDuration : seedanceDuration,
                     aspectRatio: model === 'kling' ? klingAspectRatio : seedanceAspectRatio,
