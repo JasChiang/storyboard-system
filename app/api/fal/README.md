@@ -53,3 +53,4 @@ fal.config({ proxyUrl: '/api/fal/proxy' });
 - [Fal Server Proxy 文檔](https://fal.ai/docs)
 - [前端設定](../../../components/providers/FalConfigProvider.tsx)
 - [環境變數範例](../../../.env.local.example)
+- [Video Prompt Schema v1](../../../docs/video-prompt-schema-v1.md)

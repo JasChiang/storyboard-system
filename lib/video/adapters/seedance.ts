@@ -1,4 +1,7 @@
 import type { ProjectReference, Scene } from '@/lib/types/storyboard';
+import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
+import { buildMotionSafetyLines } from './motion-safety';
+import { buildPromptFromSchema } from './prompt-schema';
 
 interface SeedancePromptInput {
   scene: Scene;
@@ -7,44 +10,48 @@ interface SeedancePromptInput {
 }
 
 export function buildSeedancePrompt({ scene, motionPrompt, scopedRefs }: SeedancePromptInput): string {
-  const identityParts: string[] = [];
+  const consolidatedRules = buildConsolidatedReferenceRules(scopedRefs);
 
-  const identityCoreLines = scopedRefs
-    .filter(ref => ref.identityCore)
-    .map(ref => `${ref.name ? `<${ref.name}>` : ref.type}: ${ref.identityCore}`);
+  const identityCoreLines = consolidatedRules
+    .filter(rule => rule.identityCore)
+    .map(rule => `${rule.tag}: ${rule.identityCore}`);
 
-  const mustKeepLines = scopedRefs
-    .filter(ref => ref.mustKeepFeatures?.length)
-    .map(ref => `${ref.name ? `<${ref.name}>` : ref.type}: ${ref.mustKeepFeatures!.join(', ')}`);
+  const mustKeepLines = consolidatedRules
+    .filter(rule => rule.mustKeepFeatures?.length)
+    .map(rule => `${rule.tag}: ${rule.mustKeepFeatures.slice(0, 6).join(', ')}`);
 
-  const guidelineLines = scopedRefs
-    .filter(ref => ref.guidelines?.trim())
-    .map(ref => `${ref.name ? `<${ref.name}>` : ref.type}: ${ref.guidelines!.trim()}`);
+  const guidelineLines = consolidatedRules
+    .filter(rule => rule.guidelines.length > 0)
+    .map(rule => `${rule.tag}: ${rule.guidelines.slice(0, 6).join('; ')}`);
 
-  if (identityCoreLines.length) identityParts.push(`Keep these identity cores fixed: ${identityCoreLines.join(' | ')}`);
-  if (mustKeepLines.length) identityParts.push(`Do not change these identity constraints: ${mustKeepLines.join(' | ')}`);
-  if (guidelineLines.length) identityParts.push(`Follow these guardrails: ${guidelineLines.join(' | ')}`);
+  const identityInvariants = [
+    identityCoreLines.length ? `Keep identity cores fixed: ${identityCoreLines.join(' | ')}` : '',
+    mustKeepLines.length ? `Keep material/geometry constraints: ${mustKeepLines.join(' | ')}` : '',
+    guidelineLines.length ? `Follow guardrails: ${guidelineLines.join(' | ')}` : '',
+    'Keep character/product identity, logo placement, and core geometry unchanged.',
+  ].filter(Boolean);
 
   const hasLockVisibleText = scopedRefs.some(ref => ref.ipProfile?.textLogoPolicy === 'lock_visible_text');
   const hasForbidNewText = scopedRefs.some(ref => ref.ipProfile?.textLogoPolicy === 'forbid_new_text');
   const hasEndFrame = !!scene.requiresEndFrame && !!scene.generatedEndFrame?.url;
+  const motionSafetyLines = buildMotionSafetyLines({ scene, motionPrompt, scopedRefs });
 
-  const sections = [
-    'Seedance scene direction:',
-    'Generate a smooth, story-driven motion sequence from the start frame.',
-    hasEndFrame
-      ? 'End-state target: align final moment with the provided end frame.'
-      : 'No explicit end frame target; maintain narrative continuity within one shot.',
-    `Action beat: ${motionPrompt}`,
-    'Keep movement natural and readable, with clear subject intent and staging.',
-    'No audio is required; optimize for visual continuity and timing only.',
-    'Do not introduce new props, clothing changes, or logo/text mutations.',
-    hasLockVisibleText ? 'If text or logos are visible, keep spelling, shape, and placement exactly unchanged.' : '',
-    hasForbidNewText ? 'Never invent new letters, numbers, logos, or package text during motion.' : '',
-    identityParts.length
-      ? identityParts.join(' ')
-      : 'Keep character/product identity, logo placement, and core geometry unchanged.',
-  ];
-
-  return sections.filter(Boolean).join(' ');
+  return buildPromptFromSchema({
+    heading: 'Seedance scene direction.',
+    shotGoal: hasEndFrame
+      ? 'Align the final moment with the provided end frame.'
+      : 'Maintain narrative continuity within one shot with no explicit end frame target.',
+    cameraPlan: `Generate a smooth motion sequence from the start frame. ${motionPrompt}`,
+    subjectState: [
+      'Keep movement readable with clear camera intent and stable anchored subjects.',
+      ...motionSafetyLines,
+      'No audio guidance required in prompt; optimize for visual continuity and timing.',
+    ],
+    identityInvariants,
+    hardNegatives: [
+      'Do not introduce new props, clothing changes, or logo/text mutations.',
+      hasLockVisibleText ? 'If text or logos are visible, keep spelling, shape, and placement exactly unchanged.' : '',
+      hasForbidNewText ? 'Never invent new letters, numbers, logos, or package text during motion.' : '',
+    ],
+  });
 }

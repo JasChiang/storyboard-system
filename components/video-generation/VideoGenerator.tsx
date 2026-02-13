@@ -9,6 +9,7 @@ import type { Scene, ProjectReference } from '@/lib/types/storyboard';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 import { buildKlingPrompt } from '@/lib/video/adapters/kling';
 import { buildSeedancePrompt } from '@/lib/video/adapters/seedance';
+import { enforceVideoPromptPolicy } from '@/lib/video/prompt-policy';
 
 type VideoModel = 'kling' | 'seedance';
 
@@ -96,7 +97,9 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
         setIsGenerating(true);
 
         try {
-            const composedPrompt = buildVideoPrompt();
+            const rawPrompt = buildVideoPrompt();
+            const promptPolicy = enforceVideoPromptPolicy(rawPrompt, model);
+            const composedPrompt = promptPolicy.prompt;
             const taskId = crypto.randomUUID();
             await fetch('/api/workflow/tasks', {
                 method: 'POST',
@@ -110,6 +113,9 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
                     model,
                     prompt: composedPrompt,
                     inputUrl: previousEndFrameUrl || scene.generatedImage.url,
+                    metadata: {
+                        promptPolicy,
+                    },
                 }),
             });
             // Continuation 轉場邏輯：如果有 previousEndFrameUrl，使用它作為起始幀
@@ -157,7 +163,7 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
             const requestId = data.request_id;
             const endpoint = data.endpoint;
 
-            await pollStatus(requestId, endpoint, taskId);
+            await pollStatus(requestId, endpoint, composedPrompt, taskId);
         } catch (error) {
             console.error('Generate error:', error);
             alert(error instanceof Error ? error.message : '生成失敗');
@@ -169,6 +175,7 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
     const pollStatus = async (
         requestId: string,
         endpoint: string,
+        composedPrompt: string,
         taskId: string
     ) => {
         const maxAttempts = 120; // 最多等 10 分鐘（影片生成較慢）
@@ -186,6 +193,9 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
             });
 
             const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'Status check failed');
+            }
 
             if (data.status === 'COMPLETED') {
                 const videoUrl = data.result.video?.url;
@@ -198,7 +208,7 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
                             outputUrl: videoUrl,
                         }),
                     });
-                    onVideoGenerated(videoUrl, motionPrompt, model);
+                    onVideoGenerated(videoUrl, composedPrompt, model);
                 }
                 return;
             } else if (data.status === 'FAILED') {

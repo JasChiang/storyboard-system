@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateVideoKling, generateVideoSeedance } from '@/lib/api/fal';
+import { enforceVideoPromptPolicy } from '@/lib/video/prompt-policy';
 
 export async function POST(request: NextRequest) {
     try {
@@ -36,13 +37,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const promptPolicy = enforceVideoPromptPolicy(prompt, model);
+        const safePrompt = promptPolicy.prompt;
+
         let result;
         let endpoint = '';
 
         if (model === 'kling') {
             result = await generateVideoKling(
                 imageUrl,
-                prompt,
+                safePrompt,
                 {
                     duration: duration as 5 | 10,
                     aspectRatio: aspectRatio as '16:9' | '9:16' | '1:1',
@@ -56,7 +60,7 @@ export async function POST(request: NextRequest) {
             const { aspectRatio, resolution } = body;
             result = await generateVideoSeedance(
                 imageUrl,
-                prompt,
+                safePrompt,
                 {
                     duration,
                     aspectRatio,
@@ -74,7 +78,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        return NextResponse.json({ ...result, endpoint });
+        return NextResponse.json({ ...result, endpoint, promptPolicy });
     } catch (error) {
         console.error('Generate video error:', error);
         return NextResponse.json(
