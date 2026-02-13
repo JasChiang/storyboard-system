@@ -18,7 +18,32 @@ interface VideoGeneratorProps {
     scene: Scene;
     previousEndFrameUrl?: string; // 當前一場景的 continuation 轉場時，傳入其 endFrame URL
     projectReferences?: ProjectReference[];
-    onVideoGenerated: (videoUrl: string, prompt: string, model: VideoModel) => void;
+    onVideoGenerated: (
+        videoUrl: string,
+        motionPrompt: string,
+        composedPrompt: string,
+        model: VideoModel
+    ) => void;
+}
+
+function isComposedPromptPollution(value: string): boolean {
+    const text = (value || '').trim();
+    if (!text) return false;
+    return /^Kling visual direction\b/i.test(text)
+        || /^Seedance scene direction\b/i.test(text)
+        || /\bShot goal:\b/i.test(text)
+        || /\bIdentity invariants:\b/i.test(text);
+}
+
+function resolveEditableMotionPrompt(data: {
+    motionPrompt?: string;
+    cameraMovement?: string;
+}): string {
+    const saved = data.motionPrompt || '';
+    if (saved && !isComposedPromptPollution(saved)) {
+        return saved;
+    }
+    return data.cameraMovement || '';
 }
 
 export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectReferences = [], onVideoGenerated }: VideoGeneratorProps) {
@@ -26,7 +51,10 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
     const [model, setModel] = useState<VideoModel>('kling');
     // 優先使用 AI 生成的運鏡指令，如果沒有則使用已儲存的 motionPrompt
     const [motionPrompt, setMotionPrompt] = useState(
-        scene.motionPrompt || scene.cameraMovement || ''
+        resolveEditableMotionPrompt({
+            motionPrompt: scene.motionPrompt,
+            cameraMovement: scene.cameraMovement,
+        })
     );
     const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -51,7 +79,10 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
 
     // 當場景變化時，同步更新 motionPrompt
     useEffect(() => {
-        const newMotionPrompt = scene.motionPrompt || scene.cameraMovement || '';
+        const newMotionPrompt = resolveEditableMotionPrompt({
+            motionPrompt: scene.motionPrompt,
+            cameraMovement: scene.cameraMovement,
+        });
         setMotionPrompt(newMotionPrompt);
     }, [scene.id, scene.motionPrompt, scene.cameraMovement]);
 
@@ -135,7 +166,7 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
                     resolution: model === 'seedance' ? seedanceResolution : undefined,
                     enableSound: model === 'kling' ? klingEnableSound : undefined,
                     enableAudio: model === 'seedance' ? seedanceEnableAudio : undefined,
-                    endImageUrl: scene.requiresEndFrame ? scene.generatedEndFrame?.url : undefined,  // 只在需要尾幀時傳遞
+                    endImageUrl: scene.generatedEndFrame?.url,  // 只要有尾幀就傳遞（含手動尾幀）
                 }),
             });
 
@@ -208,7 +239,7 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
                             outputUrl: videoUrl,
                         }),
                     });
-                    onVideoGenerated(videoUrl, composedPrompt, model);
+                    onVideoGenerated(videoUrl, motionPrompt, composedPrompt, model);
                 }
                 return;
             } else if (data.status === 'FAILED') {

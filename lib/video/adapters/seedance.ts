@@ -1,6 +1,6 @@
 import type { ProjectReference, Scene } from '@/lib/types/storyboard';
 import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
-import { buildMotionSafetyLines } from './motion-safety';
+import { analyzeMotionRisk, buildMotionSafetyLines } from './motion-safety';
 import { buildPromptFromSchema } from './prompt-schema';
 
 interface SeedancePromptInput {
@@ -34,11 +34,14 @@ export function buildSeedancePrompt({ scene, motionPrompt, scopedRefs }: Seedanc
   const hasLockVisibleText = scopedRefs.some(ref => ref.ipProfile?.textLogoPolicy === 'lock_visible_text');
   const hasForbidNewText = scopedRefs.some(ref => ref.ipProfile?.textLogoPolicy === 'forbid_new_text');
   const hasEndFrame = !!scene.requiresEndFrame && !!scene.generatedEndFrame?.url;
+  const motionRisk = analyzeMotionRisk({ scene, motionPrompt, scopedRefs });
   const motionSafetyLines = buildMotionSafetyLines({ scene, motionPrompt, scopedRefs });
 
   return buildPromptFromSchema({
     heading: 'Seedance scene direction.',
-    shotGoal: hasEndFrame
+    shotGoal: motionRisk.riskyCrossSubjectHandoff
+      ? 'Keep the anchored product stable while performing only a subtle reframe within visible scene content.'
+      : hasEndFrame
       ? 'Align the final moment with the provided end frame.'
       : 'Maintain narrative continuity within one shot with no explicit end frame target.',
     cameraPlan: `Generate a smooth motion sequence from the start frame. ${motionPrompt}`,
@@ -50,6 +53,9 @@ export function buildSeedancePrompt({ scene, motionPrompt, scopedRefs }: Seedanc
     identityInvariants,
     hardNegatives: [
       'Do not introduce new props, clothing changes, or logo/text mutations.',
+      motionRisk.riskyCrossSubjectHandoff
+        ? 'Do not fake large reframing by moving or scaling the anchored product.'
+        : '',
       hasLockVisibleText ? 'If text or logos are visible, keep spelling, shape, and placement exactly unchanged.' : '',
       hasForbidNewText ? 'Never invent new letters, numbers, logos, or package text during motion.' : '',
     ],

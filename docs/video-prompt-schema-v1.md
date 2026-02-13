@@ -38,6 +38,7 @@ For prompts with camera-move verbs (`pan/tilt/zoom/dolly/...`), adapters add:
 - camera-only motion language
 - "wall-mounted product remains physically fixed" when relevant
 - stable world-position guidance for non-end-frame shots
+- risky handoff mitigation: when prompt asks "from product to family" without end frame, enforce limited reframe constraints to prevent object drift/fake zoom
 
 Implemented in:
 - `lib/video/adapters/motion-safety.ts`

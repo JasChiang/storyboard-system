@@ -34,7 +34,8 @@ export default function VideosPage() {
   const handleVideoGenerated = (
     sceneId: string,
     videoUrl: string,
-    prompt: string,
+    motionPrompt: string,
+    composedPrompt: string,
     model: VideoModel
   ) => {
     if (!currentProject?.storyboard) return;
@@ -46,10 +47,10 @@ export default function VideosPage() {
           generatedVideo: {
             url: videoUrl,
             model,
-            prompt,
+            prompt: composedPrompt,
             timestamp: new Date().toISOString(),
           },
-          motionPrompt: prompt,
+          motionPrompt,
         }
         : scene
     );
@@ -234,8 +235,8 @@ export default function VideosPage() {
                     scene={selectedScene}
                     previousEndFrameUrl={previousEndFrameUrl}
                     projectReferences={currentProject.storyboard?.projectReferences}
-                    onVideoGenerated={(url, prompt, model) =>
-                      handleVideoGenerated(selectedScene.id, url, prompt, model)
+                    onVideoGenerated={(url, motionPrompt, composedPrompt, model) =>
+                      handleVideoGenerated(selectedScene.id, url, motionPrompt, composedPrompt, model)
                     }
                   />
                 </div>

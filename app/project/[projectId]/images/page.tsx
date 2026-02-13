@@ -81,9 +81,7 @@ export default function ImagesPage() {
             prompt,
             timestamp: new Date().toISOString(),
           },
-          generatedEndFrame: !scene.requiresEndFrame
-            ? undefined
-            : endFrameUrl ? {
+          generatedEndFrame: endFrameUrl ? {
             url: endFrameUrl,
             prompt: endFramePrompt || '',
             timestamp: new Date().toISOString(),
@@ -115,14 +113,12 @@ export default function ImagesPage() {
             prompt: result.prompt,
             timestamp: new Date().toISOString(),
           },
-          // 如果有尾幀，也儲存尾幀資訊
-          generatedEndFrame: !scene.requiresEndFrame
-            ? undefined
-            : result.endFrameUrl ? {
+          // 如果有尾幀，也儲存尾幀資訊（不再依賴 requiresEndFrame）
+          generatedEndFrame: result.endFrameUrl ? {
             url: result.endFrameUrl,
             prompt: result.endFramePrompt || '',
             timestamp: new Date().toISOString(),
-          } : undefined,
+          } : scene.generatedEndFrame,
         };
       }
       return scene;

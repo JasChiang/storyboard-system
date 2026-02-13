@@ -37,6 +37,10 @@ export function ImageGenerator({
     const [customPrompt, setCustomPrompt] = useState('');
     const [promptMode, setPromptMode] = useState<'append' | 'replace' | 'prepend'>('append');
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const [manualEndFrameEnabled, setManualEndFrameEnabled] = useState<boolean>(
+        !!scene.generatedEndFrame?.url
+    );
+    const [manualEndFrameDescription, setManualEndFrameDescription] = useState<string>('');
     // 專案參考圖選擇狀態
     const [selectedProjectRefs, setSelectedProjectRefs] = useState<string[]>(
         contentProjectReferences.map(r => r.id)  // 預設全選（不含 style refs）
@@ -61,6 +65,8 @@ export function ImageGenerator({
             setAspectRatio('16:9');
         }
     }, [scene.id, scenePreferredAspectRatio]);
+
+    const shouldUseEndFrame = scene.requiresEndFrame || manualEndFrameEnabled;
 
     // 取得選中的專案參考圖 URL
     const getSelectedReferenceUrls = (options?: { includeStartFrameForEnd?: boolean; includePreviousSceneEnd?: boolean }): string[] => {
@@ -147,9 +153,14 @@ export function ImageGenerator({
         }
 
         // 2. 選擇正確的描述（首幀或尾幀）
+        const effectiveEndFrameDescription =
+            scene.endFrameDescription
+            || manualEndFrameDescription
+            || scene.description;
+
         const sceneDescription = buildStaticFrameDescription(
             scene.description,
-            isEndFrame ? scene.endFrameDescription : scene.description,
+            isEndFrame ? effectiveEndFrameDescription : scene.description,
             isEndFrame
         );
 
@@ -412,15 +423,43 @@ export function ImageGenerator({
                 />
             </div>
 
+            {/* 尾幀選項 */}
+            {!scene.requiresEndFrame && (
+                <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                        <input
+                            type="checkbox"
+                            checked={manualEndFrameEnabled}
+                            onChange={(e) => setManualEndFrameEnabled(e.target.checked)}
+                            disabled={isGeneratingStart || isGeneratingEnd}
+                        />
+                        手動啟用尾幀（適合跨主體運鏡）
+                    </label>
+                    {manualEndFrameEnabled && (
+                        <textarea
+                            value={manualEndFrameDescription}
+                            onChange={(e) => setManualEndFrameDescription(e.target.value)}
+                            placeholder="尾幀補充描述（選填）。例如：最後畫面停在家人中景，冷氣仍在左上角可見。"
+                            className="mt-2 w-full px-3 py-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg
+                   text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400
+                   focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600
+                   transition-colors resize-none"
+                            rows={2}
+                            disabled={isGeneratingStart || isGeneratingEnd}
+                        />
+                    )}
+                </div>
+            )}
+
             {/* 尾幀預覽（如果需要） */}
-            {scene.requiresEndFrame && scene.endFrameDescription && (
+            {shouldUseEndFrame && (
                 <div className="space-y-2 p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-purple-600 dark:bg-purple-400 rounded-full"></div>
                         <h4 className="text-sm font-medium text-purple-700 dark:text-purple-300">尾幀 (End Frame)</h4>
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400 italic">
-                        {scene.endFrameDescription}
+                        {scene.endFrameDescription || manualEndFrameDescription || '未提供尾幀描述，將沿用場景描述'}
                     </p>
                     <ImagePreview
                         imageUrl={scene.generatedEndFrame?.url || null}
@@ -665,7 +704,7 @@ export function ImageGenerator({
                     )}
                 </button>
 
-                {scene.requiresEndFrame && scene.endFrameDescription && (
+                {shouldUseEndFrame && (
                     <button
                         onClick={() => handleGenerate(true)}
                         disabled={isGeneratingStart || isGeneratingEnd}
