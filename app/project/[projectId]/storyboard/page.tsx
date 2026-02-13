@@ -18,6 +18,10 @@ export default function StoryboardPage() {
 
   const { currentProject, setCurrentProject, updateProject } = useProjectStore();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationNotice, setGenerationNotice] = useState<{
+    type: 'success' | 'warning' | 'error';
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     setCurrentProject(projectId);
@@ -30,6 +34,7 @@ export default function StoryboardPage() {
     targetDurationSec: number
   ) => {
     setIsGenerating(true);
+    setGenerationNotice(null);
 
     try {
       console.log('發送請求到:', '/api/openrouter/generate-storyboard');
@@ -101,13 +106,22 @@ export default function StoryboardPage() {
       });
 
       if (highIssues.length > 0) {
-        alert(`已生成 ${scenes.length} 個場景，但 QA 發現 ${highIssues.length} 個高風險問題，建議先在分鏡表修正再往下生成。`);
+        setGenerationNotice({
+          type: 'warning',
+          message: `已生成 ${scenes.length} 個場景，但 QA 發現 ${highIssues.length} 個高風險問題，建議先在分鏡表修正再往下生成。`,
+        });
       } else {
-        alert(`成功生成 ${scenes.length} 個場景的分鏡腳本！`);
+        setGenerationNotice({
+          type: 'success',
+          message: `成功生成 ${scenes.length} 個場景的分鏡腳本。`,
+        });
       }
     } catch (error) {
       console.error('生成錯誤:', error);
-      alert(error instanceof Error ? error.message : '生成失敗，請檢查服務設定與網路連線');
+      setGenerationNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : '生成失敗，請檢查服務設定與網路連線',
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -193,6 +207,29 @@ export default function StoryboardPage() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
+          {generationNotice && (
+            <div
+              className={`rounded-lg border px-4 py-3 text-sm ${
+                generationNotice.type === 'success'
+                  ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-300'
+                  : generationNotice.type === 'warning'
+                    ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300'
+                    : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p>{generationNotice.message}</p>
+                <button
+                  type="button"
+                  onClick={() => setGenerationNotice(null)}
+                  className="text-xs opacity-70 hover:opacity-100"
+                >
+                  關閉
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* 故事輸入 */}
           <StoryPromptInput
             onGenerate={handleGenerate}

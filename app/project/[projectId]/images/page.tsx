@@ -21,6 +21,7 @@ export default function ImagesPage() {
   const { currentProject, setCurrentProject, updateProject } = useProjectStore();
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'individual' | 'batch'>('individual');
+  const [showStylePanel, setShowStylePanel] = useState(false);
   const [selectedStyleProfileId, setSelectedStyleProfileId] = useState<string>(DEFAULT_STYLE_PROFILE_ID);
   const [customStyleProfiles, setCustomStyleProfiles] = useState<StyleProfile[]>([]);
 
@@ -246,13 +247,38 @@ export default function ImagesPage() {
       />
 
       <main className="container mx-auto px-4 py-8">
-        <div className="max-w-3xl mx-auto mb-6">
-          <StyleProfileSelector
-            selectedProfileId={selectedStyleProfileId}
-            customProfiles={customStyleProfiles}
-            onChange={handleStyleProfileChange}
-            onCustomProfilesChange={handleCustomStyleProfilesChange}
-          />
+        <div className="max-w-6xl mx-auto mb-6 space-y-3">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 p-4 backdrop-blur-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Style Profile</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
+                  {activeStyleProfile?.name || '未設定'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
+                  全場景套用
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowStylePanel((prev) => !prev)}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  {showStylePanel ? '收合風格設定' : '展開風格設定'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {showStylePanel && (
+            <StyleProfileSelector
+              selectedProfileId={selectedStyleProfileId}
+              customProfiles={customStyleProfiles}
+              onChange={handleStyleProfileChange}
+              onCustomProfilesChange={handleCustomStyleProfilesChange}
+            />
+          )}
         </div>
 
         {viewMode === 'individual' ? (
@@ -273,19 +299,54 @@ export default function ImagesPage() {
                       }
                     `}
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                        場景 {scene.sceneNumber}
+                    <div className="flex items-start gap-3 mb-2">
+                      <div className="w-20 h-14 rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0 bg-slate-100 dark:bg-slate-800">
+                        {scene.generatedImage?.url ? (
+                          <div className="relative w-full h-full">
+                            <Image
+                              src={scene.generatedImage.url}
+                              alt={`場景 ${scene.sceneNumber}`}
+                              fill
+                              sizes="96px"
+                              className="object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Sparkles className="w-4 h-4 text-slate-300 dark:text-slate-600" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                            場景 {scene.sceneNumber}
+                          </span>
+                          {scene.generatedImage ? (
+                            <span className="text-[11px] px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 rounded">
+                              已生成
+                            </span>
+                          ) : (
+                            <span className="text-[11px] px-2 py-0.5 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 rounded">
+                              未生成
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
+                          {scene.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                        風格：{activeStyleProfile?.name || '預設'}
                       </span>
-                      {scene.generatedImage && (
-                        <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 rounded">
-                          已生成
+                      {scene.generatedEndFrame && (
+                        <span className="text-[11px] px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                          有尾幀
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
-                      {scene.description}
-                    </p>
                   </button>
                 ))}
               </div>
@@ -294,22 +355,67 @@ export default function ImagesPage() {
             {/* Image Generator */}
             <div className="col-span-8">
               {selectedScene ? (
-                <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
-                  <ImageGenerator
-                    projectId={projectId}
-                    scene={selectedScene}
-                    onImageGenerated={(url, prompt, endFrameUrl, endFramePrompt) =>
-                      handleImageGenerated(selectedScene.id, url, prompt, endFrameUrl, endFramePrompt)
-                    }
-                    onEndFrameDescriptionChanged={(description, enabled) =>
-                      handleEndFrameDescriptionChanged(selectedScene.id, description, enabled)
-                    }
-                    projectReferences={currentProject.storyboard?.projectReferences}
-                    styleProfile={activeStyleProfile}
-                    previousEndFrameUrl={previousEndFrameUrl}
-                    previousSceneDescription={previousScene?.description}
-                    nextSceneDescription={nextScene?.description}
-                  />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-4 backdrop-blur-sm">
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">目前預覽</p>
+                      <div className="aspect-video rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
+                        {selectedScene.generatedImage?.url ? (
+                          <div className="relative w-full h-full">
+                            <Image
+                              src={selectedScene.generatedImage.url}
+                              alt={`Scene ${selectedScene.sceneNumber}`}
+                              fill
+                              sizes="(max-width: 1024px) 50vw, 480px"
+                              className="object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span className="text-sm text-slate-500 dark:text-slate-400">尚未生成圖片</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">場景摘要</p>
+                        <p className="text-sm text-slate-700 dark:text-slate-300 line-clamp-4">
+                          {selectedScene.description}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">目前風格模板</p>
+                        <p className="text-sm text-slate-700 dark:text-slate-300">
+                          {activeStyleProfile?.name || '預設'}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">上次提示詞摘要</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-6">
+                          {selectedScene.generatedImage?.prompt || '尚未生成，將使用場景描述 + 風格模板自動組合提示詞。'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
+                    <ImageGenerator
+                      projectId={projectId}
+                      scene={selectedScene}
+                      onImageGenerated={(url, prompt, endFrameUrl, endFramePrompt) =>
+                        handleImageGenerated(selectedScene.id, url, prompt, endFrameUrl, endFramePrompt)
+                      }
+                      onEndFrameDescriptionChanged={(description, enabled) =>
+                        handleEndFrameDescriptionChanged(selectedScene.id, description, enabled)
+                      }
+                      projectReferences={currentProject.storyboard?.projectReferences}
+                      styleProfile={activeStyleProfile}
+                      previousEndFrameUrl={previousEndFrameUrl}
+                      previousSceneDescription={previousScene?.description}
+                      nextSceneDescription={nextScene?.description}
+                    />
+                  </div>
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 backdrop-blur-sm">

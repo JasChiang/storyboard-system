@@ -225,9 +225,23 @@ export function ImageGenerator({
         }
         if (isEndFrame && scene.generatedImage?.url) {
             parts.push('Use the generated start frame as the primary continuity reference.');
+            parts.push('Start-frame continuity has higher priority than generic stylistic interpretation.');
+            parts.push('Camera movement/reframing is allowed, but keep the scene geometry physically consistent.');
+            parts.push('Lock room geometry and environment layout across frames: keep all static objects (walls, bed, nightstand, lamp, curtain, furniture) in consistent world positions, scale, and orientation relative to each other.');
+            parts.push('Preserve spatial relationships and depth ordering between static objects from the start frame.');
+            parts.push('Preserve subject continuity from the start frame: keep character identity, body orientation, approximate body placement, and pose state unchanged unless explicitly requested.');
+            parts.push('Preserve movable-object continuity from the start frame: keep phone/props location, orientation, and interaction state unchanged unless explicitly requested in the end-frame delta.');
+            parts.push('Only apply minimal local edits explicitly requested by the end-frame delta; do not globally recompose the scene.');
+            parts.push('If adding a new object, insert it into the existing composition without moving or resizing existing objects.');
             parts.push('Keep everything the same as the primary reference image. Only change what is explicitly described in the end-frame delta.');
             parts.push('Only change what is explicitly described in the end-frame delta; keep identity, product geometry, logo placement, and material characteristics unchanged.');
             parts.push('Return a final-state still frame composition, not a transition process.');
+            parts.push('首圖連續性優先於一般風格詮釋。');
+            parts.push('允許鏡頭位移與重構圖，但場景幾何關係必須維持一致。');
+            parts.push('保持首圖空間幾何關係不變：牆面、床、床頭櫃、檯燈、窗簾等固定物件彼此位置、比例、朝向不可改動。');
+            parts.push('保持首圖人物連續性：人物身份、身體朝向、大致位置與姿態狀態不可改動，除非尾圖描述明確要求。');
+            parts.push('保持首圖可移動物件連續性：手機與道具的位置、朝向與互動狀態不可改動，除非尾圖描述明確要求。');
+            parts.push('僅允許對明確指定區域做最小幅度編修，不得重排場景。');
         }
         if (!isEndFrame && previousEndFrameUrl) {
             parts.push('This scene continues from the previous scene end frame.');
