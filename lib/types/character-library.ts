@@ -4,6 +4,7 @@
  */
 
 import type { ProjectReference } from './storyboard';
+import { buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 
 export type IpTextLogoPolicy = 'lock_visible_text' | 'forbid_new_text';
 
@@ -67,7 +68,7 @@ export function characterLibraryItemToProjectReference(
     throw new Error(`角色 ${item.name} 沒有可用的視角圖片`);
   }
 
-  return {
+  const reference: ProjectReference = {
     id: crypto.randomUUID(),
     url: view.url,
     description: view.description,
@@ -82,6 +83,11 @@ export function characterLibraryItemToProjectReference(
     angleVisibility: view.angleVisibility,
     ipProfile: item.ipProfile,
   };
+
+  return {
+    ...reference,
+    structuredIdentityLock: buildStructuredIdentityLock(reference),
+  };
 }
 
 export function characterLibraryItemToProjectReferences(
@@ -92,19 +98,26 @@ export function characterLibraryItemToProjectReferences(
     return [characterLibraryItemToProjectReference(item, 'front')];
   }
 
-  return item.views.map((view) => ({
-    id: crypto.randomUUID(),
-    url: view.url,
-    description: view.description,
-    type: item.type,
-    name: item.name,
-    angle: view.angle,
-    descriptionSource: 'ai',
-    guidelines: item.guidelines,
-    mustKeepFeatures: view.mustKeepFeatures,
-    identityCore: view.identityCore,
-    styleTraits: view.styleTraits,
-    angleVisibility: view.angleVisibility,
-    ipProfile: item.ipProfile,
-  }));
+  return item.views.map((view) => {
+    const reference: ProjectReference = {
+      id: crypto.randomUUID(),
+      url: view.url,
+      description: view.description,
+      type: item.type,
+      name: item.name,
+      angle: view.angle,
+      descriptionSource: 'ai',
+      guidelines: item.guidelines,
+      mustKeepFeatures: view.mustKeepFeatures,
+      identityCore: view.identityCore,
+      styleTraits: view.styleTraits,
+      angleVisibility: view.angleVisibility,
+      ipProfile: item.ipProfile,
+    };
+
+    return {
+      ...reference,
+      structuredIdentityLock: buildStructuredIdentityLock(reference),
+    };
+  });
 }

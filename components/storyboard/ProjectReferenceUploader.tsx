@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { X, Image as ImageIcon, Plus, Sparkles, Loader2 } from 'lucide-react';
+import { X, Plus, Sparkles, Loader2 } from 'lucide-react';
 import { fal } from '@fal-ai/client';
 import type { ProjectReference } from '@/lib/types/storyboard';
+import { buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 
 interface ProjectReferenceUploaderProps {
     references: ProjectReference[];
@@ -130,6 +131,15 @@ export function ProjectReferenceUploader({
                 guidelines: data.analysis?.mustKeep?.length
                     ? `不可改變：${data.analysis.mustKeep.join('；')}`
                     : editingRef.guidelines,
+                structuredIdentityLock: buildStructuredIdentityLock({
+                    type: editingRef.type,
+                    description: data.description,
+                    identityCore: data.analysis?.identityCore,
+                    mustKeepFeatures: data.analysis?.mustKeep || [],
+                    guidelines: data.analysis?.mustKeep?.length
+                        ? `不可改變：${data.analysis.mustKeep.join('；')}`
+                        : editingRef.guidelines,
+                }),
                 descriptionSource: 'ai',
             });
         } catch (error) {

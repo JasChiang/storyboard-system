@@ -7,6 +7,7 @@ import { ImagePreview } from './ImagePreview';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/lib/prompts/image-static';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
+import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 
 interface ImageGeneratorProps {
     projectId: string;
@@ -121,6 +122,10 @@ export function ImageGenerator({
                     const nameTag = ref.name ? `<${ref.name}>` : ref.type;
                     const guidelineText = ref.guidelines ? ` (Rules: ${ref.guidelines})` : '';
                     parts.push(`${nameTag}: ${ref.description}${guidelineText}`);
+                    const structuredLock = ref.structuredIdentityLock || buildStructuredIdentityLock(ref);
+                    if (structuredLock) {
+                        parts.push(buildIdentityLockPromptLine(structuredLock, nameTag));
+                    }
                     if (ref.mustKeepFeatures?.length) {
                         parts.push(`${nameTag} must keep: ${ref.mustKeepFeatures.join(', ')}`);
                     }

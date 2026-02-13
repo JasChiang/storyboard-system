@@ -1,5 +1,6 @@
 import type { PromptTemplate, ProjectReference } from '@/lib/types/storyboard';
 import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
+import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 
 /**
  * 根據參考圖資訊構建增強的系統提示詞
@@ -93,7 +94,16 @@ export function buildSystemPrompt(
                 const guidelineText = rule.guidelines.length
                     ? ` | 規範：${rule.guidelines.join('；')}`
                     : '';
-                prompt += `- ${rule.tag}${coreText}${mustKeepText}${guidelineText}\n`;
+                const lock = rule.structuredIdentityLock
+                    || buildStructuredIdentityLock({
+                        type: rule.type,
+                        identityCore: rule.identityCore,
+                        mustKeepFeatures: rule.mustKeepFeatures,
+                        guidelines: rule.guidelines.join('；'),
+                        description: '',
+                    });
+                const lockText = lock ? ` | 結構化保真鎖：${buildIdentityLockPromptLine(lock, rule.tag)}` : '';
+                prompt += `- ${rule.tag}${coreText}${mustKeepText}${guidelineText}${lockText}\n`;
             });
             prompt += '\n';
         }

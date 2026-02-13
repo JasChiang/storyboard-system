@@ -5,6 +5,7 @@ import { Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription } from '@/lib/prompts/image-static';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
+import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 
 interface BatchImageGeneratorProps {
     scenes: Scene[];
@@ -87,6 +88,10 @@ export function BatchImageGenerator({
             sceneScopedContentRefs.forEach(ref => {
                 const nameTag = ref.name ? `<${ref.name}>` : ref.type;
                 parts.push(`${nameTag}: ${ref.description}`);
+                const structuredLock = ref.structuredIdentityLock || buildStructuredIdentityLock(ref);
+                if (structuredLock) {
+                    parts.push(buildIdentityLockPromptLine(structuredLock, nameTag));
+                }
                 if (ref.mustKeepFeatures?.length) {
                     parts.push(`${nameTag} must keep: ${ref.mustKeepFeatures.join(', ')}`);
                 }

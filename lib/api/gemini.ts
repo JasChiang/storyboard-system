@@ -1,6 +1,8 @@
 import { GoogleGenAI } from '@google/genai';
-import { Storyboard } from '../types/storyboard';
+import type { Storyboard, Scene, ProjectReference } from '../types/storyboard';
 import { EditingSuggestion } from '../types/project';
+import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
+import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 
 export interface GeminiConfig {
   apiKey: string;
@@ -12,6 +14,21 @@ export interface UploadedFile {
   mimeType: string;
   sizeBytes?: string;
   state: 'PROCESSING' | 'ACTIVE' | 'FAILED';
+}
+
+export interface ComposeVideoPromptInput {
+  model: 'kling' | 'seedance';
+  scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'requiresEndFrame' | 'endFrameDescription'>;
+  motionPrompt: string;
+  references: ProjectReference[];
+  hasPreviousEndFrame?: boolean;
+}
+
+export interface ComposeVideoPromptResult {
+  composedPrompt: string;
+  suggestedMotionPrompt?: string;
+  notes?: string;
+  sourceModel: string;
 }
 
 // 上傳影片到 Gemini Files API
@@ -154,6 +171,104 @@ export async function analyzeVideosForEditing(
     // 其他錯誤直接拋出
     throw error;
   }
+}
+
+export async function composeVideoPromptWithGemini(
+  input: ComposeVideoPromptInput,
+  config: GeminiConfig
+): Promise<ComposeVideoPromptResult> {
+  const ai = new GoogleGenAI({ apiKey: config.apiKey });
+  const modelName = process.env.GEMINI_PROMPT_COMPOSER_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
+  const consolidatedRules = buildConsolidatedReferenceRules(input.references || []);
+  const referenceContext = consolidatedRules.map((rule) => {
+    const lock = rule.structuredIdentityLock || buildStructuredIdentityLock({
+      type: rule.type,
+      identityCore: rule.identityCore,
+      mustKeepFeatures: rule.mustKeepFeatures,
+      guidelines: rule.guidelines.join('；'),
+      description: '',
+    });
+
+    return {
+      tag: rule.tag,
+      identityCore: rule.identityCore || '',
+      mustKeepFeatures: rule.mustKeepFeatures.slice(0, 8),
+      guidelines: rule.guidelines.slice(0, 8),
+      structuredLockLine: lock ? buildIdentityLockPromptLine(lock, rule.tag) : '',
+    };
+  });
+
+  const systemPrompt = `You are a professional video prompt composer for ${input.model.toUpperCase()} image-to-video generation.
+Return JSON only with keys:
+{
+  "composedPrompt": "string",
+  "suggestedMotionPrompt": "string",
+  "notes": "string"
+}
+
+Rules:
+1) Compose one production-ready prompt from provided scene and reference constraints.
+2) Keep camera language explicit (pan/dolly/tilt/zoom), avoid ambiguity.
+3) Prioritize identity consistency: geometry/material/logo/text must remain unchanged.
+4) If end frame is available, enforce end-state alignment. If not, avoid fake object motion.
+5) Do not invent new logos/text/brand marks.
+6) Keep output concise (prefer <= 2200 chars for kling, <= 3400 chars for seedance).
+7) JSON only, no markdown.`;
+
+  const userPayload = {
+    mode: input.model,
+    scene: {
+      id: input.scene.id,
+      sceneNumber: input.scene.sceneNumber,
+      description: input.scene.description,
+      cameraMovement: input.scene.cameraMovement,
+      requiresEndFrame: Boolean(input.scene.requiresEndFrame),
+      endFrameDescription: input.scene.endFrameDescription || '',
+      hasPreviousEndFrame: Boolean(input.hasPreviousEndFrame),
+    },
+    userMotionPrompt: input.motionPrompt,
+    consolidatedReferenceRules: referenceContext,
+  };
+
+  const result = await ai.models.generateContent({
+    model: modelName,
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: `${systemPrompt}\n\nInput JSON:\n${JSON.stringify(userPayload, null, 2)}` },
+        ],
+      },
+    ],
+  });
+
+  const responseText = result.text || '';
+  const fenced = responseText.match(/```json\s*([\s\S]*?)```/i);
+  const jsonCandidate = fenced?.[1]?.trim() || responseText.trim();
+
+  let parsed: { composedPrompt?: string; suggestedMotionPrompt?: string; notes?: string } | null = null;
+  try {
+    parsed = JSON.parse(jsonCandidate);
+  } catch {
+    const firstBrace = responseText.indexOf('{');
+    const lastBrace = responseText.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      parsed = JSON.parse(responseText.slice(firstBrace, lastBrace + 1));
+    }
+  }
+
+  const composedPrompt = parsed?.composedPrompt?.trim();
+  if (!composedPrompt) {
+    throw new Error('Gemini 未回傳可用的 composedPrompt');
+  }
+
+  return {
+    composedPrompt,
+    suggestedMotionPrompt: parsed?.suggestedMotionPrompt?.trim() || undefined,
+    notes: parsed?.notes?.trim() || undefined,
+    sourceModel: modelName,
+  };
 }
 
 function buildEditingAnalysisPrompt(storyboard: Storyboard, uploadedFiles: UploadedFile[]): string {

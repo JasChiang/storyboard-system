@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Film, Settings2 } from 'lucide-react';
+import { Film, Settings2, Sparkles } from 'lucide-react';
 import { ModelSelector } from './ModelSelector';
 import { MotionPromptEditor } from './MotionPromptEditor';
 import { VideoPreview } from './VideoPreview';
@@ -12,6 +12,7 @@ import { buildSeedancePrompt } from '@/lib/video/adapters/seedance';
 import { enforceVideoPromptPolicy } from '@/lib/video/prompt-policy';
 
 type VideoModel = 'kling' | 'seedance';
+type PromptMode = 'deterministic' | 'ai_composer';
 
 interface VideoGeneratorProps {
     projectId: string;
@@ -57,6 +58,10 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
         })
     );
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const [promptMode, setPromptMode] = useState<PromptMode>('deterministic');
+    const [isComposingPrompt, setIsComposingPrompt] = useState(false);
+    const [aiComposedPrompt, setAiComposedPrompt] = useState('');
+    const [aiComposeNotes, setAiComposeNotes] = useState('');
 
     // Kling 選項
     const [klingDuration, setKlingDuration] = useState<5 | 10>(5);
@@ -84,6 +89,8 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
             cameraMovement: scene.cameraMovement,
         });
         setMotionPrompt(newMotionPrompt);
+        setAiComposedPrompt('');
+        setAiComposeNotes('');
     }, [scene.id, scene.motionPrompt, scene.cameraMovement]);
 
     useEffect(() => {
@@ -113,6 +120,46 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
         return buildSeedancePrompt({ scene, motionPrompt, scopedRefs });
     };
 
+    const composePromptWithAI = async (): Promise<string> => {
+        setIsComposingPrompt(true);
+        try {
+            const response = await fetch('/api/gemini/compose-video-prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model,
+                    scene: {
+                        id: scene.id,
+                        sceneNumber: scene.sceneNumber,
+                        description: scene.description,
+                        cameraMovement: scene.cameraMovement,
+                        requiresEndFrame: scene.requiresEndFrame,
+                        endFrameDescription: scene.endFrameDescription,
+                    },
+                    motionPrompt,
+                    references: scopedRefs,
+                    hasPreviousEndFrame: Boolean(previousEndFrameUrl),
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'AI prompt compose failed');
+            }
+            const composed = typeof data.composedPrompt === 'string' ? data.composedPrompt.trim() : '';
+            if (!composed) {
+                throw new Error('AI 未回傳可用提示詞');
+            }
+            setAiComposedPrompt(composed);
+            setAiComposeNotes(typeof data.notes === 'string' ? data.notes : '');
+            if (!motionPrompt.trim() && typeof data.suggestedMotionPrompt === 'string') {
+                setMotionPrompt(data.suggestedMotionPrompt);
+            }
+            return composed;
+        } finally {
+            setIsComposingPrompt(false);
+        }
+    };
+
     const handleGenerate = async () => {
         // 檢查是否有生成的圖片
         if (!scene.generatedImage?.url) {
@@ -128,7 +175,9 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
         setIsGenerating(true);
 
         try {
-            const rawPrompt = buildVideoPrompt();
+            const rawPrompt = promptMode === 'ai_composer'
+                ? (aiComposedPrompt.trim() || await composePromptWithAI())
+                : buildVideoPrompt();
             const promptPolicy = enforceVideoPromptPolicy(rawPrompt, model);
             const composedPrompt = promptPolicy.prompt;
             const taskId = crypto.randomUUID();
@@ -340,6 +389,76 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
                 onChange={setModel}
                 disabled={isGenerating}
             />
+
+            {/* Prompt 模式 */}
+            <div className="space-y-3 p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium text-slate-900 dark:text-slate-200">提示詞組合模式</h4>
+                    <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-1">
+                        <button
+                            type="button"
+                            onClick={() => setPromptMode('deterministic')}
+                            disabled={isGenerating || isComposingPrompt}
+                            className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                                promptMode === 'deterministic'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            Deterministic
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setPromptMode('ai_composer')}
+                            disabled={isGenerating || isComposingPrompt}
+                            className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                                promptMode === 'ai_composer'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            AI Composer
+                        </button>
+                    </div>
+                </div>
+
+                {promptMode === 'ai_composer' && (
+                    <div className="space-y-3">
+                        <button
+                            type="button"
+                            onClick={composePromptWithAI}
+                            disabled={isGenerating || isComposingPrompt || !motionPrompt.trim()}
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isComposingPrompt ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    AI 組合中...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="w-4 h-4" />
+                                    產生 AI 提示詞
+                                </>
+                            )}
+                        </button>
+                        <textarea
+                            value={aiComposedPrompt}
+                            onChange={(e) => setAiComposedPrompt(e.target.value)}
+                            placeholder="點擊上方按鈕，讓 AI 根據場景與參考規則組合可直接送 Kling/Seedance 的提示詞"
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg
+                            text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 resize-none"
+                            rows={6}
+                            disabled={isGenerating || isComposingPrompt}
+                        />
+                        {aiComposeNotes && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                AI 備註：{aiComposeNotes}
+                            </p>
+                        )}
+                    </div>
+                )}
+            </div>
 
             {/* 動作提示詞 */}
             <MotionPromptEditor

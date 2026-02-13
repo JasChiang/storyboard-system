@@ -1,5 +1,6 @@
 import type { ProjectReference, Scene } from '@/lib/types/storyboard';
 import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
+import { buildIdentityLockPromptLine } from '@/lib/references/identity-lock';
 import { analyzeMotionRisk, buildMotionSafetyLines } from './motion-safety';
 import { buildPromptFromSchema } from './prompt-schema';
 
@@ -23,8 +24,12 @@ export function buildKlingPrompt({ scene, motionPrompt, scopedRefs }: KlingPromp
   const guidelineLines = consolidatedRules
     .filter(rule => rule.guidelines.length > 0)
     .map(rule => `${rule.tag}: ${rule.guidelines.slice(0, 6).join('; ')}`);
+  const structuredLockLines = consolidatedRules
+    .filter(rule => rule.structuredIdentityLock)
+    .map(rule => buildIdentityLockPromptLine(rule.structuredIdentityLock!, rule.tag));
 
   const identityInvariants = [
+    structuredLockLines.length ? `Apply structured identity locks: ${structuredLockLines.join(' | ')}` : '',
     identityCoreLines.length ? `Keep identity cores fixed: ${identityCoreLines.join(' | ')}` : '',
     mustKeepLines.length ? `Keep material/geometry constraints: ${mustKeepLines.join(' | ')}` : '',
     guidelineLines.length ? `Follow guardrails: ${guidelineLines.join(' | ')}` : '',

@@ -106,6 +106,17 @@ export interface IpProfile {
   generationDefaults?: IpGenerationDefaults;
 }
 
+export interface StructuredIdentityLock {
+  version: number;
+  entityType: 'character' | 'product';
+  appearanceSummary?: string;
+  geometry?: string[];
+  materials?: string[];
+  logoText?: string[];
+  requiredParts?: string[];
+  forbiddenChanges?: string[];
+}
+
 export interface ProjectReference {
   id: string;
   url: string;                   // Fal Storage URL
@@ -123,6 +134,7 @@ export interface ProjectReference {
   styleTraits?: string;          // 風格特徵描述
   angleVisibility?: string;      // 此視角可見/不可見重點
   ipProfile?: IpProfile;         // 來自角色庫的 IP 套件設定
+  structuredIdentityLock?: StructuredIdentityLock; // 結構化保真鎖（可選，缺省時由既有欄位自動推導）
 }
 
 // 提示詞模板

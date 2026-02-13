@@ -1,4 +1,6 @@
 import type { ProjectReference } from '@/lib/types/storyboard';
+import type { StructuredIdentityLock } from '@/lib/types/storyboard';
+import { buildStructuredIdentityLock, mergeStructuredIdentityLocks } from '@/lib/references/identity-lock';
 
 export interface ConsolidatedReferenceRule {
   type: 'character' | 'product';
@@ -7,6 +9,7 @@ export interface ConsolidatedReferenceRule {
   identityCore?: string;
   mustKeepFeatures: string[];
   guidelines: string[];
+  structuredIdentityLock?: StructuredIdentityLock;
   sourceRefIds: string[];
 }
 
@@ -51,6 +54,7 @@ export function buildConsolidatedReferenceRules(
     const current = groups.get(key);
 
     if (!current) {
+      const derivedLock = ref.structuredIdentityLock || buildStructuredIdentityLock(ref);
       groups.set(key, {
         type: ref.type,
         tag,
@@ -58,6 +62,7 @@ export function buildConsolidatedReferenceRules(
         identityCore: ref.identityCore?.trim() || undefined,
         mustKeepFeatures: uniqueStrings([...(ref.mustKeepFeatures || [])]),
         guidelines: uniqueStrings(splitGuidelines(ref.guidelines)),
+        structuredIdentityLock: derivedLock,
         sourceRefIds: [ref.id],
       });
       continue;
@@ -75,9 +80,12 @@ export function buildConsolidatedReferenceRules(
       ...current.guidelines,
       ...splitGuidelines(ref.guidelines),
     ]);
+    current.structuredIdentityLock = mergeStructuredIdentityLocks(
+      current.structuredIdentityLock,
+      ref.structuredIdentityLock || buildStructuredIdentityLock(ref)
+    );
     current.sourceRefIds = uniqueStrings([...current.sourceRefIds, ref.id]);
   }
 
   return [...groups.values()];
 }
-
