@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, RefreshCw, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Storyboard } from '@/lib/types/storyboard';
@@ -47,6 +47,15 @@ type OpenReelMessage =
   | { type: 'OPENREEL_EXPORT_PROJECT'; payload: { projectJson: string } }
   | { type: 'OPENREEL_IMPORT_ERROR'; payload: { error: string } };
 
+function shortHash(input: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
 export function OpenReelEditor({
   projectId,
   projectName,
@@ -57,11 +66,18 @@ export function OpenReelEditor({
   onSaveProjectJson,
 }: OpenReelEditorProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const pendingProjectJsonRef = useRef<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [forceRegenerate, setForceRegenerate] = useState(false);
   const [pendingSend, setPendingSend] = useState(false);
   const [resolvedAspectRatio, setResolvedAspectRatio] = useState<AspectRatio>(aspectRatioProp ?? '16:9');
+  const [lastLoadInfo, setLastLoadInfo] = useState<{
+    hash: string;
+    loadedAt: string;
+    includesAiSuggestion: boolean;
+    aiSceneCount: number;
+  } | null>(null);
 
   const firstVideoUrl = storyboard.scenes[0]?.generatedVideo?.url;
   const firstImageUrl = storyboard.scenes[0]?.generatedImage?.url;
@@ -90,18 +106,22 @@ export function OpenReelEditor({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedProjectJson, storyboard, projectName, editingSuggestion, forceRegenerate, resolvedAspectRatio]);
 
-  const postMessage = (message: Record<string, unknown>) => {
+  const postMessage = useCallback((message: Record<string, unknown>) => {
     if (!iframeRef.current?.contentWindow) return;
     iframeRef.current.contentWindow.postMessage(message, '*');
-  };
+  }, []);
 
-  const handleSendProject = (overrideJson?: string) => {
-    if (!iframeRef.current?.contentWindow) {
+  const handleSendProject = useCallback((overrideJson?: string) => {
+    if (!iframeRef.current?.contentWindow || !isReady) {
+      pendingProjectJsonRef.current = overrideJson ?? projectJson;
       setPendingSend(true);
       setStatusMessage('OpenReel 尚未就緒，稍後自動載入...');
       return;
     }
     const payloadJson = overrideJson ?? projectJson;
+    const includesAiSuggestion = !!editingSuggestion?.scenes?.length;
+    const aiSceneCount = editingSuggestion?.scenes?.length || 0;
+    const hash = shortHash(payloadJson);
     try {
       const parsed = JSON.parse(payloadJson);
       const firstMedia = parsed?.project?.mediaLibrary?.items?.[0];
@@ -117,6 +137,13 @@ export function OpenReelEditor({
     }
     setStatusMessage('正在載入 OpenReel 專案...');
     setPendingSend(false);
+    pendingProjectJsonRef.current = null;
+    setLastLoadInfo({
+      hash,
+      loadedAt: new Date().toLocaleTimeString(),
+      includesAiSuggestion,
+      aiSceneCount,
+    });
     postMessage({
       type: 'OPENREEL_IMPORT_PROJECT',
       payload: {
@@ -124,12 +151,12 @@ export function OpenReelEditor({
         projectJson: payloadJson,
       },
     });
-  };
+  }, [editingSuggestion?.scenes?.length, isReady, postMessage, projectId, projectJson, storyboard.scenes]);
 
-  const handleRequestExport = () => {
+  const handleRequestExport = useCallback(() => {
     setStatusMessage('正在取得 OpenReel 專案...');
     postMessage({ type: 'OPENREEL_REQUEST_EXPORT' });
-  };
+  }, [postMessage]);
 
   useEffect(() => {
     const handler = (event: MessageEvent<OpenReelMessage>) => {
@@ -138,7 +165,7 @@ export function OpenReelEditor({
       if (event.data.type === 'OPENREEL_READY') {
         setIsReady(true);
         if (pendingSend) {
-          handleSendProject();
+          handleSendProject(pendingProjectJsonRef.current ?? undefined);
         }
       }
 
@@ -158,12 +185,12 @@ export function OpenReelEditor({
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [projectJson, onSaveProjectJson]);
+  }, [handleSendProject, onSaveProjectJson, pendingSend]);
 
   useEffect(() => {
     if (!isReady) return;
     handleSendProject();
-  }, [projectJson, isReady]);
+  }, [handleSendProject, isReady, projectJson]);
 
   return (
     <div className="space-y-4">
@@ -205,6 +232,15 @@ export function OpenReelEditor({
       {statusMessage && (
         <div className="text-sm text-slate-600 dark:text-slate-300">
           {statusMessage}
+        </div>
+      )}
+
+      {lastLoadInfo && (
+        <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
+          已送入 OpenReel：版本 {lastLoadInfo.hash} · 時間 {lastLoadInfo.loadedAt} ·
+          {lastLoadInfo.includesAiSuggestion
+            ? ` 含 AI 建議（${lastLoadInfo.aiSceneCount} 場景）`
+            : ' 不含 AI 建議'}
         </div>
       )}
 

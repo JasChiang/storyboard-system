@@ -28,38 +28,47 @@ export async function uploadVideoToGemini(
   // 建立臨時檔案
   const os = await import('os');
   const path = await import('path');
+  const crypto = await import('crypto');
   const tempDir = os.tmpdir();
-  const tempPath = path.join(tempDir, file.name);
+  const safeName = path.basename(file.name || 'video.mp4');
+  const ext = path.extname(safeName) || '.mp4';
+  const tempPath = path.join(tempDir, `gemini-upload-${crypto.randomUUID()}${ext}`);
 
   const fs = await import('fs/promises');
-  await fs.writeFile(tempPath, buffer);
+  try {
+    await fs.writeFile(tempPath, buffer);
 
-  // 使用新 SDK 的 files API
-  const uploadResult = await ai.files.upload({
-    file: tempPath,
-    config: {
-      mimeType: file.type,
-      displayName: file.name,
-    },
-  });
+    // 使用新 SDK 的 files API
+    const uploadResult = await ai.files.upload({
+      file: tempPath,
+      config: {
+        mimeType: file.type,
+        displayName: safeName,
+      },
+    });
 
-  // 等待處理完成
-  let uploadedFile = await ai.files.get({ name: uploadResult.name || '' });
-  while (uploadedFile.state === 'PROCESSING') {
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    uploadedFile = await ai.files.get({ name: uploadResult.name || '' });
+    // 等待處理完成
+    let uploadedFile = await ai.files.get({ name: uploadResult.name || '' });
+    while (uploadedFile.state === 'PROCESSING') {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      uploadedFile = await ai.files.get({ name: uploadResult.name || '' });
+    }
+
+    return {
+      name: uploadedFile.name || '',
+      uri: uploadedFile.uri || '',
+      mimeType: uploadedFile.mimeType || file.type,
+      sizeBytes: uploadedFile.sizeBytes?.toString(),
+      state: uploadedFile.state as 'PROCESSING' | 'ACTIVE' | 'FAILED',
+    };
+  } finally {
+    await fs.unlink(tempPath).catch((error: unknown) => {
+      if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'ENOENT') {
+        return;
+      }
+      throw error;
+    });
   }
-
-  // 清理臨時檔案
-  await fs.unlink(tempPath);
-
-  return {
-    name: uploadedFile.name || '',
-    uri: uploadedFile.uri || '',
-    mimeType: uploadedFile.mimeType || file.type,
-    sizeBytes: uploadedFile.sizeBytes?.toString(),
-    state: uploadedFile.state as 'PROCESSING' | 'ACTIVE' | 'FAILED',
-  };
 }
 
 // 分析影片並生成剪輯建議
@@ -188,26 +197,30 @@ ${noVideoSceneIds}
 
 這對於確認剪輯點非常重要，因為我們不能剪輯不存在的畫面。
 
-# ⚠️ Critical Constraints (Blender 5.0 API 規則)
-你的建議將直接轉換為 Blender 5.0+ VSE Python 腳本，請務必遵守：
+# ⚠️ Critical Constraints (OpenReel / Blender / FFmpeg 共用落地規則)
+你的建議會先轉成 OpenReel 專案，再盡量同步到 Blender/FFmpeg，請務必遵守：
 
 ## 1. 轉場效果 (Transitions)
-- 為了讓轉場生效，前後兩個片段必須在時間軸上有 **重疊 (Overlap)**
-- 片段會交錯放置在 Channel 1 和 Channel 2，避免碰撞
-- 可用轉場類型：
-  - \`crossfade\`: 淡入淡出（最常用，標準交叉溶解）
-  - \`gamma_cross\`: Gamma 校正交叉溶解（更自然的過渡）
-  - \`wipe\`: 擦除轉場（多種擦除方向可選）
-  - \`cut\`: 直接切換（無需重疊）
+- OpenReel 原生可用轉場：\`crossfade\`, \`dipToBlack\`, \`dipToWhite\`, \`wipe\`, \`slide\`, \`zoom\`, \`push\`
+- 目前本系統分析輸出允許值（請只輸出這些）：\`crossfade\`, \`dipToBlack\`, \`dipToWhite\`, \`wipe\`, \`slide\`, \`push\`, \`cut\`
+- 若你本來想用不在允許值內的轉場，請改寫為最接近者：
+  - \`zoom\` → \`slide\` 或 \`push\`
+  - \`dissolve\` / \`fade\` / \`gamma_cross\` → \`crossfade\`
+  - \`none\` / \`continuation\` / \`match_cut\` → \`cut\`
 
-## 2. 可直接套用的效果（先以 OpenReel 相容為主，Blender/FFmpeg 也會盡量對齊）
-請優先從以下效果關鍵詞中選擇（每場景 0-2 個）：
+## 2. 特效能力參考與輸出白名單
+- OpenReel 原生可用特效：\`brightness\`, \`contrast\`, \`saturation\`, \`hue\`, \`blur\`, \`sharpen\`, \`vignette\`, \`grain\`, \`temperature\`, \`tint\`, \`tonal\`, \`chromaKey\`, \`shadow\`, \`glow\`, \`motion-blur\`, \`radial-blur\`, \`chromatic-aberration\`
+- 目前本系統分析輸出允許值（請只輸出這些；每場景 0-2 個）：
 - \`brightness\`
 - \`contrast\`
 - \`saturation\`
 - \`blur\`
 - \`vignette\`
 - \`grain\`
+- 若你想用白名單外特效，請先降級再輸出：
+  - \`hue\` / \`temperature\` / \`tint\` / \`tonal\` → \`saturation\` 或 \`contrast\`
+  - \`sharpen\` / \`glow\` / \`motion-blur\` / \`radial-blur\` / \`chromatic-aberration\` → \`contrast\` 或 \`blur\`
+  - \`chromaKey\` / \`shadow\` → 不輸出特效（必要時保留空陣列）
 
 若要建議速度變化，請用 \`speedFactor\`（0.6~1.4 常用），不要把速度寫進 effects。
 
@@ -251,6 +264,7 @@ ${noVideoSceneIds}
 5. **色彩一致**：如需統一色調，優先用 saturation / contrast 的輕量調整
 6. **節奏感**：根據影片內容調整 speedFactor，產品特寫可用 0.8（慢動作），動作場景用 1.2（加速）
 7. **轉場可執行性**：transition 請限制在 crossfade/dipToBlack/dipToWhite/wipe/slide/push/cut
+8. **白名單嚴格模式**：effects 與 transition 只可輸出白名單值；不要輸出任何未列出的名稱
 
 請根據影片內容分析並輸出 JSON。`;
 }
@@ -295,6 +309,39 @@ function parseEditingSuggestion(responseText: string, storyboard: Storyboard): E
     return 'crossfade';
   };
   const validEffects = new Set(['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain']);
+  const effectFallbackMap: Record<string, string> = {
+    exposure: 'brightness',
+    highlights: 'contrast',
+    shadows: 'contrast',
+    color: 'saturation',
+    vibrance: 'saturation',
+    hue: 'saturation',
+    temperature: 'saturation',
+    tint: 'saturation',
+    tonal: 'contrast',
+    sharpen: 'contrast',
+    glow: 'vignette',
+    'motion-blur': 'blur',
+    motion_blur: 'blur',
+    'motion blur': 'blur',
+    'radial-blur': 'blur',
+    radial_blur: 'blur',
+    'radial blur': 'blur',
+    'chromatic-aberration': 'contrast',
+    chromatic_aberration: 'contrast',
+    'chromatic aberration': 'contrast',
+    chromakey: 'vignette',
+    'chroma-key': 'vignette',
+    chroma_key: 'vignette',
+    'chroma key': 'vignette',
+    shadow: 'contrast',
+  };
+  const normalizeEffect = (value: string): string | null => {
+    const normalized = value.trim().toLowerCase();
+    if (validEffects.has(normalized)) return normalized;
+    if (effectFallbackMap[normalized]) return effectFallbackMap[normalized];
+    return null;
+  };
 
   const normalizedScenes = scenesRaw
     .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
@@ -314,11 +361,14 @@ function parseEditingSuggestion(responseText: string, storyboard: Storyboard): E
         : 'crossfade';
 
       const effects = Array.isArray(item.effects)
-        ? item.effects
-            .filter((value): value is string => typeof value === 'string')
-            .map(value => value.trim().toLowerCase())
-            .filter(value => validEffects.has(value))
-            .slice(0, 2)
+        ? Array.from(
+            new Set(
+              item.effects
+                .filter((value): value is string => typeof value === 'string')
+                .map(normalizeEffect)
+                .filter((value): value is string => Boolean(value))
+            )
+          ).slice(0, 2)
         : [];
 
       const modifiers = Array.isArray(item.modifiers)

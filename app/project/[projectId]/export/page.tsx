@@ -252,7 +252,7 @@ export default function ExportPage() {
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
                 {hasEditingSuggestionCoverage
                   ? '已取得可用建議，OpenReel/FFmpeg 會直接套用。可手動重新分析更新結果。'
-                  : '尚未完成分析，系統會自動分析影片並套用建議。'}
+                  : '尚未完成分析，請手動點擊「開始分析影片」後再套用建議。'}
               </p>
             </div>
 
@@ -260,7 +260,7 @@ export default function ExportPage() {
               key={`analysis-${projectId}-${scenesWithVideos.length}-${hasEditingSuggestionCoverage ? 'ready' : 'pending'}`}
               storyboard={currentProject.storyboard}
               onAnalysisComplete={handleAnalysisComplete}
-              autoStart={!hasEditingSuggestionCoverage}
+              autoStart={false}
             />
           </div>
         )}
