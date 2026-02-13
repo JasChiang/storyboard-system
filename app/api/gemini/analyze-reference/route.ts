@@ -9,6 +9,13 @@ export const maxDuration = 60;
  */
 export async function POST(request: NextRequest) {
     try {
+        if (request.headers.get('X-Gemini-API-Key')) {
+            return NextResponse.json(
+                { success: false, error: 'Client-provided apiKey is not allowed' },
+                { status: 400 }
+            );
+        }
+
         const body = await request.json();
         const { imageBase64, angle, type, userNote } = body;
 
@@ -19,12 +26,11 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Get API key from env or header
-        const apiKey = request.headers.get('X-Gemini-API-Key') || process.env.GEMINI_API_KEY;
+        const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
             return NextResponse.json(
-                { success: false, error: '未設定 Gemini API Key' },
+                { success: false, error: '伺服器未設定 GEMINI_API_KEY' },
                 { status: 400 }
             );
         }

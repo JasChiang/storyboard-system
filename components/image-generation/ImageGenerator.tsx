@@ -5,6 +5,7 @@ import { Sparkles, Settings2 } from 'lucide-react';
 import { ReferenceUploader } from './ReferenceUploader';
 import { ImagePreview } from './ImagePreview';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
+import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/lib/prompts/image-static';
 
 interface ImageGeneratorProps {
     scene: Scene;
@@ -104,9 +105,11 @@ export function ImageGenerator({
         }
 
         // 2. 選擇正確的描述（首幀或尾幀）
-        const sceneDescription = isEndFrame
-            ? (scene.endFrameDescription || scene.description)
-            : scene.description;
+        const sceneDescription = buildStaticFrameDescription(
+            scene.description,
+            isEndFrame ? scene.endFrameDescription : scene.description,
+            isEndFrame
+        );
 
         // 3. 加入主要場景描述和自訂提示詞
         if (!customPrompt) {
@@ -117,22 +120,24 @@ export function ImageGenerator({
             switch (promptMode) {
                 case 'replace':
                     // 只使用自訂內容
-                    parts.push(customPrompt);
+                    parts.push(sanitizeStaticFrameDescription(customPrompt));
                     break;
 
                 case 'append':
                     // 場景描述 + 自訂內容
                     parts.push(sceneDescription);
-                    parts.push(customPrompt);
+                    parts.push(sanitizeStaticFrameDescription(customPrompt));
                     break;
 
                 case 'prepend':
                     // 自訂內容 + 場景描述
-                    parts.push(customPrompt);
+                    parts.push(sanitizeStaticFrameDescription(customPrompt));
                     parts.push(sceneDescription);
                     break;
             }
         }
+
+        parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
 
         // 4. 如果有場景參考圖，加強保持外觀特徵的指令
         if (referenceImage || selectedProjectRefs.length > 0) {
@@ -142,6 +147,7 @@ export function ImageGenerator({
         if (isEndFrame && scene.generatedImage?.url) {
             parts.push('Use the generated start frame as the primary continuity reference.');
             parts.push('Only change what is explicitly described in the end-frame delta; keep identity, product geometry, logo placement, and material characteristics unchanged.');
+            parts.push('Return a final-state still frame composition, not a transition process.');
         }
         if (!isEndFrame && previousEndFrameUrl) {
             parts.push('This scene continues from the previous scene end frame.');

@@ -128,7 +128,7 @@ export async function analyzeVideosForEditing(
     });
 
     const responseText = result.text || '';
-    return parseEditingSuggestion(responseText);
+    return parseEditingSuggestion(responseText, storyboard);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : '';
     // 處理配額超限錯誤
@@ -200,36 +200,26 @@ ${noVideoSceneIds}
   - \`wipe\`: 擦除轉場（多種擦除方向可選）
   - \`cut\`: 直接切換（無需重疊）
 
-## 2. 效果條帶 (Effect Strips) - 透過 new_effect() 創建
-**✅ 可直接實現：**
-- \`color\`: 調色（調整飽和度、色彩倍數）
-- \`glow\`: 發光/光暈效果（強調亮部，適合產品高光）
-- \`blur\`: 高斯模糊（適合景深、夢幻效果）
-- \`transform\`: 變換/縮放（適合 Ken Burns 效果、位移動畫）
-- \`speed\`: 速度控制（快慢動作，如產品特寫放慢）
-- \`adjustment\`: 調整圖層（全局色彩調整）
-- \`colormix\`: 色彩混合（混合模式效果）
-- \`multiply\`: 乘法混合（加深效果）
-- \`add\`: 加法混合（提亮效果）
-- \`alpha_over\`: Alpha 疊加（合成效果）
+## 2. 可直接套用的效果（先以 OpenReel 相容為主，Blender/FFmpeg 也會盡量對齊）
+請優先從以下效果關鍵詞中選擇（每場景 0-2 個）：
+- \`brightness\`
+- \`contrast\`
+- \`saturation\`
+- \`blur\`
+- \`vignette\`
+- \`grain\`
 
-## 3. 條帶修飾器 (Strip Modifiers) - 非破壞性調色
-**✅ Blender 5.0 支援的修飾器：**
-- \`brightness_contrast\`: 亮度/對比度調整
-- \`hue_saturation\`: 色相/飽和度/明度調整
-- \`curves\`: 曲線調色（精細色彩分級）
-- \`white_balance\`: 白平衡校正
-- \`tone_map\`: 色調映射（HDR 效果）
+若要建議速度變化，請用 \`speedFactor\`（0.6~1.4 常用），不要把速度寫進 effects。
 
 ## 4. 入出點建議
 - **入點 (inPoint)**：建議剪掉開頭靜止或不穩定的部分（通常 0.3-0.5 秒）
 - **出點 (outPoint)**：保留動作最精彩的部分，去除結尾靜止幀
 - 入出點的差值即為該片段的有效時長
 
-**❌ 不要建議以下效果（無法在 VSE 中直接實現）：**
+**❌ 不要建議以下效果（目前不會直接套用）：**
 - sharpen, 3d_animation, motion_graphics
 - logo_overlay, text_overlay, ui_animation（需外部素材）
-- 複雜的節點合成效果
+- 複雜節點合成或需外掛的效果
 
 # 輸出格式
 請以 JSON 格式輸出，**只包含有影片的場景**，結構如下：
@@ -243,9 +233,9 @@ ${noVideoSceneIds}
       "inPoint": 0.5,
       "outPoint": 4.8,
       "transition": "crossfade",
-      "effects": ["color", "glow"],
-      "modifiers": ["brightness_contrast", "curves"],
-      "speedFactor": 1.0
+      "effects": ["saturation", "vignette"],
+      "speedFactor": 1.0,
+      "transitionDuration": 0.5
     }
   ],
   "audioNotes": "音訊處理建議（背景音樂風格、旁白節奏、需要的音效類型）",
@@ -257,24 +247,133 @@ ${noVideoSceneIds}
 1. **視覺確認**：必須基於實際看到的影片內容提供建議，**不要編造沒有影片的場景內容**
 2. **入出點**：考慮 AI 生成影片常見的開頭/結尾瑕疵
 3. **轉場時長**：預設 0.5 秒，快節奏可用 0.3 秒
-4. **效果控制**：每個場景控制在 1-2 個效果 + 1-2 個修飾器
-5. **色彩一致**：如需統一色調，對所有場景都添加 brightness_contrast 或 curves 修飾器
+4. **效果控制**：每個場景控制在 0-2 個可直接套用效果
+5. **色彩一致**：如需統一色調，優先用 saturation / contrast 的輕量調整
 6. **節奏感**：根據影片內容調整 speedFactor，產品特寫可用 0.8（慢動作），動作場景用 1.2（加速）
-7. **層次感**：善用 glow 強調高光，blur 創造景深
+7. **轉場可執行性**：transition 請限制在 crossfade/dipToBlack/dipToWhite/wipe/slide/push/cut
 
 請根據影片內容分析並輸出 JSON。`;
 }
 
-function parseEditingSuggestion(responseText: string): EditingSuggestion {
-  // 嘗試從回應中提取 JSON
-  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error('無法解析 Gemini 回應');
+function parseEditingSuggestion(responseText: string, storyboard: Storyboard): EditingSuggestion {
+  const extractJsonText = (text: string) => {
+    const fenced = text.match(/```json\s*([\s\S]*?)```/i);
+    if (fenced?.[1]) return fenced[1].trim();
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) return null;
+    return text.slice(firstBrace, lastBrace + 1).trim();
+  };
+
+  const jsonText = extractJsonText(responseText);
+  if (!jsonText) {
+    throw new Error('無法解析 Gemini 回應 JSON');
   }
 
+  let raw: unknown;
   try {
-    return JSON.parse(jsonMatch[0]);
-  } catch (error) {
-    throw new Error('JSON 解析失敗');
+    raw = JSON.parse(jsonText);
+  } catch {
+    throw new Error('Gemini 回傳 JSON 格式錯誤');
   }
+
+  const source = (raw && typeof raw === 'object') ? (raw as Record<string, unknown>) : {};
+  const scenesRaw = Array.isArray(source.scenes) ? source.scenes : [];
+  const sceneIdsWithVideo = new Set(
+    storyboard.scenes.filter(scene => scene.generatedVideo?.url).map(scene => scene.id)
+  );
+
+  const normalizeTransition = (value: string) => {
+    const key = value.trim().toLowerCase();
+    if (['crossfade', 'dissolve', 'fade', 'gamma_cross'].includes(key)) return 'crossfade';
+    if (['diptoblack', 'dip_to_black', 'fade_black'].includes(key)) return 'dipToBlack';
+    if (['diptowhite', 'dip_to_white', 'fade_white'].includes(key)) return 'dipToWhite';
+    if (['wipe'].includes(key)) return 'wipe';
+    if (['slide'].includes(key)) return 'slide';
+    if (['push'].includes(key)) return 'push';
+    if (['cut', 'continuation', 'none'].includes(key)) return 'cut';
+    return 'crossfade';
+  };
+  const validEffects = new Set(['brightness', 'contrast', 'saturation', 'blur', 'vignette', 'grain']);
+
+  const normalizedScenes = scenesRaw
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => {
+      const sceneId = typeof item.sceneId === 'string' ? item.sceneId.trim() : '';
+      if (!sceneId || !sceneIdsWithVideo.has(sceneId)) return null;
+
+      const inPointRaw = Number(item.inPoint);
+      const outPointRaw = Number(item.outPoint);
+      const inPoint = Number.isFinite(inPointRaw) ? Math.max(0, inPointRaw) : 0;
+      const outPoint = Number.isFinite(outPointRaw) && outPointRaw > inPoint
+        ? outPointRaw
+        : inPoint + 3;
+
+      const transition = typeof item.transition === 'string'
+        ? normalizeTransition(item.transition)
+        : 'crossfade';
+
+      const effects = Array.isArray(item.effects)
+        ? item.effects
+            .filter((value): value is string => typeof value === 'string')
+            .map(value => value.trim().toLowerCase())
+            .filter(value => validEffects.has(value))
+            .slice(0, 2)
+        : [];
+
+      const modifiers = Array.isArray(item.modifiers)
+        ? item.modifiers.filter((value): value is string => typeof value === 'string').slice(0, 2)
+        : undefined;
+
+      const speedFactorRaw = Number(item.speedFactor);
+      const speedFactor = Number.isFinite(speedFactorRaw)
+        ? Math.min(3, Math.max(0.25, speedFactorRaw))
+        : undefined;
+
+      const transitionDurationRaw = Number(item.transitionDuration);
+      const transitionDuration = Number.isFinite(transitionDurationRaw)
+        ? Math.min(2, Math.max(0.1, transitionDurationRaw))
+        : undefined;
+
+      return {
+        sceneId,
+        visualConfirmation: typeof item.visualConfirmation === 'string'
+          ? item.visualConfirmation.trim()
+          : undefined,
+        inPoint,
+        outPoint,
+        transition,
+        effects,
+        modifiers,
+        speedFactor,
+        transitionDuration,
+      };
+    })
+    .filter((scene): scene is NonNullable<typeof scene> => scene !== null);
+
+  const transitionDurationRaw = Number(source.transitionDuration);
+  const transitionDuration = Number.isFinite(transitionDurationRaw)
+    ? Math.min(2, Math.max(0.1, transitionDurationRaw))
+    : undefined;
+  const timeline = Array.isArray(source.timeline)
+    ? source.timeline
+        .filter((marker): marker is Record<string, unknown> => !!marker && typeof marker === 'object')
+        .map((marker) => {
+          const time = Number(marker.time);
+          const type: 'cut' | 'transition' | 'effect' =
+            marker.type === 'transition' || marker.type === 'effect' ? marker.type : 'cut';
+          const description = typeof marker.description === 'string' ? marker.description.trim() : '';
+          if (!Number.isFinite(time) || !description) return null;
+          return { time: Math.max(0, time), type, description };
+        })
+        .filter((marker): marker is NonNullable<typeof marker> => marker !== null)
+    : [];
+
+  return {
+    summary: typeof source.summary === 'string' ? source.summary.trim() : '自動剪輯建議已生成。',
+    scenes: normalizedScenes,
+    timeline,
+    audioNotes: typeof source.audioNotes === 'string' ? source.audioNotes.trim() : '',
+    transitionDuration,
+  };
 }

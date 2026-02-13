@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Scissors, CheckCircle2, XCircle, Zap, Wand2 } from 'lucide-react';
 import Link from 'next/link';
 import { useProjectStore } from '@/stores/project-store';
+import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator';
 import { VideoAnalyzer } from '@/components/export/VideoAnalyzer';
 import { BlenderScriptViewer } from '@/components/export/BlenderScriptViewer';
 import { FFmpegRenderer } from '@/components/export/FFmpegRenderer';
@@ -23,6 +24,11 @@ export default function ExportPage() {
     setCurrentProject(projectId);
   }, [projectId, setCurrentProject]);
 
+  useEffect(() => {
+    if (!currentProject?.editingSuggestions) return;
+    setEditingSuggestion(currentProject.editingSuggestions);
+  }, [currentProject?.editingSuggestions]);
+
   const scenes = currentProject?.storyboard?.scenes || [];
   const scenesWithVideos = scenes.filter(s => s.generatedVideo);
 
@@ -37,6 +43,7 @@ export default function ExportPage() {
     // 保存到專案
     if (currentProject) {
       updateProject(projectId, {
+        editingSuggestions: suggestion,
         blenderScript: JSON.stringify(suggestion),
         status: 'complete',
       });
@@ -84,6 +91,12 @@ export default function ExportPage() {
           </div>
         </div>
       </header>
+
+      <ProjectStepNavigator
+        projectId={projectId}
+        project={currentProject}
+        currentStep="export"
+      />
 
       <main className="container mx-auto px-4 py-8">
         {/* 渲染模式選擇 */}
@@ -254,6 +267,7 @@ export default function ExportPage() {
               projectId={projectId}
               projectName={currentProject.name}
               storyboard={currentProject.storyboard}
+              editingSuggestion={editingSuggestion}
             />
           </div>
         )}

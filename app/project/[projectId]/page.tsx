@@ -1,16 +1,16 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useProjectStore } from '@/stores/project-store';
 import { Clapperboard, ArrowLeft, Image, Video, FileCode } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { getWorkflowProgress } from '@/lib/project/workflow';
 
 export default function ProjectPage() {
-  const router = useRouter();
   const params = useParams();
   const projectId = params.projectId as string;
 
@@ -31,6 +31,8 @@ export default function ProjectPage() {
     );
   }
 
+  const progress = getWorkflowProgress(currentProject);
+
   const steps = [
     {
       id: 'storyboard',
@@ -46,9 +48,9 @@ export default function ProjectPage() {
       id: 'images',
       icon: Image,
       title: '圖片生成',
-      description: '為每個場景生成分鏡圖片',
+      description: `為每個場景生成分鏡圖片 (${progress.scenesWithImages}/${progress.totalScenes})`,
       href: `/project/${projectId}/images`,
-      available: !!currentProject.storyboard,
+      available: progress.hasStoryboard,
       color: 'text-blue-500',
       bg: 'bg-blue-500/10',
     },
@@ -56,9 +58,9 @@ export default function ProjectPage() {
       id: 'videos',
       icon: Video,
       title: '影片生成',
-      description: '將分鏡圖轉換為動態影片',
+      description: `將分鏡圖轉換為動態影片 (${progress.scenesWithVideos}/${progress.totalScenes})`,
       href: `/project/${projectId}/videos`,
-      available: currentProject.storyboard?.scenes.some(s => s.generatedImage),
+      available: progress.hasImages,
       color: 'text-orange-500',
       bg: 'bg-orange-500/10',
     },
@@ -68,7 +70,7 @@ export default function ProjectPage() {
       title: 'Blender 腳本',
       description: '生成自動剪輯腳本',
       href: `/project/${projectId}/export`,
-      available: currentProject.storyboard?.scenes.some(s => s.generatedVideo),
+      available: progress.hasVideos,
       color: 'text-green-500',
       bg: 'bg-green-500/10',
     },

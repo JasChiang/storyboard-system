@@ -40,11 +40,20 @@ Be concise and specific. Max 40 words.`
 
 export async function POST(request: NextRequest) {
     try {
-        const { imageUrl, type, apiKey } = await request.json();
+        const body = await request.json();
+        if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
+            return NextResponse.json(
+                { error: 'Client-provided apiKey is not allowed' },
+                { status: 400 }
+            );
+        }
+
+        const { imageUrl, type } = body;
+        const apiKey = process.env.OPENROUTER_API_KEY;
 
         if (!imageUrl || !type || !apiKey) {
             return NextResponse.json(
-                { error: '缺少必要參數' },
+                { error: '缺少必要參數，或伺服器未設定 OPENROUTER_API_KEY' },
                 { status: 400 }
             );
         }

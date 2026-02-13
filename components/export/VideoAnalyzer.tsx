@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Brain, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import type { Scene } from '@/lib/types/storyboard';
 import type { Storyboard } from '@/lib/types/storyboard';
 import type { EditingSuggestion } from '@/lib/types/project';
 
@@ -23,9 +22,6 @@ export function VideoAnalyzer({ storyboard, onAnalysisComplete }: VideoAnalyzerP
         setError(null);
 
         try {
-            const apiKey = localStorage.getItem('gemini_api_key') || '';
-            // 移除前端阻擋，讓後端環境變數作為備援
-
             // 注意：此功能需要將影片上傳到 Gemini
             // 由於影片已經是 URL，我們直接使用 URL 進行分析
             // 實際應用中可能需要先下載影片再上傳
@@ -41,7 +37,6 @@ export function VideoAnalyzer({ storyboard, onAnalysisComplete }: VideoAnalyzerP
                         mimeType: 'video/mp4',
                         state: 'ACTIVE',
                     })),
-                    apiKey,
                 }),
             });
 

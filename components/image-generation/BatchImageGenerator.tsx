@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
+import { buildStaticFrameDescription } from '@/lib/prompts/image-static';
 
 interface BatchImageGeneratorProps {
     scenes: Scene[];
@@ -85,11 +86,14 @@ export function BatchImageGenerator({
         }
 
         // 2. 加入場景描述（首幀或尾幀）
-        if (isEndFrame && scene.endFrameDescription) {
-            parts.push(scene.endFrameDescription);
-        } else {
-            parts.push(scene.description);
-        }
+        parts.push(
+            buildStaticFrameDescription(
+                scene.description,
+                isEndFrame ? scene.endFrameDescription : scene.description,
+                isEndFrame
+            )
+        );
+        parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
 
         if (scene.referenceImage || contentProjectReferences.length > 0) {
             parts.push('Maintain the exact appearance, facial features, clothing, and style from the uploaded reference image.');
@@ -108,6 +112,9 @@ export function BatchImageGenerator({
             buildImagePrompt(scene, isEndFrame),
             isEndFrame && options?.primaryReferenceUrl
                 ? 'Use the provided start frame as the primary continuity reference. Only apply the explicit end-frame delta.'
+                : '',
+            isEndFrame
+                ? 'Return a final-state still frame composition, not an intermediate motion step.'
                 : '',
             !isEndFrame && options?.continuityReferenceUrl
                 ? 'This scene should continue naturally from the previous scene end frame while preserving identity.'

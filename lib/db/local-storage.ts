@@ -1,7 +1,6 @@
 import { Project } from '../types/project';
 
 const STORAGE_KEY = 'storyboard-projects';
-const API_KEYS_KEY = 'storyboard-api-keys';
 
 // 專案 CRUD 操作
 export const projectStorage = {
@@ -60,33 +59,6 @@ export const projectStorage = {
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
     return true;
-  },
-};
-
-// API 金鑰管理
-export interface ApiKeys {
-  openrouter?: string;
-  gemini?: string;
-}
-
-export const apiKeyStorage = {
-  // 取得所有 API 金鑰
-  getAll(): ApiKeys {
-    if (typeof window === 'undefined') return {};
-    const data = localStorage.getItem(API_KEYS_KEY);
-    return data ? JSON.parse(data) : {};
-  },
-
-  // 設定 API 金鑰
-  set(keys: Partial<ApiKeys>): void {
-    const current = this.getAll();
-    const updated = { ...current, ...keys };
-    localStorage.setItem(API_KEYS_KEY, JSON.stringify(updated));
-  },
-
-  // 清除所有 API 金鑰
-  clear(): void {
-    localStorage.removeItem(API_KEYS_KEY);
   },
 };
 

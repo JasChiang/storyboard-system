@@ -42,7 +42,7 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
         setMotionPrompt(newMotionPrompt);
     }, [scene.id, scene.motionPrompt, scene.cameraMovement]);
 
-    const buildVideoPrompt = () => {
+    const buildSharedConstraints = () => {
         const contentRefs = projectReferences.filter(ref => ref.type !== 'style');
         const mustKeepLines = contentRefs
             .filter(ref => ref.mustKeepFeatures?.length)
@@ -51,19 +51,50 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
                 return `${tag}: ${ref.mustKeepFeatures!.join(', ')}`;
             });
 
-        const sections = [
-            'Animate from the provided start frame toward the provided end frame if available.',
-            scene.generatedEndFrame?.url
-                ? 'End-state target: match the provided end frame composition and identity.'
-                : 'No explicit end frame target; preserve identity and object consistency throughout the clip.',
-            mustKeepLines.length
+        return {
+            hasEndFrame: !!scene.generatedEndFrame?.url,
+            identityConstraint: mustKeepLines.length
                 ? `Do not change these identity constraints: ${mustKeepLines.join(' | ')}`
-                : '',
-            `Motion and camera direction: ${motionPrompt}`,
-            'Focus on temporal motion only. Do not redesign character/product appearance, logo placement, or core geometry.',
-        ];
+                : 'Keep character/product identity, logo placement, and core geometry unchanged.',
+        };
+    };
 
+    const buildKlingPrompt = () => {
+        const shared = buildSharedConstraints();
+        const sections = [
+            'Kling visual direction:',
+            'Use the start frame as the visual anchor. Keep composition stable and cinematic.',
+            shared.hasEndFrame
+                ? 'End-state target: match the provided end frame composition and identity.'
+                : 'No explicit end frame target; preserve identity consistency through the full shot.',
+            `Camera and motion directive: ${motionPrompt}`,
+            'Prioritize clean camera language (pan/dolly/tilt/zoom) and coherent subject movement.',
+            'Avoid temporal artifacts, warped logos, or text deformation during motion.',
+            shared.identityConstraint,
+        ];
         return sections.filter(Boolean).join(' ');
+    };
+
+    const buildSeedancePrompt = () => {
+        const shared = buildSharedConstraints();
+        const sections = [
+            'Seedance scene direction:',
+            'Generate a smooth, story-driven motion sequence from the start frame.',
+            shared.hasEndFrame
+                ? 'End-state target: align final moment with the provided end frame.'
+                : 'No explicit end frame target; maintain narrative continuity within one shot.',
+            `Action beat: ${motionPrompt}`,
+            'Keep movement natural and readable, with clear subject intent and staging.',
+            'No audio is required; optimize for visual continuity and timing only.',
+            'Do not introduce new props, clothing changes, or logo/text mutations.',
+            shared.identityConstraint,
+        ];
+        return sections.filter(Boolean).join(' ');
+    };
+
+    const buildVideoPrompt = () => {
+        if (model === 'kling') return buildKlingPrompt();
+        return buildSeedancePrompt();
     };
 
     const handleGenerate = async () => {

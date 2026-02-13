@@ -82,7 +82,8 @@ export function OpenReelEditor({
   };
 
   const projectJson = useMemo(() => {
-    if (!forceRegenerate && savedProjectJson && savedProjectJson.trim().length > 0) {
+    const hasUsableAiSuggestion = !!editingSuggestion?.scenes?.length;
+    if (!forceRegenerate && !hasUsableAiSuggestion && savedProjectJson && savedProjectJson.trim().length > 0) {
       return savedProjectJson;
     }
     return buildProjectJson();

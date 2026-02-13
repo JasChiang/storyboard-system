@@ -14,20 +14,26 @@ import { characterLibraryItemToProjectReference } from '@/lib/types/character-li
 import type { ProjectReference } from '@/lib/types/storyboard';
 
 interface StoryPromptInputProps {
-  onGenerate: (prompt: string, templateId: string, references: ProjectReference[]) => Promise<void>;
+  onGenerate: (
+    prompt: string,
+    templateId: string,
+    references: ProjectReference[],
+    targetDurationSec: number
+  ) => Promise<void>;
   isLoading: boolean;
 }
 
 export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProps) {
   const [prompt, setPrompt] = useState('');
   const [templateId, setTemplateId] = useState(TEMPLATES[0].id);
+  const [targetDurationSec, setTargetDurationSec] = useState('30');
   const [references, setReferences] = useState<ProjectReference[]>([]);
   const [showCharacterSelector, setShowCharacterSelector] = useState(false);
   const [showCreateCharacterDialog, setShowCreateCharacterDialog] = useState(false);
 
   const handleSubmit = async () => {
     if (!prompt.trim()) return;
-    await onGenerate(prompt, templateId, references);
+    await onGenerate(prompt, templateId, references, Number(targetDurationSec));
   };
 
   const handleSelectFromLibrary = (newReferences: ProjectReference[]) => {
@@ -47,6 +53,12 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
     value: t.id,
     label: t.name
   }));
+  const durationOptions = [
+    { value: '15', label: '15 秒（約 3 場）' },
+    { value: '20', label: '20 秒（約 4 場）' },
+    { value: '25', label: '25 秒（約 5 場）' },
+    { value: '30', label: '30 秒（約 6 場）' },
+  ];
 
   const selectedTemplate = TEMPLATES.find(t => t.id === templateId);
 
@@ -60,6 +72,12 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
           options={templateOptions}
           value={templateId}
           onChange={(e) => setTemplateId(e.target.value)}
+        />
+        <Select
+          label="目標影片長度"
+          options={durationOptions}
+          value={targetDurationSec}
+          onChange={(e) => setTargetDurationSec(e.target.value)}
         />
 
         {selectedTemplate && (

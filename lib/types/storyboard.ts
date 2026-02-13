@@ -29,6 +29,7 @@ export interface Scene {
   changeFromPrev?: string;       // 相對前一場景的變化摘要（用於連貫生成）
   charactersUsed?: string[];     // 本場景使用的角色標記（如 <Alice>）
   productsUsed?: string[];       // 本場景使用的商品標記（如 <iPhone>）
+  consistencyWarnings?: string[]; // 一致性檢查警告（由生成後校驗標記）
 
   // Smart Keyframing (智慧首尾幀)
   requiresEndFrame?: boolean;    // AI 判斷是否需要生成尾幀

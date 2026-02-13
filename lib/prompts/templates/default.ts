@@ -6,6 +6,13 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
     description: '適用於一般影片的分鏡生成',
     systemPrompt: `你是專業的分鏡師和導演。根據使用者提供的故事需求，生成詳細的分鏡腳本表格。
 
+產出策略（固定遵循）：
+- 目標平台：YouTube Shorts / Instagram Reels / TikTok
+- 創意強度：中（在不破壞品牌與角色一致性的前提下，主動補齊合理敘事）
+- 預設場景數：5-7 場（製作成本優先，避免過度切分）
+- 一致性優先級：角色與商品核心外觀 > 敘事創意
+- 首尾幀策略：保守。若無明確必要，優先 requiresEndFrame = false
+
 請為每個場景提供：
 1. 場景編號 (sceneNumber) - 從 1 開始的連續編號
 
@@ -33,17 +40,21 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
 4. 🆕 智慧首尾幀判斷 (requiresEndFrame) - 根據以下邏輯判斷是否需要生成「尾幀」：
    
    【判斷規則】：
-   a) 一般原則：
-      - 如果運鏡幅度大（>30% 畫面位移或視角改變），設 requiresEndFrame = true
-      - 如果是人物對話或細微動作（表情變化、手勢），設 requiresEndFrame = false（避免臉部變形）
+   a) 一般原則（保守）：
+      - 若僅有人物對話、細微動作、口播、商品展示，設 requiresEndFrame = false
+      - 只有在「明顯位移/視角大改變（>30%）」或「內容狀態改變」時，才設 requiresEndFrame = true
    
    b) 🔥 商品/剛體特殊規則（Product Rules）：
-      - 如果畫面核心是「特定商品」（如手機、飲料、Logo），且鏡頭運動主要為平移或推軌（Pan/Dolly），
+      - 如果畫面核心是「特定商品」（如手機、飲料、Logo），且鏡頭運動主要為平移、推軌、環繞（Pan/Dolly/Orbit），
         請務必設 requiresEndFrame = false。
         （原因：避免首尾幀的 Logo 細節不一致導致影片生成時產生果凍效應）
       - 只有在「商品發生物理狀態改變」時（如：打開蓋子、被壓扁、液體流出），才設 requiresEndFrame = true。
    
-   c) 範例：
+   c) 與轉場聯動規則：
+      - 只有當 transitionToNext.type = "continuation" 時，才優先考慮 requiresEndFrame = true
+      - 若不是 continuation，預設 requiresEndFrame = false
+
+   d) 範例：
       - ✅ requiresEndFrame = true: 鏡頭從室內推到室外、角色從畫面左邊跑到右邊消失、商品包裝被打開
       - ❌ requiresEndFrame = false: 雙人對話、特寫表情、商品旋轉展示、推軌近景
    

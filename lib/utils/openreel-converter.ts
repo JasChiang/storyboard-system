@@ -43,7 +43,7 @@ interface OpenReelClip {
   duration: number;
   inPoint: number;
   outPoint: number;
-  effects: unknown[];
+  effects: OpenReelEffect[];
   audioEffects: unknown[];
   transform: {
     position: { x: number; y: number };
@@ -55,6 +55,14 @@ interface OpenReelClip {
   };
   volume: number;
   keyframes: unknown[];
+  speed?: number;
+}
+
+interface OpenReelEffect {
+  id: string;
+  type: string;
+  params: Record<string, unknown>;
+  enabled: boolean;
 }
 
 interface OpenReelTransition {
@@ -182,6 +190,11 @@ function clampDuration(value: number, fallback = 0.5) {
   return value;
 }
 
+function clampRange(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
+}
+
 /**
  * 根據 canvas 寬度和字體大小自動斷行。
  * CJK 字元每個約佔 fontSize px，Latin 字元約佔 fontSize * 0.6 px。
@@ -230,6 +243,64 @@ function mapTransitionType(type?: TransitionType): OpenReelTransitionType | null
     default:
       return null;
   }
+}
+
+function mapSuggestedTransitionType(raw?: string): OpenReelTransitionType | '__none__' | null {
+  if (!raw) return null;
+  const value = raw.toLowerCase().trim();
+
+  if (['crossfade', 'dissolve', 'fade', 'gamma_cross'].includes(value)) return 'crossfade';
+  if (['diptoblack', 'dip_to_black', 'fade_black'].includes(value)) return 'dipToBlack';
+  if (['diptowhite', 'dip_to_white', 'fade_white'].includes(value)) return 'dipToWhite';
+  if (['wipe', 'wipeleft', 'wiperight', 'wipeup', 'wipedown'].includes(value)) return 'wipe';
+  if (['slide', 'slideleft', 'slideright', 'slideup', 'slidedown'].includes(value)) return 'slide';
+  if (['push'].includes(value)) return 'push';
+  if (['zoom'].includes(value)) return 'zoom';
+  if (['cut', 'continuation', 'match_cut', 'none'].includes(value)) return '__none__';
+
+  return null;
+}
+
+function buildOpenReelEffects(effectNames: string[]): OpenReelEffect[] {
+  const effects: OpenReelEffect[] = [];
+  const names = effectNames.map(name => name.toLowerCase());
+
+  const add = (type: string, params: Record<string, unknown>) => {
+    effects.push({
+      id: generateId(`effect-${type}`),
+      type,
+      params,
+      enabled: true,
+    });
+  };
+
+  for (const name of names) {
+    if (name.includes('brightness') || name.includes('exposure')) {
+      add('brightness', { value: 0.1 });
+      continue;
+    }
+    if (name.includes('contrast')) {
+      add('contrast', { value: 1.08 });
+      continue;
+    }
+    if (name.includes('saturation') || name.includes('color')) {
+      add('saturation', { value: 1.08 });
+      continue;
+    }
+    if (name.includes('blur')) {
+      add('blur', { radius: 2, type: 'gaussian' });
+      continue;
+    }
+    if (name.includes('vignette') || name.includes('glow')) {
+      add('vignette', { amount: 0.22, midpoint: 0.5, feather: 0.35 });
+      continue;
+    }
+    if (name.includes('grain')) {
+      add('grain', { amount: 0.08, size: 1 });
+    }
+  }
+
+  return effects;
 }
 
 function getSceneSource(scene: Scene) {
@@ -287,6 +358,9 @@ export function convertToOpenReelProjectFile(
   const subtitles: OpenReelSubtitle[] = [];
   const textClips: OpenReelTextClip[] = [];
   const markers: OpenReelMarker[] = [];
+  const sceneSuggestionMap = new Map(
+    (options?.editingSuggestion?.scenes || []).map(scene => [scene.sceneId, scene])
+  );
 
   const tracks: OpenReelTrack[] = [];
   const videoTrackId = generateId('track');
@@ -296,7 +370,15 @@ export function convertToOpenReelProjectFile(
   storyboard.scenes.forEach((scene, index) => {
     const mediaId = `media-${scene.id}`;
     const clipId = `clip-${scene.id}`;
-    const duration = clampDuration(scene.duration, 2);
+    const sceneSuggestion = sceneSuggestionMap.get(scene.id);
+    const rawInPoint = Number(sceneSuggestion?.inPoint);
+    const rawOutPoint = Number(sceneSuggestion?.outPoint);
+    const isValidInOut = Number.isFinite(rawInPoint) && Number.isFinite(rawOutPoint) && rawOutPoint > rawInPoint;
+    const inPoint = isValidInOut ? Math.max(0, rawInPoint) : 0;
+    const outPoint = isValidInOut ? rawOutPoint : clampDuration(scene.duration, 2);
+    const duration = clampDuration(outPoint - inPoint, clampDuration(scene.duration, 2));
+    const speed = clampRange(Number(sceneSuggestion?.speedFactor), 0.25, 3, 1);
+    const effects = buildOpenReelEffects(sceneSuggestion?.effects || []);
 
     const rawSrc = getSceneSource(scene);
     const src = rawSrc ? buildProxyUrl(rawSrc) : "";
@@ -334,9 +416,9 @@ export function convertToOpenReelProjectFile(
       trackId: videoTrackId,
       startTime: currentTime,
       duration,
-      inPoint: 0,
-      outPoint: duration,
-      effects: [],
+      inPoint,
+      outPoint,
+      effects,
       audioEffects: [],
       transform: {
         position: { x: 0.5, y: 0.5 },
@@ -348,6 +430,7 @@ export function convertToOpenReelProjectFile(
       },
       volume: 1,
       keyframes: [],
+      speed: speed !== 1 ? speed : undefined,
     });
 
     const subtitleText = scene.dialogue || scene.description;
@@ -402,18 +485,29 @@ export function convertToOpenReelProjectFile(
       });
     }
 
-    if (scene.transitionToNext && index < storyboard.scenes.length - 1) {
-      const transitionType = mapTransitionType(scene.transitionToNext.type);
+    if (index < storyboard.scenes.length - 1) {
+      const suggestedTransitionType = mapSuggestedTransitionType(sceneSuggestion?.transition);
+      const fallbackTransitionType = mapTransitionType(scene.transitionToNext?.type);
+      const transitionType = suggestedTransitionType === '__none__'
+        ? null
+        : (suggestedTransitionType ?? fallbackTransitionType);
       if (transitionType) {
+        const suggestedTransitionDuration = Number(sceneSuggestion?.transitionDuration);
+        const globalTransitionDuration = Number(options?.editingSuggestion?.transitionDuration);
+        const sceneTransitionDuration = Number(scene.transitionToNext?.duration);
+        const transitionDuration = Number.isFinite(suggestedTransitionDuration)
+          ? suggestedTransitionDuration
+          : Number.isFinite(sceneTransitionDuration)
+            ? sceneTransitionDuration
+            : Number.isFinite(globalTransitionDuration)
+              ? globalTransitionDuration
+              : DEFAULT_TRANSITION_DURATION;
         transitions.push({
           id: `transition-${scene.id}`,
           clipAId: clipId,
           clipBId: `clip-${storyboard.scenes[index + 1].id}`,
           type: transitionType,
-          duration: clampDuration(
-            scene.transitionToNext.duration ?? DEFAULT_TRANSITION_DURATION,
-            DEFAULT_TRANSITION_DURATION
-          ),
+          duration: clampDuration(transitionDuration, DEFAULT_TRANSITION_DURATION),
           params: {},
         });
       }

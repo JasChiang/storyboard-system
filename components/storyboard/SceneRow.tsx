@@ -55,15 +55,15 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
 
   if (isEditing) {
     return (
-      <tr className="bg-blue-50 dark:bg-blue-900/10">
+      <tr className="bg-blue-50/70 dark:bg-blue-900/10">
         <td className="px-4 py-3">
-          <div className="font-semibold text-blue-600 dark:text-blue-400">
+          <div className="inline-flex rounded-full border border-blue-200 bg-white px-2.5 py-1 text-xs font-bold text-blue-700 dark:border-blue-700 dark:bg-slate-900 dark:text-blue-300">
             #{scene.sceneNumber}
           </div>
         </td>
         <td className="px-4 py-3">
           <textarea
-            className="w-full px-2 py-1 border rounded text-sm"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
             value={editedScene.description}
             onChange={(e) => setEditedScene({ ...editedScene, description: e.target.value })}
             rows={3}
@@ -72,14 +72,14 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
         <td className="px-4 py-3">
           <input
             type="text"
-            className="w-full px-2 py-1 border rounded text-sm"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
             value={editedScene.cameraMovement}
             onChange={(e) => setEditedScene({ ...editedScene, cameraMovement: e.target.value })}
           />
         </td>
         <td className="px-4 py-3">
           <textarea
-            className="w-full px-2 py-1 border rounded text-sm"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
             value={editedScene.dialogue}
             onChange={(e) => setEditedScene({ ...editedScene, dialogue: e.target.value })}
             rows={2}
@@ -88,23 +88,26 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
         <td className="px-4 py-3">
           <input
             type="number"
-            className="w-20 px-2 py-1 border rounded text-sm"
+            className="w-24 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
             value={editedScene.duration}
             onChange={(e) => setEditedScene({ ...editedScene, duration: parseFloat(e.target.value) })}
             step="0.1"
           />
         </td>
         <td className="px-4 py-3">
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={editedScene.requiresEndFrame || false}
-              onChange={(e) => setEditedScene({ ...editedScene, requiresEndFrame: e.target.checked })}
-              className="rounded"
-            />
+          <div className="space-y-2">
+            <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={editedScene.requiresEndFrame || false}
+                onChange={(e) => setEditedScene({ ...editedScene, requiresEndFrame: e.target.checked })}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              需要尾幀
+            </label>
             {editedScene.requiresEndFrame && (
               <textarea
-                className="w-full px-2 py-1 border rounded text-xs"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
                 value={editedScene.endFrameDescription || ''}
                 onChange={(e) => setEditedScene({ ...editedScene, endFrameDescription: e.target.value })}
                 placeholder="尾幀描述"
@@ -113,10 +116,9 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
             )}
           </div>
         </td>
-        {/* 轉場編輯 */}
         <td className="px-4 py-3">
           <select
-            className="w-full px-2 py-1 border rounded text-sm"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
             value={editedScene.transitionToNext?.type || 'dissolve'}
             onChange={(e) => handleTransitionChange(e.target.value as TransitionType)}
           >
@@ -127,7 +129,7 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
             ))}
           </select>
           {editedScene.transitionToNext?.reason && (
-            <div className="text-xs text-slate-500 mt-1 line-clamp-2">
+            <div className="mt-1 line-clamp-2 text-xs text-slate-500">
               {editedScene.transitionToNext.reason}
             </div>
           )}
@@ -136,17 +138,17 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
           <div className="flex gap-2">
             <button
               onClick={handleSave}
-              className="p-1 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
+              className="rounded-lg border border-green-200 bg-green-100 p-1.5 text-green-700 transition hover:bg-green-200 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300 dark:hover:bg-green-900/40"
               title="保存"
             >
-              <Check className="w-4 h-4" />
+              <Check className="h-4 w-4" />
             </button>
             <button
               onClick={handleCancel}
-              className="p-1 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+              className="rounded-lg border border-slate-200 bg-slate-100 p-1.5 text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
               title="取消"
             >
-              <X className="w-4 h-4" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         </td>
@@ -158,39 +160,55 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
   const transitionInfo = TRANSITION_LABELS[transitionType];
 
   return (
-    <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-      <td className="px-4 py-3">
-        <div className="font-semibold text-blue-600 dark:text-blue-400">
+    <tr className="border-b border-slate-100 transition-colors hover:bg-slate-50/70 dark:border-slate-700 dark:hover:bg-slate-700/40">
+      <td className="px-4 py-3 align-top">
+        <div className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
           #{scene.sceneNumber}
         </div>
       </td>
-      <td className="px-4 py-3">
-        <div className="text-sm max-w-md">
+      <td className="px-4 py-3 align-top">
+        <div className="max-w-md text-sm leading-6 text-slate-800 dark:text-slate-100">
           {scene.description}
         </div>
+        {scene.consistencyWarnings && scene.consistencyWarnings.length > 0 && (
+          <div className="mt-2 space-y-1">
+            <span className="inline-flex rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-300">
+              一致性待確認 ({scene.consistencyWarnings.length})
+            </span>
+            <div className="max-w-md text-xs text-rose-600 dark:text-rose-400 line-clamp-2" title={scene.consistencyWarnings.join('\n')}>
+              {scene.consistencyWarnings[0]}
+            </div>
+          </div>
+        )}
         {scene.notes && (
-          <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <div className="mt-2 inline-flex rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
             備註: {scene.notes}
           </div>
         )}
       </td>
-      <td className="px-4 py-3">
-        <div className="text-sm">{scene.cameraMovement}</div>
+      <td className="px-4 py-3 align-top">
+        <div className="max-w-[220px] rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          {scene.cameraMovement}
+        </div>
       </td>
-      <td className="px-4 py-3">
-        <div className="text-sm max-w-xs">{scene.dialogue}</div>
+      <td className="px-4 py-3 align-top">
+        <div className="max-w-xs text-sm text-slate-700 dark:text-slate-200">
+          {scene.dialogue || <span className="text-slate-400 dark:text-slate-500">—</span>}
+        </div>
       </td>
-      <td className="px-4 py-3">
-        <div className="text-sm font-mono">{scene.duration}秒</div>
+      <td className="px-4 py-3 align-top">
+        <div className="inline-flex rounded-md border border-slate-200 bg-white px-2 py-1 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+          {scene.duration}秒
+        </div>
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 align-top">
         {scene.requiresEndFrame ? (
-          <div className="space-y-1">
-            <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+          <div className="space-y-1.5">
+            <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-700 dark:border-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
               ✓ 首尾幀
             </span>
             {scene.endFrameDescription && (
-              <div className="text-xs text-slate-500 dark:text-slate-400 max-w-xs line-clamp-2" title={scene.endFrameDescription}>
+              <div className="max-w-xs line-clamp-2 text-xs text-slate-500 dark:text-slate-400" title={scene.endFrameDescription}>
                 尾幀: {scene.endFrameDescription}
               </div>
             )}
@@ -199,43 +217,41 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
           <span className="text-xs text-slate-400 dark:text-slate-600">—</span>
         )}
       </td>
-      {/* 轉場顯示 */}
-      <td className="px-4 py-3">
-        <div className="space-y-1">
-          <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded ${transitionInfo.color}`}>
+      <td className="px-4 py-3 align-top">
+        <div className="space-y-1.5">
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${transitionInfo.color}`}>
             {transitionInfo.icon} {transitionInfo.label}
           </span>
           {scene.transitionToNext?.useEndFrameAsNextStart && (
-            <div className="text-xs text-green-600 dark:text-green-400">
+            <div className="text-xs font-medium text-green-600 dark:text-green-400">
               → 延續至下一幕
             </div>
           )}
           {scene.transitionToNext?.reason && (
-            <div className="text-xs text-slate-500 dark:text-slate-400 max-w-xs line-clamp-2" title={scene.transitionToNext.reason}>
+            <div className="max-w-xs line-clamp-2 text-xs text-slate-500 dark:text-slate-400" title={scene.transitionToNext.reason}>
               {scene.transitionToNext.reason}
             </div>
           )}
         </div>
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-3 align-top">
         <div className="flex gap-2">
           <button
             onClick={() => setIsEditing(true)}
-            className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+            className="rounded-lg border border-blue-200 bg-blue-100 p-1.5 text-blue-700 transition hover:bg-blue-200 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40"
             title="編輯"
           >
-            <Pencil className="w-4 h-4" />
+            <Pencil className="h-4 w-4" />
           </button>
           <button
             onClick={onDelete}
-            className="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+            className="rounded-lg border border-red-200 bg-red-100 p-1.5 text-red-700 transition hover:bg-red-200 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"
             title="刪除"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </td>
     </tr>
   );
 }
-

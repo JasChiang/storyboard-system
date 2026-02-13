@@ -4,12 +4,19 @@ import { uploadVideoToGemini } from '@/lib/api/gemini';
 export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData();
+        if (formData.has('apiKey')) {
+            return NextResponse.json(
+                { error: 'Client-provided apiKey is not allowed' },
+                { status: 400 }
+            );
+        }
+
         const file = formData.get('video') as File;
-        const apiKey = (formData.get('apiKey') as string) || process.env.GEMINI_API_KEY;
+        const apiKey = process.env.GEMINI_API_KEY;
 
         if (!file || !apiKey) {
             return NextResponse.json(
-                { error: 'Missing required fields (video or apiKey)' },
+                { error: 'Missing required field (video) or server GEMINI_API_KEY is not set' },
                 { status: 400 }
             );
         }

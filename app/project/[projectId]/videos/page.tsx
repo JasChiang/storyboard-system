@@ -2,9 +2,12 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Film, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Film, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useProjectStore } from '@/stores/project-store';
+import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator';
+import { getWorkflowProgress } from '@/lib/project/workflow';
 import { VideoGenerator } from '@/components/video-generation/VideoGenerator';
 
 type VideoModel = 'kling' | 'seedance';
@@ -21,6 +24,7 @@ export default function VideosPage() {
   }, [projectId, setCurrentProject]);
 
   const scenes = currentProject?.storyboard?.scenes || [];
+  const progress = getWorkflowProgress(currentProject);
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
 
   // 統計資訊
@@ -120,6 +124,12 @@ export default function VideosPage() {
         </div>
       </header>
 
+      <ProjectStepNavigator
+        projectId={projectId}
+        project={currentProject}
+        currentStep="videos"
+      />
+
       <main className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-12 gap-6">
           {/* Scene List */}
@@ -165,11 +175,13 @@ export default function VideosPage() {
                     {/* 預覽縮圖 */}
                     {scene.generatedImage && (
                       <div className="space-y-1.5">
-                        <div className="aspect-video rounded overflow-hidden border border-slate-200 dark:border-slate-700">
-                          <img
+                        <div className="relative aspect-video rounded overflow-hidden border border-slate-200 dark:border-slate-700">
+                          <Image
                             src={scene.generatedImage.url}
                             alt={`Scene ${scene.sceneNumber}`}
-                            className="w-full h-full object-cover"
+                            fill
+                            sizes="(max-width: 1024px) 33vw, 300px"
+                            className="object-cover"
                           />
                         </div>
                         {scene.generatedEndFrame && (
@@ -178,11 +190,13 @@ export default function VideosPage() {
                               <span className="inline-block w-1 h-1 bg-purple-600 dark:bg-purple-400 rounded-full"></span>
                               尾幀
                             </p>
-                            <div className="aspect-video rounded overflow-hidden border border-purple-200 dark:border-purple-700">
-                              <img
+                            <div className="relative aspect-video rounded overflow-hidden border border-purple-200 dark:border-purple-700">
+                              <Image
                                 src={scene.generatedEndFrame.url}
                                 alt={`Scene ${scene.sceneNumber} End Frame`}
-                                className="w-full h-full object-cover"
+                                fill
+                                sizes="(max-width: 1024px) 33vw, 300px"
+                                className="object-cover"
                               />
                             </div>
                           </>
@@ -254,6 +268,37 @@ export default function VideosPage() {
           </div>
         )}
       </main>
+
+      <div className="container mx-auto px-4 pb-8">
+        <div className="max-w-6xl mx-auto flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-5">
+          <Link
+            href={`/project/${projectId}/images`}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            上一步：生成圖片
+          </Link>
+
+          {progress.hasVideos ? (
+            <Link
+              href={`/project/${projectId}/export`}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-medium text-white transition-colors"
+            >
+              下一步：影片匯出
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          ) : (
+            <button
+              disabled
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-200 dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-500 dark:text-slate-400 cursor-not-allowed"
+              title="請先生成至少一個場景影片"
+            >
+              下一步：影片匯出
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
     </>
   );
 }

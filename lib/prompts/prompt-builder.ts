@@ -1,4 +1,5 @@
 import type { PromptTemplate, ProjectReference } from '@/lib/types/storyboard';
+import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
 
 /**
  * 根據參考圖資訊構建增強的系統提示詞
@@ -10,6 +11,7 @@ export function buildSystemPrompt(
     let prompt = template.systemPrompt;
 
     if (references && references.length > 0) {
+        const consolidatedRules = buildConsolidatedReferenceRules(references);
         // 整理角色、商品和環境參考
         const characterRefs = references.filter(r => r.type === 'character');
         const productRefs = references.filter(r => r.type === 'product');
@@ -72,6 +74,21 @@ export function buildSystemPrompt(
             prompt += '\n';
         }
 
+        if (consolidatedRules.length > 0) {
+            prompt += `### 合併後一致性規則（多視角/多來源已整併）\n`;
+            consolidatedRules.forEach(rule => {
+                const coreText = rule.identityCore ? ` | 核心：${rule.identityCore}` : '';
+                const mustKeepText = rule.mustKeepFeatures.length
+                    ? ` | 不可改變：${rule.mustKeepFeatures.join('、')}`
+                    : '';
+                const guidelineText = rule.guidelines.length
+                    ? ` | 規範：${rule.guidelines.join('；')}`
+                    : '';
+                prompt += `- ${rule.tag}${coreText}${mustKeepText}${guidelineText}\n`;
+            });
+            prompt += '\n';
+        }
+
         // 加入額外規範
         prompt += `## ⚠️ 參考圖一致性規範
 
@@ -101,6 +118,10 @@ ${productRefs.map(r => `   - 使用 \`<${r.name || '商品'}>\` 指代該商品`
    - 每個場景需輸出 \`charactersUsed\`（如 ["<Alice>"]）
    - 每個場景需輸出 \`productsUsed\`（如 ["<iPhone>"]）
    - 每個場景需輸出 \`changeFromPrev\`（若為第一場可填 "N/A"）
+
+7. **一致性合併優先序**：
+   - 若同角色/商品有多視角或多份參考，請以「合併後一致性規則」為最高準則
+   - 不可在 description 重新定義已合併的核心外觀特徵
 
 ✅ 正確範例：「Medium shot. <Alice> 在畫面左側，手持 <iPhone>，面向右方。柔和側光照射在 <iPhone> 的金屬邊框上。」
 ❌ 錯誤範例：「Alice（短髮女性）拿著黑色的 iPhone 16 Pro」

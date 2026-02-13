@@ -691,7 +691,7 @@ def main():
     strips = []
     
     # ===== 影片資料 =====
-${generateVideoDataSection(videoMappings, editingSuggestion, fps, transitionFrames)}
+${generateVideoDataSection(videoMappings, editingSuggestion)}
     
     # ===== 下載並添加影片 =====
     print("\\n--- 下載影片 ---")
@@ -712,8 +712,15 @@ ${generateVideoDataSection(videoMappings, editingSuggestion, fps, transitionFram
         if i == 0:
             frame_start = current_frame
         else:
-            # 重疊：下一個片段提前 TRANSITION_FRAMES 幀開始
-            frame_start = current_frame - TRANSITION_FRAMES
+            prev_video = VIDEO_DATA[i-1]
+            prev_transition_type = prev_video.get("transition_type", "dissolve")
+            prev_transition_duration = float(prev_video.get("transition_duration", ${transitionDuration}))
+            if prev_transition_type in ["cut", "continuation"]:
+                overlap_frames = 0
+            else:
+                overlap_frames = max(1, int(prev_transition_duration * FPS))
+            # 依前一段的轉場時長決定重疊幀數
+            frame_start = current_frame - overlap_frames
         
         strip = add_movie_strip(
             seq_editor,
@@ -841,9 +848,7 @@ if __name__ == "__main__":
  */
 function generateVideoDataSection(
     videoMappings: VideoMapping[],
-    editingSuggestion?: EditingSuggestion,
-    fps: number = 30,
-    transitionFrames: number = 15
+    editingSuggestion?: EditingSuggestion
 ): string {
     type SceneEditSuggestionExtended = SceneEditSuggestion & {
         modifiers?: string[];
@@ -869,7 +874,10 @@ function generateVideoDataSection(
 
         // 轉場設定 (從場景的 transitionToNext 讀取)
         const transitionType = scene.transitionToNext?.type || 'dissolve';
-        const transitionDuration = scene.transitionToNext?.duration || 0.5;
+        const transitionDuration = sceneEditInfo?.transitionDuration
+            ?? editingSuggestion?.transitionDuration
+            ?? scene.transitionToNext?.duration
+            ?? 0.5;
 
         return `        {
             "name": "Scene_${scene.sceneNumber}",

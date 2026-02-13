@@ -11,6 +11,7 @@ import { createWriteStream, existsSync } from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
 import type { Scene } from '@/lib/types/storyboard';
+import type { EditingSuggestion, SceneEditSuggestion } from '@/lib/types/project';
 
 // 設定 FFmpeg 路径
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -22,6 +23,7 @@ interface RenderRequest {
   scenes: Scene[];
   projectTitle: string;
   includeSubtitles?: boolean;
+  editingSuggestion?: EditingSuggestion | null;
 }
 
 interface ProcessedScene {
@@ -29,6 +31,9 @@ interface ProcessedScene {
   duration: number;
   subtitle: string;
   isImage: boolean;
+  transitionType: string;
+  transitionDuration: number;
+  applyTransition: boolean;
 }
 
 /**
@@ -40,7 +45,7 @@ async function downloadFile(url: string, outputPath: string): Promise<void> {
     throw new Error(`下載失敗: ${url}`);
   }
   const fileStream = createWriteStream(outputPath);
-  await pipeline(response.body as any, fileStream);
+  await pipeline(response.body as unknown as NodeJS.ReadableStream, fileStream);
 }
 
 /**
@@ -66,6 +71,63 @@ async function imageToVideo(
       .on('error', (err) => reject(err))
       .run();
   });
+}
+
+async function trimVideo(
+  inputPath: string,
+  startSec: number,
+  durationSec: number,
+  outputPath: string
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .setStartTime(startSec)
+      .duration(durationSec)
+      .videoCodec('libx264')
+      .audioCodec('aac')
+      .outputOptions([
+        '-preset medium',
+        '-crf 23',
+        '-movflags +faststart',
+        '-pix_fmt yuv420p',
+      ])
+      .output(outputPath)
+      .on('end', () => resolve())
+      .on('error', (err) => reject(err))
+      .run();
+  });
+}
+
+function normalizeTransitionType(raw?: string): { type: string; applyTransition: boolean } {
+  const value = (raw || '').toLowerCase().trim();
+  if (!value) return { type: 'fade', applyTransition: true };
+
+  if (['cut', 'continuation', 'none'].includes(value)) {
+    return { type: 'fade', applyTransition: false };
+  }
+  if (['crossfade', 'dissolve', 'fade', 'gamma_cross', 'match_cut'].includes(value)) {
+    return { type: 'fade', applyTransition: true };
+  }
+  if (['wipe', 'wipeleft'].includes(value)) {
+    return { type: 'wipeleft', applyTransition: true };
+  }
+  if (['wiperight'].includes(value)) {
+    return { type: 'wiperight', applyTransition: true };
+  }
+  if (['slide', 'slideleft', 'push'].includes(value)) {
+    return { type: 'slideleft', applyTransition: true };
+  }
+  if (['slideright'].includes(value)) {
+    return { type: 'slideright', applyTransition: true };
+  }
+  if (['fade_black', 'diptoblack', 'diptoblack'].includes(value)) {
+    return { type: 'fadeblack', applyTransition: true };
+  }
+  if (['fade_white', 'diptowhite'].includes(value)) {
+    return { type: 'fadewhite', applyTransition: true };
+  }
+
+  return { type: 'fade', applyTransition: true };
 }
 
 /**
@@ -120,7 +182,7 @@ async function concatenateVideos(
 
     // 建構複雜過濾器（場景拼接 + 淡入淡出轉場）
     const filterComplex: string[] = [];
-    const transitionDuration = 0.5; // 轉場時長 0.5 秒
+    const fallbackTransitionDuration = 0.5;
 
     scenes.forEach((scene, index) => {
       // 為每個場景加入 scale 確保尺寸一致
@@ -129,14 +191,25 @@ async function concatenateVideos(
 
     // 建構轉場鏈
     let currentLabel = 'v0';
+    let cumulativeDuration = scenes[0]?.duration || 0;
     for (let i = 1; i < scenes.length; i++) {
       const nextLabel = i === scenes.length - 1 ? 'outv' : `v${i}tmp`;
+      const prevScene = scenes[i - 1];
+      const nextScene = scenes[i];
+      const baseDuration = prevScene.applyTransition
+        ? prevScene.transitionDuration
+        : 0.01;
+      const transitionDuration = Math.max(
+        0.01,
+        Math.min(baseDuration || fallbackTransitionDuration, prevScene.duration * 0.45, nextScene.duration * 0.45)
+      );
+      const offset = Math.max(0.01, cumulativeDuration - transitionDuration);
 
-      // xfade 轉場效果
       filterComplex.push(
-        `[${currentLabel}][v${i}]xfade=transition=fade:duration=${transitionDuration}:offset=${scenes.slice(0, i).reduce((sum, s) => sum + s.duration, 0) - transitionDuration}[${nextLabel}]`
+        `[${currentLabel}][v${i}]xfade=transition=${prevScene.transitionType}:duration=${transitionDuration.toFixed(3)}:offset=${offset.toFixed(3)}[${nextLabel}]`
       );
 
+      cumulativeDuration = cumulativeDuration + nextScene.duration - transitionDuration;
       currentLabel = nextLabel;
     }
 
@@ -186,7 +259,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: RenderRequest = await request.json();
-    const { projectId, scenes, projectTitle, includeSubtitles = true } = body;
+    const { projectId, scenes, includeSubtitles = true, editingSuggestion } = body;
 
     if (!scenes || scenes.length === 0) {
       return NextResponse.json(
@@ -199,6 +272,10 @@ export async function POST(request: NextRequest) {
     const renderableScenes = scenes.filter(
       scene => scene.generatedVideo?.url || scene.generatedImage?.url
     );
+    const suggestionMap = new Map<string, SceneEditSuggestion>(
+      (editingSuggestion?.scenes || []).map(scene => [scene.sceneId, scene])
+    );
+    const globalTransitionDuration = Number(editingSuggestion?.transitionDuration);
 
     if (renderableScenes.length === 0) {
       return NextResponse.json(
@@ -226,18 +303,40 @@ export async function POST(request: NextRequest) {
       const sceneIndex = i + 1;
 
       if (scene.generatedVideo?.url) {
+        const sceneSuggestion = suggestionMap.get(scene.id);
+        const inPointRaw = Number(sceneSuggestion?.inPoint);
+        const outPointRaw = Number(sceneSuggestion?.outPoint);
+        const inPoint = Number.isFinite(inPointRaw) ? Math.max(0, inPointRaw) : 0;
+        const outPoint = Number.isFinite(outPointRaw) && outPointRaw > inPoint
+          ? outPointRaw
+          : scene.duration;
+        const effectiveDuration = Math.max(0.3, outPoint - inPoint);
+        const transitionSource = sceneSuggestion?.transition || scene.transitionToNext?.type || 'dissolve';
+        const transitionDurationRaw = Number(sceneSuggestion?.transitionDuration ?? scene.transitionToNext?.duration ?? globalTransitionDuration ?? 0.5);
+        const transitionDuration = Number.isFinite(transitionDurationRaw) ? Math.max(0.1, Math.min(2, transitionDurationRaw)) : 0.5;
+        const transitionConfig = normalizeTransitionType(transitionSource);
+
         // 處理影片
+        const sourceVideoPath = path.join(tempDir, `scene-${sceneIndex}-source.mp4`);
         const videoPath = path.join(tempDir, `scene-${sceneIndex}.mp4`);
         console.log(`[FFmpeg] 下載影片 ${sceneIndex}/${renderableScenes.length}`);
-        await downloadFile(scene.generatedVideo.url, videoPath);
+        await downloadFile(scene.generatedVideo.url, sourceVideoPath);
+        await trimVideo(sourceVideoPath, inPoint, effectiveDuration, videoPath);
+        await unlink(sourceVideoPath).catch(() => undefined);
 
         processedScenes.push({
           path: videoPath,
-          duration: scene.duration,
-          subtitle: scene.subtitles || scene.description || '',
+          duration: effectiveDuration,
+          subtitle: scene.dialogue || scene.description || '',
           isImage: false,
+          transitionType: transitionConfig.type,
+          transitionDuration,
+          applyTransition: transitionConfig.applyTransition,
         });
       } else if (scene.generatedImage?.url) {
+        const transitionConfig = normalizeTransitionType(scene.transitionToNext?.type || 'dissolve');
+        const transitionDurationRaw = Number(scene.transitionToNext?.duration ?? globalTransitionDuration ?? 0.5);
+        const transitionDuration = Number.isFinite(transitionDurationRaw) ? Math.max(0.1, Math.min(2, transitionDurationRaw)) : 0.5;
         // 處理圖片 -> 轉換為影片
         const imagePath = path.join(tempDir, `scene-${sceneIndex}.jpg`);
         const videoPath = path.join(tempDir, `scene-${sceneIndex}.mp4`);
@@ -251,8 +350,11 @@ export async function POST(request: NextRequest) {
         processedScenes.push({
           path: videoPath,
           duration: scene.duration,
-          subtitle: scene.subtitles || scene.description || '',
+          subtitle: scene.dialogue || scene.description || '',
           isImage: true,
+          transitionType: transitionConfig.type,
+          transitionDuration,
+          applyTransition: transitionConfig.applyTransition,
         });
       }
     }

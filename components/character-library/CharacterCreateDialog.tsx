@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { X, Plus, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fal } from '@fal-ai/client';
-import { apiKeyStorage } from '@/lib/db/local-storage';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
 
 interface CharacterCreateDialogProps {
@@ -197,8 +196,6 @@ export function CharacterCreateDialog({
     }
 
     try {
-      const keys = apiKeyStorage.getAll();
-      const apiKey = keys.openrouter || localStorage.getItem('openrouter_api_key') || undefined;
       const response = await fetch('/api/openrouter/generate-character-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -206,7 +203,6 @@ export function CharacterCreateDialog({
           name: name.trim(),
           type,
           views,
-          apiKey,
         }),
       });
 

@@ -1,51 +1,49 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useProjectStore } from '@/stores/project-store';
-import { apiKeyStorage } from '@/lib/db/local-storage';
 import { StoryPromptInput } from '@/components/storyboard/StoryPromptInput';
 import { StoryboardTable } from '@/components/storyboard/StoryboardTable';
+import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator';
 import { Scene, Storyboard, StoryboardGenerationResponse, ProjectReference } from '@/lib/types/storyboard';
 import { DEFAULT_STYLE_PROFILE_ID } from '@/lib/constants/style-profiles';
-import { ArrowLeft, Settings } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
 export default function StoryboardPage() {
   const params = useParams();
-  const router = useRouter();
   const projectId = params.projectId as string;
 
   const { currentProject, setCurrentProject, updateProject } = useProjectStore();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
   useEffect(() => {
     setCurrentProject(projectId);
-
-    // 載入 API 金鑰
-    const keys = apiKeyStorage.getAll();
-    if (keys.openrouter) {
-      setApiKey(keys.openrouter);
-    } else {
-      setShowApiKeyInput(true);
-    }
   }, [projectId, setCurrentProject]);
 
-  const handleGenerate = async (prompt: string, templateId: string, references: ProjectReference[]) => {
+  const handleGenerate = async (
+    prompt: string,
+    templateId: string,
+    references: ProjectReference[],
+    targetDurationSec: number
+  ) => {
     setIsGenerating(true);
 
     try {
       console.log('發送請求到:', '/api/openrouter/generate-storyboard');
-      // 這裡傳入 apiKey 為空字串時，後端會嘗試讀取環境變數
-      console.log('請求參數:', { prompt: prompt.substring(0, 50) + '...', templateId, refsCount: references.length, hasApiKey: !!apiKey });
+      console.log('請求參數:', {
+        prompt: prompt.substring(0, 50) + '...',
+        templateId,
+        refsCount: references.length,
+        targetDurationSec
+      });
 
       const response = await fetch('/api/openrouter/generate-storyboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userPrompt: prompt, templateId, apiKey, references }),
+        body: JSON.stringify({ userPrompt: prompt, templateId, references, targetDurationSec }),
       });
 
       if (!response.ok) {
@@ -93,7 +91,7 @@ export default function StoryboardPage() {
       alert(`成功生成 ${scenes.length} 個場景的分鏡腳本！`);
     } catch (error) {
       console.error('生成錯誤:', error);
-      alert(error instanceof Error ? error.message : '生成失敗，請檢查 API 金鑰和網路連線');
+      alert(error instanceof Error ? error.message : '生成失敗，請檢查服務設定與網路連線');
     } finally {
       setIsGenerating(false);
     }
@@ -131,12 +129,6 @@ export default function StoryboardPage() {
     });
   };
 
-  const handleSaveApiKey = () => {
-    apiKeyStorage.set({ openrouter: apiKey });
-    setShowApiKeyInput(false);
-    alert('API 金鑰已保存');
-  };
-
   if (!currentProject) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -163,42 +155,19 @@ export default function StoryboardPage() {
               </div>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              API 設定
-            </Button>
+            <div />
           </div>
         </div>
       </header>
 
+      <ProjectStepNavigator
+        projectId={projectId}
+        project={currentProject}
+        currentStep="storyboard"
+      />
+
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-6">
-          {/* API 金鑰設定 */}
-          {showApiKeyInput && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-              <h3 className="font-semibold mb-3">OpenRouter API 金鑰設定</h3>
-              <div className="flex gap-3">
-                <input
-                  type="password"
-                  className="flex-1 px-3 py-2 border rounded-lg bg-white dark:bg-slate-800"
-                  placeholder="sk-or-v1-..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                />
-                <Button onClick={handleSaveApiKey}>
-                  保存
-                </Button>
-              </div>
-              <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
-                金鑰將保存在瀏覽器本機，不會上傳到伺服器
-              </p>
-            </div>
-          )}
-
           {/* 故事輸入 */}
           <StoryPromptInput
             onGenerate={handleGenerate}

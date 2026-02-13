@@ -4,17 +4,20 @@ import { useState } from 'react';
 import { Play, Download, Loader2, CheckCircle2, AlertCircle, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Storyboard } from '@/lib/types/storyboard';
+import type { EditingSuggestion } from '@/lib/types/project';
 
 interface FFmpegRendererProps {
   projectId: string;
   projectName: string;
   storyboard: Storyboard;
+  editingSuggestion?: EditingSuggestion | null;
 }
 
 export function FFmpegRenderer({
   projectId,
   projectName,
   storyboard,
+  editingSuggestion,
 }: FFmpegRendererProps) {
   const [isRendering, setIsRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState(0);
@@ -54,6 +57,7 @@ export function FFmpegRenderer({
           scenes,
           projectTitle: projectName,
           includeSubtitles,
+          editingSuggestion,
         }),
       });
 

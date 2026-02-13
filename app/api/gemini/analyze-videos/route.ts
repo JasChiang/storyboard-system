@@ -8,14 +8,19 @@ export async function POST(request: NextRequest) {
         const body = await request.json() as {
             uploadedFiles: UploadedFile[];
             storyboard: Storyboard;
-            apiKey?: string;
         };
+        if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
+            return NextResponse.json(
+                { error: 'Client-provided apiKey is not allowed' },
+                { status: 400 }
+            );
+        }
         const { uploadedFiles, storyboard } = body;
-        const apiKey = body.apiKey || process.env.GEMINI_API_KEY;
+        const apiKey = process.env.GEMINI_API_KEY;
 
         if (!uploadedFiles || !storyboard || !apiKey) {
             return NextResponse.json(
-                { error: 'Missing required fields (uploadedFiles, storyboard, or apiKey)' },
+                { error: 'Missing required fields (uploadedFiles, storyboard) or server GEMINI_API_KEY is not set' },
                 { status: 400 }
             );
         }

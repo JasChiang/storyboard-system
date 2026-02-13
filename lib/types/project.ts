@@ -20,6 +20,7 @@ export interface EditingSuggestion {
   scenes: SceneEditSuggestion[];
   timeline: TimelineMarker[];
   audioNotes: string;
+  transitionDuration?: number;
 }
 
 export interface SceneEditSuggestion {
@@ -29,6 +30,9 @@ export interface SceneEditSuggestion {
   outPoint: number;             // 出點 (秒)
   transition: string;           // 轉場效果
   effects: string[];            // 視覺效果列表
+  modifiers?: string[];         // Blender 調色修飾器（可選）
+  speedFactor?: number;         // 速度倍率（1.0 = 正常）
+  transitionDuration?: number;  // 此場景到下一場景的轉場時長（秒）
 }
 
 export interface TimelineMarker {

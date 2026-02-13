@@ -19,6 +19,13 @@ interface StructuredReferenceAnalysis {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
+        if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
+            return NextResponse.json(
+                { success: false, error: 'Client-provided apiKey is not allowed' },
+                { status: 400 }
+            );
+        }
+
         const { imageBase64, angle, type, userNote } = body;
 
         if (!imageBase64) {
@@ -28,12 +35,11 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Get API key from body or env
-        const apiKey = body.apiKey || process.env.OPENROUTER_API_KEY;
+        const apiKey = process.env.OPENROUTER_API_KEY;
 
         if (!apiKey) {
             return NextResponse.json(
-                { success: false, error: '未設定 OpenRouter API Key' },
+                { success: false, error: '伺服器未設定 OPENROUTER_API_KEY' },
                 { status: 500 }
             );
         }

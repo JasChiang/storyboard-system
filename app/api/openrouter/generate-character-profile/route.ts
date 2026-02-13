@@ -4,8 +4,15 @@ import { generateCharacterProfile } from '@/lib/api/openrouter';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
+      return NextResponse.json(
+        { error: 'Client-provided apiKey is not allowed' },
+        { status: 400 }
+      );
+    }
+
     const { name, type, views } = body;
-    const apiKey = body.apiKey || process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!name || !type || !Array.isArray(views) || views.length === 0) {
       return NextResponse.json(
@@ -16,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: '缺少 OpenRouter API Key' },
+        { error: '伺服器未設定 OPENROUTER_API_KEY' },
         { status: 500 }
       );
     }

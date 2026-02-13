@@ -2,13 +2,16 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Sparkles, Grid3x3, List } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Sparkles, Grid3x3, List } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useProjectStore } from '@/stores/project-store';
+import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator';
 import { ImageGenerator } from '@/components/image-generation/ImageGenerator';
 import { BatchImageGenerator } from '@/components/image-generation/BatchImageGenerator';
 import { StyleProfileSelector } from '@/components/image-generation/StyleProfileSelector';
 import { DEFAULT_STYLE_PROFILE_ID, findStyleProfileById } from '@/lib/constants/style-profiles';
+import { getWorkflowProgress } from '@/lib/project/workflow';
 import type { StyleProfile } from '@/lib/types/storyboard';
 
 export default function ImagesPage() {
@@ -34,6 +37,7 @@ export default function ImagesPage() {
   }, [currentProject?.storyboard]);
 
   const scenes = currentProject?.storyboard?.scenes || [];
+  const progress = getWorkflowProgress(currentProject);
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
   const selectedSceneIndex = scenes.findIndex(s => s.id === selectedSceneId);
   const previousScene = selectedSceneIndex > 0 ? scenes[selectedSceneIndex - 1] : null;
@@ -206,6 +210,12 @@ export default function ImagesPage() {
         </div>
       </header>
 
+      <ProjectStepNavigator
+        projectId={projectId}
+        project={currentProject}
+        currentStep="images"
+      />
+
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-3xl mx-auto mb-6">
           <StyleProfileSelector
@@ -297,11 +307,15 @@ export default function ImagesPage() {
                     {/* 首幀 */}
                     <div className="aspect-video bg-slate-100 dark:bg-slate-800 rounded overflow-hidden">
                       {scene.generatedImage ? (
-                        <img
-                          src={scene.generatedImage.url}
-                          alt={`Scene ${scene.sceneNumber}`}
-                          className="w-full h-full object-cover"
-                        />
+                        <div className="relative w-full h-full">
+                          <Image
+                            src={scene.generatedImage.url}
+                            alt={`Scene ${scene.sceneNumber}`}
+                            fill
+                            sizes="(max-width: 1024px) 33vw, 240px"
+                            className="object-cover"
+                          />
+                        </div>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <Sparkles className="w-6 h-6 text-slate-300 dark:text-slate-700" />
@@ -317,11 +331,15 @@ export default function ImagesPage() {
                           尾幀
                         </p>
                         <div className="aspect-video bg-slate-100 dark:bg-slate-800 rounded overflow-hidden">
-                          <img
-                            src={scene.generatedEndFrame.url}
-                            alt={`Scene ${scene.sceneNumber} End Frame`}
-                            className="w-full h-full object-cover"
-                          />
+                          <div className="relative w-full h-full">
+                            <Image
+                              src={scene.generatedEndFrame.url}
+                              alt={`Scene ${scene.sceneNumber} End Frame`}
+                              fill
+                              sizes="(max-width: 1024px) 33vw, 240px"
+                              className="object-cover"
+                            />
+                          </div>
                         </div>
                       </div>
                     )}
@@ -343,6 +361,37 @@ export default function ImagesPage() {
           </div>
         )}
       </main>
+
+      <div className="container mx-auto px-4 pb-8">
+        <div className="max-w-6xl mx-auto flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-5">
+          <Link
+            href={`/project/${projectId}/storyboard`}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            上一步：分鏡腳本
+          </Link>
+
+          {progress.hasImages ? (
+            <Link
+              href={`/project/${projectId}/videos`}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-medium text-white transition-colors"
+            >
+              下一步：生成影片
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          ) : (
+            <button
+              disabled
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-200 dark:bg-slate-700 px-4 py-2 text-sm font-medium text-slate-500 dark:text-slate-400 cursor-not-allowed"
+              title="請先生成至少一個場景圖片"
+            >
+              下一步：生成影片
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
     </>
   );
 }
