@@ -61,6 +61,7 @@ export interface Scene {
     url: string;
     model: 'kling' | 'seedance';
     prompt: string;
+    durationSeconds?: number;
     timestamp: string;
   };
 }

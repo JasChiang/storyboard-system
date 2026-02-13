@@ -36,7 +36,8 @@ export default function VideosPage() {
     videoUrl: string,
     motionPrompt: string,
     composedPrompt: string,
-    model: VideoModel
+    model: VideoModel,
+    durationSeconds: number
   ) => {
     if (!currentProject?.storyboard) return;
 
@@ -48,6 +49,7 @@ export default function VideosPage() {
             url: videoUrl,
             model,
             prompt: composedPrompt,
+            durationSeconds,
             timestamp: new Date().toISOString(),
           },
           motionPrompt,
@@ -264,8 +266,8 @@ export default function VideosPage() {
                     onPromptDraftChanged={(draftPrompt, notes) =>
                       handleVideoPromptDraftChanged(selectedScene.id, draftPrompt, notes)
                     }
-                    onVideoGenerated={(url, motionPrompt, composedPrompt, model) =>
-                      handleVideoGenerated(selectedScene.id, url, motionPrompt, composedPrompt, model)
+                    onVideoGenerated={(url, motionPrompt, composedPrompt, model, durationSeconds) =>
+                      handleVideoGenerated(selectedScene.id, url, motionPrompt, composedPrompt, model, durationSeconds)
                     }
                   />
                 </div>

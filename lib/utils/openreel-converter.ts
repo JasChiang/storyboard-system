@@ -371,18 +371,36 @@ export function convertToOpenReelProjectFile(
     const mediaId = `media-${scene.id}`;
     const clipId = `clip-${scene.id}`;
     const sceneSuggestion = sceneSuggestionMap.get(scene.id);
+    const sceneBaseDuration = clampDuration(scene.duration, 2);
+    const isVideo = !!scene.generatedVideo?.url;
+    const knownVideoDuration = Number(scene.generatedVideo?.durationSeconds);
+    const hasKnownVideoDuration = isVideo && Number.isFinite(knownVideoDuration) && knownVideoDuration > 0;
+    const mediaDuration = isVideo
+      ? (hasKnownVideoDuration ? knownVideoDuration : sceneBaseDuration)
+      : sceneBaseDuration;
     const rawInPoint = Number(sceneSuggestion?.inPoint);
     const rawOutPoint = Number(sceneSuggestion?.outPoint);
-    const isValidInOut = Number.isFinite(rawInPoint) && Number.isFinite(rawOutPoint) && rawOutPoint > rawInPoint;
-    const inPoint = isValidInOut ? Math.max(0, rawInPoint) : 0;
-    const outPoint = isValidInOut ? rawOutPoint : clampDuration(scene.duration, 2);
-    const duration = clampDuration(outPoint - inPoint, clampDuration(scene.duration, 2));
+    // Guardrail: 只有在「已知素材實際長度」時才套用 AI in/out，避免超長 in/out 導致黑畫面。
+    // 對舊資料（無 durationSeconds）採安全全段策略。
+    const isValidInOut =
+      isVideo &&
+      hasKnownVideoDuration &&
+      Number.isFinite(rawInPoint) &&
+      Number.isFinite(rawOutPoint) &&
+      rawInPoint >= 0 &&
+      rawOutPoint > rawInPoint &&
+      rawOutPoint <= mediaDuration;
+    const inPoint = isValidInOut ? clampRange(rawInPoint, 0, Math.max(0, mediaDuration - 0.1), 0) : 0;
+    const defaultOutPoint = clampRange(sceneBaseDuration, 0.1, mediaDuration, mediaDuration);
+    const outPoint = isValidInOut
+      ? clampRange(rawOutPoint, inPoint + 0.1, mediaDuration, defaultOutPoint)
+      : defaultOutPoint;
+    const duration = clampDuration(outPoint - inPoint, defaultOutPoint);
     const speed = clampRange(Number(sceneSuggestion?.speedFactor), 0.25, 3, 1);
     const effects = buildOpenReelEffects(sceneSuggestion?.effects || []);
 
     const rawSrc = getSceneSource(scene);
     const src = rawSrc ? buildProxyUrl(rawSrc) : "";
-    const isVideo = !!scene.generatedVideo?.url;
     const type = isVideo ? 'video' : 'image';
 
     const rawThumbnail = scene.generatedImage?.url ?? (!isVideo ? rawSrc || null : null);
@@ -395,7 +413,7 @@ export function convertToOpenReelProjectFile(
       fileHandle: null,
       blob: null,
       metadata: {
-        duration,
+        duration: mediaDuration,
         width,
         height,
         frameRate: fps,

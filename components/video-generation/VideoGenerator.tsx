@@ -25,7 +25,8 @@ interface VideoGeneratorProps {
         videoUrl: string,
         motionPrompt: string,
         composedPrompt: string,
-        model: VideoModel
+        model: VideoModel,
+        durationSeconds: number
     ) => void;
 }
 
@@ -189,6 +190,7 @@ export function VideoGenerator({
         setIsGenerating(true);
 
         try {
+            const requestedDurationSeconds = model === 'kling' ? klingDuration : seedanceDuration;
             const rawPrompt = promptMode === 'ai_composer'
                 ? (aiComposedPrompt.trim() || await composePromptWithAI())
                 : buildVideoPrompt();
@@ -261,7 +263,7 @@ export function VideoGenerator({
             const requestId = data.request_id;
             const endpoint = data.endpoint;
 
-            await pollStatus(requestId, endpoint, composedPrompt, taskId);
+            await pollStatus(requestId, endpoint, composedPrompt, taskId, requestedDurationSeconds);
         } catch (error) {
             console.error('Generate error:', error);
             alert(error instanceof Error ? error.message : '生成失敗');
@@ -274,7 +276,8 @@ export function VideoGenerator({
         requestId: string,
         endpoint: string,
         composedPrompt: string,
-        taskId: string
+        taskId: string,
+        durationSeconds: number
     ) => {
         const maxAttempts = 120; // 最多等 10 分鐘（影片生成較慢）
         let attempts = 0;
@@ -306,7 +309,7 @@ export function VideoGenerator({
                             outputUrl: videoUrl,
                         }),
                     });
-                    onVideoGenerated(videoUrl, motionPrompt, composedPrompt, model);
+                    onVideoGenerated(videoUrl, motionPrompt, composedPrompt, model, durationSeconds);
                 }
                 return;
             } else if (data.status === 'FAILED') {
