@@ -103,6 +103,12 @@ interface OpenReelSubtitle {
     fontSize: number;
     color: string;
     backgroundColor: string;
+    strokeColor?: string;
+    strokeWidth?: number;
+    shadowColor?: string;
+    shadowBlur?: number;
+    shadowOffsetX?: number;
+    shadowOffsetY?: number;
     position: 'top' | 'center' | 'bottom';
   };
 }
@@ -120,6 +126,12 @@ interface OpenReelTextClip {
     fontStyle: 'normal' | 'italic';
     color: string;
     backgroundColor?: string;
+    strokeColor?: string;
+    strokeWidth?: number;
+    shadowColor?: string;
+    shadowBlur?: number;
+    shadowOffsetX?: number;
+    shadowOffsetY?: number;
     textAlign: 'left' | 'center' | 'right' | 'justify';
     verticalAlign: 'top' | 'middle' | 'bottom';
     lineHeight: number;
@@ -177,6 +189,13 @@ const DEFAULT_SETTINGS: OpenReelProjectSettings = {
 
 const DEFAULT_TRANSITION_DURATION = 0.5;
 const DEFAULT_APP_ORIGIN = "http://localhost:3000";
+const DEFAULT_CAPTION_BG_COLOR = "transparent";
+const DEFAULT_CAPTION_STROKE_COLOR = "#000000";
+const DEFAULT_CAPTION_STROKE_WIDTH = 2;
+const DEFAULT_CAPTION_SHADOW_COLOR = "rgba(0, 0, 0, 0.55)";
+const DEFAULT_CAPTION_SHADOW_BLUR = 6;
+const DEFAULT_CAPTION_SHADOW_OFFSET_X = 0;
+const DEFAULT_CAPTION_SHADOW_OFFSET_Y = 2;
 
 function generateId(prefix: string) {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -453,7 +472,7 @@ export function convertToOpenReelProjectFile(
 
     const subtitleText = scene.dialogue || scene.description;
     if (subtitleText) {
-      const SUBTITLE_FONT_SIZE = 42;
+      const SUBTITLE_FONT_SIZE = 60;
       const wrappedText = wrapText(subtitleText, width, SUBTITLE_FONT_SIZE);
       const subtitleId = `subtitle-${scene.id}`;
       subtitles.push({
@@ -465,7 +484,13 @@ export function convertToOpenReelProjectFile(
           fontFamily: 'Inter',
           fontSize: SUBTITLE_FONT_SIZE,
           color: '#FFFFFF',
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          backgroundColor: DEFAULT_CAPTION_BG_COLOR,
+          strokeColor: DEFAULT_CAPTION_STROKE_COLOR,
+          strokeWidth: DEFAULT_CAPTION_STROKE_WIDTH,
+          shadowColor: DEFAULT_CAPTION_SHADOW_COLOR,
+          shadowBlur: DEFAULT_CAPTION_SHADOW_BLUR,
+          shadowOffsetX: DEFAULT_CAPTION_SHADOW_OFFSET_X,
+          shadowOffsetY: DEFAULT_CAPTION_SHADOW_OFFSET_Y,
           position: 'bottom',
         },
       });
@@ -486,14 +511,20 @@ export function convertToOpenReelProjectFile(
           fontWeight: 600,
           fontStyle: 'normal',
           color: '#FFFFFF',
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          backgroundColor: DEFAULT_CAPTION_BG_COLOR,
+          strokeColor: DEFAULT_CAPTION_STROKE_COLOR,
+          strokeWidth: DEFAULT_CAPTION_STROKE_WIDTH,
+          shadowColor: DEFAULT_CAPTION_SHADOW_COLOR,
+          shadowBlur: DEFAULT_CAPTION_SHADOW_BLUR,
+          shadowOffsetX: DEFAULT_CAPTION_SHADOW_OFFSET_X,
+          shadowOffsetY: DEFAULT_CAPTION_SHADOW_OFFSET_Y,
           textAlign: 'center',
           verticalAlign: 'bottom',
           lineHeight: 1.2,
           letterSpacing: 0,
         },
         transform: {
-          position: { x: 0.5, y: 0.85 },
+          position: { x: 0.5, y: 0.94 },
           scale: { x: 1, y: 1 },
           rotation: 0,
           anchor: { x: 0.5, y: 0.5 },
@@ -545,6 +576,22 @@ export function convertToOpenReelProjectFile(
     });
   }
 
+  // Keep caption track as overlay layer above video.
+  // OpenReel uses track ordering for layer stack in timeline/editor UX.
+  if (captionsTrackId) {
+    tracks.push({
+      id: captionsTrackId,
+      type: 'text',
+      name: 'Captions Overlay',
+      clips: [],
+      transitions: [],
+      locked: false,
+      hidden: false,
+      muted: false,
+      solo: false,
+    });
+  }
+
   tracks.push({
     id: videoTrackId,
     type: 'video',
@@ -556,20 +603,6 @@ export function convertToOpenReelProjectFile(
     muted: false,
     solo: false,
   });
-
-  if (captionsTrackId) {
-    tracks.push({
-      id: captionsTrackId,
-      type: 'text',
-      name: 'Captions',
-      clips: [],
-      transitions: [],
-      locked: false,
-      hidden: false,
-      muted: false,
-      solo: false,
-    });
-  }
 
   const timeline: OpenReelTimeline = {
     tracks,
