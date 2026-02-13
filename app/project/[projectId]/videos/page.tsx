@@ -230,6 +230,7 @@ export default function VideosPage() {
                     </div>
                   )}
                   <VideoGenerator
+                    projectId={projectId}
                     scene={selectedScene}
                     previousEndFrameUrl={previousEndFrameUrl}
                     projectReferences={currentProject.storyboard?.projectReferences}

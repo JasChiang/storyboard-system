@@ -7,17 +7,20 @@ import { MotionPromptEditor } from './MotionPromptEditor';
 import { VideoPreview } from './VideoPreview';
 import type { Scene, ProjectReference } from '@/lib/types/storyboard';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
+import { buildKlingPrompt } from '@/lib/video/adapters/kling';
+import { buildSeedancePrompt } from '@/lib/video/adapters/seedance';
 
 type VideoModel = 'kling' | 'seedance';
 
 interface VideoGeneratorProps {
+    projectId: string;
     scene: Scene;
     previousEndFrameUrl?: string; // 當前一場景的 continuation 轉場時，傳入其 endFrame URL
     projectReferences?: ProjectReference[];
     onVideoGenerated: (videoUrl: string, prompt: string, model: VideoModel) => void;
 }
 
-export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences = [], onVideoGenerated }: VideoGeneratorProps) {
+export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectReferences = [], onVideoGenerated }: VideoGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [model, setModel] = useState<VideoModel>('kling');
     // 優先使用 AI 生成的運鏡指令，如果沒有則使用已儲存的 motionPrompt
@@ -71,101 +74,11 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
         }
     }, [scene.id, scopedRefs]);
 
-    const buildSharedConstraints = () => {
-        const mustKeepLines = scopedRefs
-            .filter(ref => ref.mustKeepFeatures?.length)
-            .map(ref => {
-                const tag = ref.name ? `<${ref.name}>` : ref.type;
-                return `${tag}: ${ref.mustKeepFeatures!.join(', ')}`;
-            });
-        const identityCoreLines = scopedRefs
-            .filter(ref => ref.identityCore)
-            .map(ref => {
-                const tag = ref.name ? `<${ref.name}>` : ref.type;
-                return `${tag}: ${ref.identityCore}`;
-            });
-        const guidelineLines = scopedRefs
-            .filter(ref => ref.guidelines?.trim())
-            .map(ref => {
-                const tag = ref.name ? `<${ref.name}>` : ref.type;
-                return `${tag}: ${ref.guidelines!.trim()}`;
-            });
-
-        const identityParts: string[] = [];
-        if (identityCoreLines.length) {
-            identityParts.push(`Keep these identity cores fixed: ${identityCoreLines.join(' | ')}`);
-        }
-        if (mustKeepLines.length) {
-            identityParts.push(`Do not change these identity constraints: ${mustKeepLines.join(' | ')}`);
-        }
-        if (guidelineLines.length) {
-            identityParts.push(`Follow these guardrails: ${guidelineLines.join(' | ')}`);
-        }
-        const hasLockVisibleText = scopedRefs.some(
-            (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
-        );
-        const hasForbidNewText = scopedRefs.some(
-            (ref) => ref.ipProfile?.textLogoPolicy === 'forbid_new_text'
-        );
-
-        return {
-            hasEndFrame: !!scene.requiresEndFrame && !!scene.generatedEndFrame?.url,
-            identityConstraint: identityParts.length
-                ? identityParts.join(' ')
-                : 'Keep character/product identity, logo placement, and core geometry unchanged.',
-            hasLockVisibleText,
-            hasForbidNewText,
-        };
-    };
-
-    const buildKlingPrompt = () => {
-        const shared = buildSharedConstraints();
-        const sections = [
-            'Kling visual direction:',
-            'Use the start frame as the visual anchor. Keep composition stable and cinematic.',
-            shared.hasEndFrame
-                ? 'End-state target: match the provided end frame composition and identity.'
-                : 'No explicit end frame target; preserve identity consistency through the full shot.',
-            `Camera and motion directive: ${motionPrompt}`,
-            'Prioritize clean camera language (pan/dolly/tilt/zoom) and coherent subject movement.',
-            'Avoid temporal artifacts, warped logos, or text deformation during motion.',
-            shared.hasLockVisibleText
-                ? 'If text or logos are visible, keep spelling, shape, and placement exactly unchanged.'
-                : '',
-            shared.hasForbidNewText
-                ? 'Never invent new letters, numbers, logos, or package text during motion.'
-                : '',
-            shared.identityConstraint,
-        ];
-        return sections.filter(Boolean).join(' ');
-    };
-
-    const buildSeedancePrompt = () => {
-        const shared = buildSharedConstraints();
-        const sections = [
-            'Seedance scene direction:',
-            'Generate a smooth, story-driven motion sequence from the start frame.',
-            shared.hasEndFrame
-                ? 'End-state target: align final moment with the provided end frame.'
-                : 'No explicit end frame target; maintain narrative continuity within one shot.',
-            `Action beat: ${motionPrompt}`,
-            'Keep movement natural and readable, with clear subject intent and staging.',
-            'No audio is required; optimize for visual continuity and timing only.',
-            'Do not introduce new props, clothing changes, or logo/text mutations.',
-            shared.hasLockVisibleText
-                ? 'If text or logos are visible, keep spelling, shape, and placement exactly unchanged.'
-                : '',
-            shared.hasForbidNewText
-                ? 'Never invent new letters, numbers, logos, or package text during motion.'
-                : '',
-            shared.identityConstraint,
-        ];
-        return sections.filter(Boolean).join(' ');
-    };
-
     const buildVideoPrompt = () => {
-        if (model === 'kling') return buildKlingPrompt();
-        return buildSeedancePrompt();
+        if (model === 'kling') {
+            return buildKlingPrompt({ scene, motionPrompt, scopedRefs });
+        }
+        return buildSeedancePrompt({ scene, motionPrompt, scopedRefs });
     };
 
     const handleGenerate = async () => {
@@ -184,6 +97,21 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
 
         try {
             const composedPrompt = buildVideoPrompt();
+            const taskId = crypto.randomUUID();
+            await fetch('/api/workflow/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: taskId,
+                    projectId,
+                    sceneId: scene.id,
+                    stage: 'video',
+                    status: 'running',
+                    model,
+                    prompt: composedPrompt,
+                    inputUrl: previousEndFrameUrl || scene.generatedImage.url,
+                }),
+            });
             // Continuation 轉場邏輯：如果有 previousEndFrameUrl，使用它作為起始幀
             // 這讓影片生成能從前一場景的結束畫面開始，實現無縫銜接
             const startImageUrl = previousEndFrameUrl || scene.generatedImage.url;
@@ -208,6 +136,17 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
             const data = await response.json();
 
             if (!response.ok) {
+                if (taskId) {
+                    await fetch(`/api/workflow/tasks/${taskId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            status: 'failed',
+                            error: data.error || 'Generation failed',
+                            attempts: 1,
+                        }),
+                    });
+                }
                 throw new Error(data.error || 'Generation failed');
             }
             if (!data.endpoint) {
@@ -218,7 +157,7 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
             const requestId = data.request_id;
             const endpoint = data.endpoint;
 
-            await pollStatus(requestId, endpoint);
+            await pollStatus(requestId, endpoint, taskId);
         } catch (error) {
             console.error('Generate error:', error);
             alert(error instanceof Error ? error.message : '生成失敗');
@@ -229,7 +168,8 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
 
     const pollStatus = async (
         requestId: string,
-        endpoint: string
+        endpoint: string,
+        taskId: string
     ) => {
         const maxAttempts = 120; // 最多等 10 分鐘（影片生成較慢）
         let attempts = 0;
@@ -250,10 +190,27 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
             if (data.status === 'COMPLETED') {
                 const videoUrl = data.result.video?.url;
                 if (videoUrl) {
+                    await fetch(`/api/workflow/tasks/${taskId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            status: 'completed',
+                            outputUrl: videoUrl,
+                        }),
+                    });
                     onVideoGenerated(videoUrl, motionPrompt, model);
                 }
                 return;
             } else if (data.status === 'FAILED') {
+                await fetch(`/api/workflow/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status: 'failed',
+                        error: data.error || 'Generation failed',
+                        attempts: attempts + 1,
+                    }),
+                });
                 throw new Error(data.error || 'Generation failed');
             }
 

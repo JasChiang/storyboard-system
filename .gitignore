@@ -41,6 +41,7 @@ next-env.d.ts
 # temp
 /tmp
 /temp
+/.data
 
 # FFmpeg renders
 /public/renders

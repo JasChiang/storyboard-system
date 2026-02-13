@@ -1,0 +1,346 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import Database from 'better-sqlite3';
+import type { Project } from '@/lib/types/project';
+
+const DB_DIR = path.join(process.cwd(), '.data');
+const DB_PATH = path.join(DB_DIR, 'storyboard.sqlite');
+
+let db: Database.Database | null = null;
+
+type DbRow = Record<string, unknown>;
+
+function ensureDb() {
+  if (db) return db;
+
+  if (!fs.existsSync(DB_DIR)) {
+    fs.mkdirSync(DB_DIR, { recursive: true });
+  }
+
+  db = new Database(DB_PATH);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      storyboard_json TEXT,
+      blender_script TEXT,
+      editing_suggestions_json TEXT,
+      openreel_project_json TEXT,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS generation_tasks (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      scene_id TEXT,
+      stage TEXT NOT NULL,
+      status TEXT NOT NULL,
+      model TEXT,
+      prompt TEXT,
+      input_url TEXT,
+      output_url TEXT,
+      error TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      metadata_json TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS storyboard_qa_reports (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      storyboard_id TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      summary TEXT NOT NULL,
+      issues_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_generation_tasks_project_stage
+      ON generation_tasks(project_id, stage, status);
+
+    CREATE INDEX IF NOT EXISTS idx_qa_reports_project
+      ON storyboard_qa_reports(project_id, created_at DESC);
+  `);
+
+  return db;
+}
+
+function rowToProject(row: DbRow): Project {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    description: row.description ? String(row.description) : undefined,
+    storyboard: row.storyboard_json ? JSON.parse(String(row.storyboard_json)) : undefined,
+    blenderScript: row.blender_script ? String(row.blender_script) : undefined,
+    editingSuggestions: row.editing_suggestions_json ? JSON.parse(String(row.editing_suggestions_json)) : undefined,
+    openreelProjectJson: row.openreel_project_json ? String(row.openreel_project_json) : undefined,
+    status: String(row.status) as Project['status'],
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export const sqliteProjectRepo = {
+  getAll(): Project[] {
+    const conn = ensureDb();
+    const rows = conn.prepare('SELECT * FROM projects ORDER BY updated_at DESC').all();
+    return rows.map(rowToProject);
+  },
+
+  getById(id: string): Project | null {
+    const conn = ensureDb();
+    const row = conn.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+    return row ? rowToProject(row) : null;
+  },
+
+  create(project: Project): Project {
+    const conn = ensureDb();
+    conn.prepare(`
+      INSERT INTO projects (
+        id, name, description, storyboard_json, blender_script,
+        editing_suggestions_json, openreel_project_json, status,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      project.id,
+      project.name,
+      project.description ?? null,
+      project.storyboard ? JSON.stringify(project.storyboard) : null,
+      project.blenderScript ?? null,
+      project.editingSuggestions ? JSON.stringify(project.editingSuggestions) : null,
+      project.openreelProjectJson ?? null,
+      project.status,
+      project.createdAt,
+      project.updatedAt
+    );
+    return project;
+  },
+
+  update(id: string, updates: Partial<Project>): Project | null {
+    const existing = this.getById(id);
+    if (!existing) return null;
+
+    const merged: Project = {
+      ...existing,
+      ...updates,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const conn = ensureDb();
+    conn.prepare(`
+      UPDATE projects
+      SET name = ?,
+          description = ?,
+          storyboard_json = ?,
+          blender_script = ?,
+          editing_suggestions_json = ?,
+          openreel_project_json = ?,
+          status = ?,
+          updated_at = ?
+      WHERE id = ?
+    `).run(
+      merged.name,
+      merged.description ?? null,
+      merged.storyboard ? JSON.stringify(merged.storyboard) : null,
+      merged.blenderScript ?? null,
+      merged.editingSuggestions ? JSON.stringify(merged.editingSuggestions) : null,
+      merged.openreelProjectJson ?? null,
+      merged.status,
+      merged.updatedAt,
+      id
+    );
+
+    return merged;
+  },
+
+  delete(id: string): boolean {
+    const conn = ensureDb();
+    const result = conn.prepare('DELETE FROM projects WHERE id = ?').run(id);
+    return result.changes > 0;
+  },
+};
+
+export type GenerationTaskStage = 'image_start' | 'image_end' | 'video';
+export type GenerationTaskStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+export interface GenerationTask {
+  id: string;
+  projectId: string;
+  sceneId?: string;
+  stage: GenerationTaskStage;
+  status: GenerationTaskStatus;
+  model?: string;
+  prompt?: string;
+  inputUrl?: string;
+  outputUrl?: string;
+  error?: string;
+  attempts: number;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function rowToTask(row: DbRow): GenerationTask {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    sceneId: row.scene_id ? String(row.scene_id) : undefined,
+    stage: String(row.stage) as GenerationTaskStage,
+    status: String(row.status) as GenerationTaskStatus,
+    model: row.model ? String(row.model) : undefined,
+    prompt: row.prompt ? String(row.prompt) : undefined,
+    inputUrl: row.input_url ? String(row.input_url) : undefined,
+    outputUrl: row.output_url ? String(row.output_url) : undefined,
+    error: row.error ? String(row.error) : undefined,
+    attempts: Number(row.attempts || 0),
+    metadata: row.metadata_json ? JSON.parse(String(row.metadata_json)) : undefined,
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export const sqliteTaskRepo = {
+  create(task: Omit<GenerationTask, 'createdAt' | 'updatedAt' | 'attempts'> & { attempts?: number }): GenerationTask {
+    const now = new Date().toISOString();
+    const payload: GenerationTask = {
+      ...task,
+      attempts: task.attempts ?? 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const conn = ensureDb();
+    conn.prepare(`
+      INSERT INTO generation_tasks (
+        id, project_id, scene_id, stage, status, model, prompt,
+        input_url, output_url, error, attempts, metadata_json,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      payload.id,
+      payload.projectId,
+      payload.sceneId ?? null,
+      payload.stage,
+      payload.status,
+      payload.model ?? null,
+      payload.prompt ?? null,
+      payload.inputUrl ?? null,
+      payload.outputUrl ?? null,
+      payload.error ?? null,
+      payload.attempts,
+      payload.metadata ? JSON.stringify(payload.metadata) : null,
+      payload.createdAt,
+      payload.updatedAt
+    );
+
+    return payload;
+  },
+
+  update(id: string, updates: Partial<GenerationTask>): GenerationTask | null {
+    const conn = ensureDb();
+    const row = conn.prepare('SELECT * FROM generation_tasks WHERE id = ?').get(id);
+    if (!row) return null;
+
+    const current = rowToTask(row);
+    const merged: GenerationTask = {
+      ...current,
+      ...updates,
+      id,
+      updatedAt: new Date().toISOString(),
+      attempts: typeof updates.attempts === 'number' ? updates.attempts : current.attempts,
+    };
+
+    conn.prepare(`
+      UPDATE generation_tasks
+      SET project_id = ?, scene_id = ?, stage = ?, status = ?, model = ?, prompt = ?,
+          input_url = ?, output_url = ?, error = ?, attempts = ?, metadata_json = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      merged.projectId,
+      merged.sceneId ?? null,
+      merged.stage,
+      merged.status,
+      merged.model ?? null,
+      merged.prompt ?? null,
+      merged.inputUrl ?? null,
+      merged.outputUrl ?? null,
+      merged.error ?? null,
+      merged.attempts,
+      merged.metadata ? JSON.stringify(merged.metadata) : null,
+      merged.updatedAt,
+      id
+    );
+
+    return merged;
+  },
+
+  listByProject(projectId: string): GenerationTask[] {
+    const conn = ensureDb();
+    const rows = conn.prepare('SELECT * FROM generation_tasks WHERE project_id = ? ORDER BY created_at DESC').all(projectId);
+    return rows.map(rowToTask);
+  },
+};
+
+export interface StoryboardQaIssue {
+  sceneId?: string;
+  sceneNumber?: number;
+  severity: 'high' | 'medium' | 'low';
+  code: string;
+  message: string;
+}
+
+export interface StoryboardQaReport {
+  id: string;
+  projectId: string;
+  storyboardId: string;
+  score: number;
+  summary: string;
+  issues: StoryboardQaIssue[];
+  createdAt: string;
+}
+
+function rowToQaReport(row: DbRow): StoryboardQaReport {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    storyboardId: String(row.storyboard_id),
+    score: Number(row.score || 0),
+    summary: String(row.summary),
+    issues: JSON.parse(String(row.issues_json)),
+    createdAt: String(row.created_at),
+  };
+}
+
+export const sqliteQaRepo = {
+  create(report: StoryboardQaReport): StoryboardQaReport {
+    const conn = ensureDb();
+    conn.prepare(`
+      INSERT INTO storyboard_qa_reports (
+        id, project_id, storyboard_id, score, summary, issues_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      report.id,
+      report.projectId,
+      report.storyboardId,
+      report.score,
+      report.summary,
+      JSON.stringify(report.issues),
+      report.createdAt
+    );
+    return report;
+  },
+
+  getLatestByProject(projectId: string): StoryboardQaReport | null {
+    const conn = ensureDb();
+    const row = conn.prepare('SELECT * FROM storyboard_qa_reports WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    return row ? rowToQaReport(row) : null;
+  },
+};

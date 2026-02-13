@@ -127,6 +127,9 @@ ${productRefs.map(r => `   - 使用 \`<${r.name || '商品'}>\` 指代該商品`
    - 每個場景需輸出 \`charactersUsed\`（如 ["<Alice>"]）
    - 每個場景需輸出 \`productsUsed\`（如 ["<iPhone>"]）
    - 每個場景需輸出 \`changeFromPrev\`（若為第一場可填 "N/A"）
+   - 每個場景需輸出 \`shotIntent\`（一句話描述鏡頭在敘事上的任務）
+   - 每個場景需輸出 \`continuityAnchor\`（跨鏡頭必須維持的單一重點）
+   - 每個場景需輸出 \`requiredReferences\`（本鏡頭必須使用的標記陣列）
 
 7. **一致性合併優先序**：
    - 若同角色/商品有多視角或多份參考，請以「合併後一致性規則」為最高準則

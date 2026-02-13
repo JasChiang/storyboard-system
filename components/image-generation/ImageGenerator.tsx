@@ -9,6 +9,7 @@ import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/l
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 
 interface ImageGeneratorProps {
+    projectId: string;
     scene: Scene;
     onImageGenerated: (imageUrl: string, prompt: string, endFrameUrl?: string, endFramePrompt?: string) => void;
     projectReferences?: ProjectReference[];
@@ -17,6 +18,7 @@ interface ImageGeneratorProps {
 }
 
 export function ImageGenerator({
+    projectId,
     scene,
     onImageGenerated,
     projectReferences = [],
@@ -224,6 +226,25 @@ export function ImageGenerator({
 
         try {
             const prompt = buildImagePrompt(isEndFrame);
+            const taskId = crypto.randomUUID();
+            await fetch('/api/workflow/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: taskId,
+                    projectId,
+                    sceneId: scene.id,
+                    stage: isEndFrame ? 'image_end' : 'image_start',
+                    status: 'running',
+                    model: 'nano-banana',
+                    prompt,
+                    inputUrl: referenceImage || scene.generatedImage?.url || previousEndFrameUrl,
+                    metadata: {
+                        aspectRatio,
+                        resolution,
+                    },
+                }),
+            });
 
             // 呼叫生成 API
             const response = await fetch('/api/fal/generate-image', {
@@ -243,6 +264,14 @@ export function ImageGenerator({
             const data = await response.json();
 
             if (!response.ok) {
+                await fetch(`/api/workflow/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status: 'failed',
+                        error: data.error || 'Generation failed',
+                    }),
+                });
                 throw new Error(data.error || 'Generation failed');
             }
             if (!data.endpoint) {
@@ -253,7 +282,7 @@ export function ImageGenerator({
             const requestId = data.request_id;
             const endpoint = data.endpoint; // 從後端回傳的正確 endpoint
 
-            await pollStatus(requestId, endpoint, prompt, isEndFrame);
+            await pollStatus(requestId, endpoint, prompt, isEndFrame, taskId);
         } catch (error) {
             console.error('Generate error:', error);
             alert(error instanceof Error ? error.message : '生成失敗');
@@ -270,7 +299,8 @@ export function ImageGenerator({
         requestId: string,
         endpoint: string,
         prompt: string,
-        isEndFrame: boolean = false
+        isEndFrame: boolean = false,
+        taskId: string
     ) => {
         const maxAttempts = 60; // 最多等 5 分鐘
         let attempts = 0;
@@ -291,6 +321,14 @@ export function ImageGenerator({
             if (data.status === 'COMPLETED') {
                 const imageUrl = data.result.images[0]?.url;
                 if (imageUrl) {
+                    await fetch(`/api/workflow/tasks/${taskId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            status: 'completed',
+                            outputUrl: imageUrl,
+                        }),
+                    });
                     // 如果是尾幀，保留現有的首幀資訊
                     if (isEndFrame) {
                         onImageGenerated(
@@ -311,6 +349,15 @@ export function ImageGenerator({
                 }
                 return;
             } else if (data.status === 'FAILED') {
+                await fetch(`/api/workflow/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status: 'failed',
+                        error: data.error || 'Generation failed',
+                        attempts: attempts + 1,
+                    }),
+                });
                 throw new Error(data.error || 'Generation failed');
             }
 

@@ -6,7 +6,6 @@ import { useProjectStore } from '@/stores/project-store';
 import { ProjectCard } from '@/components/project/ProjectCard';
 import { CreateProjectDialog } from '@/components/project/CreateProjectDialog';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils'; // Assuming global util
 import Link from 'next/link';
 
 export default function Home() {

@@ -167,6 +167,12 @@ export async function generateStoryboardScript(
         dialogue: typeof scene.dialogue === 'string' ? scene.dialogue.trim() : '',
         duration: Number.isFinite(sceneDurationValue) ? sceneDurationValue : 3,
         notes: typeof scene.notes === 'string' ? scene.notes.trim() : '',
+        beatGoal: typeof scene.beatGoal === 'string' ? scene.beatGoal.trim() : '',
+        shotIntent: typeof scene.shotIntent === 'string' ? scene.shotIntent.trim() : '',
+        continuityAnchor: typeof scene.continuityAnchor === 'string' ? scene.continuityAnchor.trim() : '',
+        requiredReferences: Array.isArray(scene.requiredReferences)
+          ? scene.requiredReferences.filter((v): v is string => typeof v === 'string')
+          : [],
         charactersUsed: Array.isArray(scene.charactersUsed)
           ? scene.charactersUsed.filter((v): v is string => typeof v === 'string')
           : [],

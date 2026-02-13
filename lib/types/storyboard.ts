@@ -26,6 +26,10 @@ export interface Scene {
   dialogue: string;              // 對話/旁白
   duration: number;              // 時長建議 (秒)
   notes?: string;                // 備註
+  beatGoal?: string;             // 此鏡頭要完成的敘事目標
+  shotIntent?: string;           // 鏡頭意圖（情緒/資訊焦點）
+  continuityAnchor?: string;     // 跨鏡頭連續性的錨點（姿勢/構圖/道具狀態）
+  requiredReferences?: string[]; // 本鏡頭必用參考標記（如 ["<Alice>", "<ProductX>"]）
   changeFromPrev?: string;       // 相對前一場景的變化摘要（用於連貫生成）
   charactersUsed?: string[];     // 本場景使用的角色標記（如 <Alice>）
   productsUsed?: string[];       // 本場景使用的商品標記（如 <iPhone>）

@@ -82,13 +82,29 @@ export default function StoryboardPage() {
         updatedAt: new Date().toISOString(),
       };
 
+      // QA Gate：先驗證再寫入，避免後續圖片/影片流程吃到不穩定腳本
+      const qaResponse = await fetch('/api/workflow/qa/validate-storyboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, storyboard }),
+      });
+      const qaJson = qaResponse.ok ? await qaResponse.json() : null;
+      const qaReport = qaJson?.data;
+      const highIssues = Array.isArray(qaReport?.issues)
+        ? qaReport.issues.filter((i: { severity: string }) => i.severity === 'high')
+        : [];
+
       // 更新專案
       updateProject(projectId, {
         storyboard,
         status: 'storyboard',
       });
 
-      alert(`成功生成 ${scenes.length} 個場景的分鏡腳本！`);
+      if (highIssues.length > 0) {
+        alert(`已生成 ${scenes.length} 個場景，但 QA 發現 ${highIssues.length} 個高風險問題，建議先在分鏡表修正再往下生成。`);
+      } else {
+        alert(`成功生成 ${scenes.length} 個場景的分鏡腳本！`);
+      }
     } catch (error) {
       console.error('生成錯誤:', error);
       alert(error instanceof Error ? error.message : '生成失敗，請檢查服務設定與網路連線');

@@ -28,6 +28,7 @@
     "@types/fluent-ffmpeg": "^2.1.28",
     "@xzdarcy/react-timeline-editor": "^1.0.0",
     "autoprefixer": "^10.4.23",
+    "better-sqlite3": "^11.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "fluent-ffmpeg": "^2.1.3",
@@ -41,6 +42,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
