@@ -23,6 +23,20 @@ interface ViewUpload {
   angleVisibility?: string;
 }
 
+const DEFAULT_IP_PROFILE = {
+  profileVersion: 1,
+  strictIdentity: true,
+  allowAccessoryChanges: true,
+  textLogoPolicy: 'lock_visible_text' as const,
+  immutableRules: [] as string[],
+  generationDefaults: {
+    preferredVideoModel: 'kling' as const,
+    preferredOutputAspectRatio: '16:9' as const,
+    preferredKlingDuration: 5 as const,
+    preferredSeedanceDuration: 5,
+  },
+};
+
 const ANGLE_OPTIONS = [
   { value: 'front' as const, label: '正面', emoji: '⬛' },
   { value: 'side' as const, label: '側面', emoji: '◼️' },
@@ -57,6 +71,37 @@ export function CharacterCreateDialog({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [isGeneratingGuidelines, setIsGeneratingGuidelines] = useState(false);
+  const [profileVersion, setProfileVersion] = useState(
+    editingCharacter?.ipProfile?.profileVersion ?? DEFAULT_IP_PROFILE.profileVersion
+  );
+  const [strictIdentity, setStrictIdentity] = useState(
+    editingCharacter?.ipProfile?.strictIdentity ?? DEFAULT_IP_PROFILE.strictIdentity
+  );
+  const [allowAccessoryChanges, setAllowAccessoryChanges] = useState(
+    editingCharacter?.ipProfile?.allowAccessoryChanges ?? DEFAULT_IP_PROFILE.allowAccessoryChanges
+  );
+  const [textLogoPolicy, setTextLogoPolicy] = useState<'lock_visible_text' | 'forbid_new_text'>(
+    editingCharacter?.ipProfile?.textLogoPolicy ?? DEFAULT_IP_PROFILE.textLogoPolicy
+  );
+  const [immutableRulesText, setImmutableRulesText] = useState(
+    (editingCharacter?.ipProfile?.immutableRules || []).join('\n')
+  );
+  const [preferredVideoModel, setPreferredVideoModel] = useState<'kling' | 'seedance'>(
+    editingCharacter?.ipProfile?.generationDefaults?.preferredVideoModel
+    ?? DEFAULT_IP_PROFILE.generationDefaults.preferredVideoModel
+  );
+  const [preferredOutputAspectRatio, setPreferredOutputAspectRatio] = useState<'16:9' | '9:16' | '1:1'>(
+    editingCharacter?.ipProfile?.generationDefaults?.preferredOutputAspectRatio
+    ?? DEFAULT_IP_PROFILE.generationDefaults.preferredOutputAspectRatio
+  );
+  const [preferredKlingDuration, setPreferredKlingDuration] = useState<5 | 10>(
+    editingCharacter?.ipProfile?.generationDefaults?.preferredKlingDuration
+    ?? DEFAULT_IP_PROFILE.generationDefaults.preferredKlingDuration
+  );
+  const [preferredSeedanceDuration, setPreferredSeedanceDuration] = useState<number>(
+    editingCharacter?.ipProfile?.generationDefaults?.preferredSeedanceDuration
+    ?? DEFAULT_IP_PROFILE.generationDefaults.preferredSeedanceDuration
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -68,6 +113,27 @@ export function CharacterCreateDialog({
       setGuidelines(editingCharacter.guidelines || '');
       setTags(editingCharacter.tags || []);
       setViews(editingCharacter.views || []);
+      setProfileVersion(editingCharacter.ipProfile?.profileVersion ?? DEFAULT_IP_PROFILE.profileVersion);
+      setStrictIdentity(editingCharacter.ipProfile?.strictIdentity ?? DEFAULT_IP_PROFILE.strictIdentity);
+      setAllowAccessoryChanges(editingCharacter.ipProfile?.allowAccessoryChanges ?? DEFAULT_IP_PROFILE.allowAccessoryChanges);
+      setTextLogoPolicy(editingCharacter.ipProfile?.textLogoPolicy ?? DEFAULT_IP_PROFILE.textLogoPolicy);
+      setImmutableRulesText((editingCharacter.ipProfile?.immutableRules || []).join('\n'));
+      setPreferredVideoModel(
+        editingCharacter.ipProfile?.generationDefaults?.preferredVideoModel
+        ?? DEFAULT_IP_PROFILE.generationDefaults.preferredVideoModel
+      );
+      setPreferredOutputAspectRatio(
+        editingCharacter.ipProfile?.generationDefaults?.preferredOutputAspectRatio
+        ?? DEFAULT_IP_PROFILE.generationDefaults.preferredOutputAspectRatio
+      );
+      setPreferredKlingDuration(
+        editingCharacter.ipProfile?.generationDefaults?.preferredKlingDuration
+        ?? DEFAULT_IP_PROFILE.generationDefaults.preferredKlingDuration
+      );
+      setPreferredSeedanceDuration(
+        editingCharacter.ipProfile?.generationDefaults?.preferredSeedanceDuration
+        ?? DEFAULT_IP_PROFILE.generationDefaults.preferredSeedanceDuration
+      );
     } else {
       setName('');
       setType('character');
@@ -75,6 +141,15 @@ export function CharacterCreateDialog({
       setGuidelines('');
       setTags([]);
       setViews([]);
+      setProfileVersion(DEFAULT_IP_PROFILE.profileVersion);
+      setStrictIdentity(DEFAULT_IP_PROFILE.strictIdentity);
+      setAllowAccessoryChanges(DEFAULT_IP_PROFILE.allowAccessoryChanges);
+      setTextLogoPolicy(DEFAULT_IP_PROFILE.textLogoPolicy);
+      setImmutableRulesText('');
+      setPreferredVideoModel(DEFAULT_IP_PROFILE.generationDefaults.preferredVideoModel);
+      setPreferredOutputAspectRatio(DEFAULT_IP_PROFILE.generationDefaults.preferredOutputAspectRatio);
+      setPreferredKlingDuration(DEFAULT_IP_PROFILE.generationDefaults.preferredKlingDuration);
+      setPreferredSeedanceDuration(DEFAULT_IP_PROFILE.generationDefaults.preferredSeedanceDuration);
     }
   }, [isOpen, editingCharacter]);
 
@@ -166,6 +241,22 @@ export function CharacterCreateDialog({
       guidelines: guidelines.trim() || undefined,
       tags,
       views,
+      ipProfile: {
+        profileVersion: Number.isFinite(profileVersion) ? Math.max(1, Math.floor(profileVersion)) : 1,
+        strictIdentity,
+        allowAccessoryChanges,
+        textLogoPolicy,
+        immutableRules: immutableRulesText
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean),
+        generationDefaults: {
+          preferredVideoModel,
+          preferredOutputAspectRatio,
+          preferredKlingDuration,
+          preferredSeedanceDuration: Math.max(4, Math.min(12, Math.round(preferredSeedanceDuration || 5))),
+        },
+      },
     });
 
     // 重置表單
@@ -175,6 +266,15 @@ export function CharacterCreateDialog({
     setGuidelines('');
     setTags([]);
     setViews([]);
+    setProfileVersion(DEFAULT_IP_PROFILE.profileVersion);
+    setStrictIdentity(DEFAULT_IP_PROFILE.strictIdentity);
+    setAllowAccessoryChanges(DEFAULT_IP_PROFILE.allowAccessoryChanges);
+    setTextLogoPolicy(DEFAULT_IP_PROFILE.textLogoPolicy);
+    setImmutableRulesText('');
+    setPreferredVideoModel(DEFAULT_IP_PROFILE.generationDefaults.preferredVideoModel);
+    setPreferredOutputAspectRatio(DEFAULT_IP_PROFILE.generationDefaults.preferredOutputAspectRatio);
+    setPreferredKlingDuration(DEFAULT_IP_PROFILE.generationDefaults.preferredKlingDuration);
+    setPreferredSeedanceDuration(DEFAULT_IP_PROFILE.generationDefaults.preferredSeedanceDuration);
     onClose();
   };
 
@@ -351,6 +451,130 @@ export function CharacterCreateDialog({
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 會加入到生成提示詞中，確保角色遵守設定
               </p>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">IP 套件設定</h3>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  用於穩定品牌角色/商品的一致性與生成預設值。
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium mb-1">規範版本</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={profileVersion}
+                    onChange={(e) => setProfileVersion(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
+                             bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">文字 / Logo 規則</label>
+                  <select
+                    value={textLogoPolicy}
+                    onChange={(e) => setTextLogoPolicy(e.target.value as 'lock_visible_text' | 'forbid_new_text')}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
+                             bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="lock_visible_text">可見時必須完全一致</option>
+                    <option value="forbid_new_text">禁止新增任何新文字</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={strictIdentity}
+                    onChange={(e) => setStrictIdentity(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600"
+                  />
+                  強一致（身份與外觀鎖定）
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allowAccessoryChanges}
+                    onChange={(e) => setAllowAccessoryChanges(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-600"
+                  />
+                  允許配件變化
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium mb-1">硬規則（每行一條）</label>
+                <textarea
+                  value={immutableRulesText}
+                  onChange={(e) => setImmutableRulesText(e.target.value)}
+                  rows={3}
+                  placeholder={'例：\nLogo 位置不可移動\n主體比例不可改變'}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
+                           bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500
+                           resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium mb-1">預設影片模型</label>
+                  <select
+                    value={preferredVideoModel}
+                    onChange={(e) => setPreferredVideoModel(e.target.value as 'kling' | 'seedance')}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
+                             bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="kling">Kling</option>
+                    <option value="seedance">Seedance</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">預設輸出比例</label>
+                  <select
+                    value={preferredOutputAspectRatio}
+                    onChange={(e) => setPreferredOutputAspectRatio(e.target.value as '16:9' | '9:16' | '1:1')}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
+                             bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="16:9">16:9</option>
+                    <option value="9:16">9:16</option>
+                    <option value="1:1">1:1</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium mb-1">Kling 預設秒數</label>
+                  <select
+                    value={preferredKlingDuration}
+                    onChange={(e) => setPreferredKlingDuration(Number(e.target.value) as 5 | 10)}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
+                             bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={5}>5 秒</option>
+                    <option value={10}>10 秒</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Seedance 預設秒數</label>
+                  <input
+                    type="number"
+                    min={4}
+                    max={12}
+                    value={preferredSeedanceDuration}
+                    onChange={(e) => setPreferredSeedanceDuration(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
+                             bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
             </div>
 
             <div>

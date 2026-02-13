@@ -238,6 +238,20 @@ function CharacterCard({
           {character.description}
         </p>
 
+        {character.ipProfile && (
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+              IP v{character.ipProfile.profileVersion}
+            </span>
+            <span className="text-[11px] px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+              {character.ipProfile.strictIdentity ? '強一致' : '彈性一致'}
+            </span>
+            <span className="text-[11px] px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+              {character.ipProfile.generationDefaults?.preferredVideoModel === 'seedance' ? 'Seedance' : 'Kling'} 預設
+            </span>
+          </div>
+        )}
+
         {/* 標籤 */}
         {character.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">

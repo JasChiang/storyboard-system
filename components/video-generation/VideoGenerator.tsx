@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Film, Settings2 } from 'lucide-react';
 import { ModelSelector } from './ModelSelector';
 import { MotionPromptEditor } from './MotionPromptEditor';
 import { VideoPreview } from './VideoPreview';
 import type { Scene, ProjectReference } from '@/lib/types/storyboard';
+import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 
 type VideoModel = 'kling' | 'seedance';
 
@@ -35,6 +36,14 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
     const [seedanceAspectRatio, setSeedanceAspectRatio] = useState<'21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16'>('16:9');
     const [seedanceResolution, setSeedanceResolution] = useState<'480p' | '720p' | '1080p'>('720p');
     const [seedanceEnableAudio, setSeedanceEnableAudio] = useState(false);
+    const contentRefs = useMemo(
+        () => projectReferences.filter(ref => ref.type !== 'style'),
+        [projectReferences]
+    );
+    const scopedRefs = useMemo(
+        () => getSceneRelevantReferences(scene, contentRefs),
+        [scene, contentRefs]
+    );
 
     // 當場景變化時，同步更新 motionPrompt
     useEffect(() => {
@@ -42,20 +51,70 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
         setMotionPrompt(newMotionPrompt);
     }, [scene.id, scene.motionPrompt, scene.cameraMovement]);
 
+    useEffect(() => {
+        const profileWithDefaults = scopedRefs.find((ref) => ref.ipProfile?.generationDefaults);
+        const defaults = profileWithDefaults?.ipProfile?.generationDefaults;
+        if (!defaults) return;
+
+        if (defaults.preferredVideoModel) {
+            setModel(defaults.preferredVideoModel);
+        }
+        if (defaults.preferredOutputAspectRatio) {
+            setKlingAspectRatio(defaults.preferredOutputAspectRatio);
+            setSeedanceAspectRatio(defaults.preferredOutputAspectRatio);
+        }
+        if (defaults.preferredKlingDuration) {
+            setKlingDuration(defaults.preferredKlingDuration);
+        }
+        if (typeof defaults.preferredSeedanceDuration === 'number') {
+            setSeedanceDuration(Math.max(4, Math.min(12, Math.round(defaults.preferredSeedanceDuration))));
+        }
+    }, [scene.id, scopedRefs]);
+
     const buildSharedConstraints = () => {
-        const contentRefs = projectReferences.filter(ref => ref.type !== 'style');
-        const mustKeepLines = contentRefs
+        const mustKeepLines = scopedRefs
             .filter(ref => ref.mustKeepFeatures?.length)
             .map(ref => {
                 const tag = ref.name ? `<${ref.name}>` : ref.type;
                 return `${tag}: ${ref.mustKeepFeatures!.join(', ')}`;
             });
+        const identityCoreLines = scopedRefs
+            .filter(ref => ref.identityCore)
+            .map(ref => {
+                const tag = ref.name ? `<${ref.name}>` : ref.type;
+                return `${tag}: ${ref.identityCore}`;
+            });
+        const guidelineLines = scopedRefs
+            .filter(ref => ref.guidelines?.trim())
+            .map(ref => {
+                const tag = ref.name ? `<${ref.name}>` : ref.type;
+                return `${tag}: ${ref.guidelines!.trim()}`;
+            });
+
+        const identityParts: string[] = [];
+        if (identityCoreLines.length) {
+            identityParts.push(`Keep these identity cores fixed: ${identityCoreLines.join(' | ')}`);
+        }
+        if (mustKeepLines.length) {
+            identityParts.push(`Do not change these identity constraints: ${mustKeepLines.join(' | ')}`);
+        }
+        if (guidelineLines.length) {
+            identityParts.push(`Follow these guardrails: ${guidelineLines.join(' | ')}`);
+        }
+        const hasLockVisibleText = scopedRefs.some(
+            (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
+        );
+        const hasForbidNewText = scopedRefs.some(
+            (ref) => ref.ipProfile?.textLogoPolicy === 'forbid_new_text'
+        );
 
         return {
-            hasEndFrame: !!scene.generatedEndFrame?.url,
-            identityConstraint: mustKeepLines.length
-                ? `Do not change these identity constraints: ${mustKeepLines.join(' | ')}`
+            hasEndFrame: !!scene.requiresEndFrame && !!scene.generatedEndFrame?.url,
+            identityConstraint: identityParts.length
+                ? identityParts.join(' ')
                 : 'Keep character/product identity, logo placement, and core geometry unchanged.',
+            hasLockVisibleText,
+            hasForbidNewText,
         };
     };
 
@@ -70,6 +129,12 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
             `Camera and motion directive: ${motionPrompt}`,
             'Prioritize clean camera language (pan/dolly/tilt/zoom) and coherent subject movement.',
             'Avoid temporal artifacts, warped logos, or text deformation during motion.',
+            shared.hasLockVisibleText
+                ? 'If text or logos are visible, keep spelling, shape, and placement exactly unchanged.'
+                : '',
+            shared.hasForbidNewText
+                ? 'Never invent new letters, numbers, logos, or package text during motion.'
+                : '',
             shared.identityConstraint,
         ];
         return sections.filter(Boolean).join(' ');
@@ -87,6 +152,12 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
             'Keep movement natural and readable, with clear subject intent and staging.',
             'No audio is required; optimize for visual continuity and timing only.',
             'Do not introduce new props, clothing changes, or logo/text mutations.',
+            shared.hasLockVisibleText
+                ? 'If text or logos are visible, keep spelling, shape, and placement exactly unchanged.'
+                : '',
+            shared.hasForbidNewText
+                ? 'Never invent new letters, numbers, logos, or package text during motion.'
+                : '',
             shared.identityConstraint,
         ];
         return sections.filter(Boolean).join(' ');
@@ -130,7 +201,7 @@ export function VideoGenerator({ scene, previousEndFrameUrl, projectReferences =
                     resolution: model === 'seedance' ? seedanceResolution : undefined,
                     enableSound: model === 'kling' ? klingEnableSound : undefined,
                     enableAudio: model === 'seedance' ? seedanceEnableAudio : undefined,
-                    endImageUrl: scene.generatedEndFrame?.url,  // 如果有尾幀，傳遞給 API
+                    endImageUrl: scene.requiresEndFrame ? scene.generatedEndFrame?.url : undefined,  // 只在需要尾幀時傳遞
                 }),
             });
 

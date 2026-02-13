@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription } from '@/lib/prompts/image-static';
+import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 
 interface BatchImageGeneratorProps {
     scenes: Scene[];
@@ -55,6 +56,7 @@ export function BatchImageGenerator({
 
     const buildImagePrompt = (scene: Scene, isEndFrame: boolean = false) => {
         const parts = [];
+        const sceneScopedContentRefs = getSceneRelevantReferences(scene, contentProjectReferences);
 
         if (styleProfile?.stylePrompt) {
             parts.push(`Style direction: ${styleProfile.stylePrompt}`);
@@ -74,15 +76,36 @@ export function BatchImageGenerator({
             parts.push('Preserve rendering style, texture language, color treatment, and lighting grammar from style references.');
         }
 
-        if (contentProjectReferences.length > 0) {
+        if (sceneScopedContentRefs.length > 0) {
             parts.push('Content references:');
-            contentProjectReferences.forEach(ref => {
+            sceneScopedContentRefs.forEach(ref => {
                 const nameTag = ref.name ? `<${ref.name}>` : ref.type;
                 parts.push(`${nameTag}: ${ref.description}`);
                 if (ref.mustKeepFeatures?.length) {
                     parts.push(`${nameTag} must keep: ${ref.mustKeepFeatures.join(', ')}`);
                 }
+                if (ref.ipProfile?.immutableRules?.length) {
+                    parts.push(`${nameTag} hard rules: ${ref.ipProfile.immutableRules.join('; ')}`);
+                }
+                if (ref.ipProfile) {
+                    parts.push(
+                        `${nameTag} policy: identity=${ref.ipProfile.strictIdentity ? 'strict' : 'flexible'}, accessories=${ref.ipProfile.allowAccessoryChanges ? 'allowed' : 'locked'}`
+                    );
+                }
             });
+        }
+
+        const hasLockVisibleText = sceneScopedContentRefs.some(
+            (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
+        );
+        const hasForbidNewText = sceneScopedContentRefs.some(
+            (ref) => ref.ipProfile?.textLogoPolicy === 'forbid_new_text'
+        );
+        if (hasLockVisibleText) {
+            parts.push('If brand text or logos are visible, keep them exactly legible and unchanged in spelling, shape, and placement.');
+        }
+        if (hasForbidNewText) {
+            parts.push('Do not invent any new letters, numbers, brand marks, or package text.');
         }
 
         // 2. 加入場景描述（首幀或尾幀）
@@ -108,6 +131,7 @@ export function BatchImageGenerator({
         isEndFrame: boolean = false,
         options?: { primaryReferenceUrl?: string; continuityReferenceUrl?: string }
     ) => {
+        const sceneScopedContentRefs = getSceneRelevantReferences(scene, contentProjectReferences);
         const prompt = [
             buildImagePrompt(scene, isEndFrame),
             isEndFrame && options?.primaryReferenceUrl
@@ -132,7 +156,7 @@ export function BatchImageGenerator({
                     ...(options?.primaryReferenceUrl ? [options.primaryReferenceUrl] : []),
                     ...selectedStyleReferenceUrls,
                     ...(scene.referenceImage ? [scene.referenceImage] : []),
-                    ...contentProjectReferences.map(r => r.url)
+                    ...sceneScopedContentRefs.map(r => r.url)
                 ], // 結合場景個別參考圖與專案級參考圖
                 aspectRatio,
                 resolution,

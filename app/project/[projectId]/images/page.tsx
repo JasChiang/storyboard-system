@@ -81,7 +81,9 @@ export default function ImagesPage() {
             prompt,
             timestamp: new Date().toISOString(),
           },
-          generatedEndFrame: endFrameUrl ? {
+          generatedEndFrame: !scene.requiresEndFrame
+            ? undefined
+            : endFrameUrl ? {
             url: endFrameUrl,
             prompt: endFramePrompt || '',
             timestamp: new Date().toISOString(),
@@ -114,7 +116,9 @@ export default function ImagesPage() {
             timestamp: new Date().toISOString(),
           },
           // 如果有尾幀，也儲存尾幀資訊
-          generatedEndFrame: result.endFrameUrl ? {
+          generatedEndFrame: !scene.requiresEndFrame
+            ? undefined
+            : result.endFrameUrl ? {
             url: result.endFrameUrl,
             prompt: result.endFramePrompt || '',
             timestamp: new Date().toISOString(),

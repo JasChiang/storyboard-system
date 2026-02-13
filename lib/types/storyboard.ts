@@ -84,6 +84,24 @@ export interface StyleProfile {
 }
 
 // 專案級參考圖
+export type IpTextLogoPolicy = 'lock_visible_text' | 'forbid_new_text';
+
+export interface IpGenerationDefaults {
+  preferredVideoModel?: 'kling' | 'seedance';
+  preferredOutputAspectRatio?: '16:9' | '9:16' | '1:1';
+  preferredKlingDuration?: 5 | 10;
+  preferredSeedanceDuration?: number; // 4-12
+}
+
+export interface IpProfile {
+  profileVersion: number;
+  strictIdentity: boolean;
+  allowAccessoryChanges: boolean;
+  textLogoPolicy: IpTextLogoPolicy;
+  immutableRules?: string[];
+  generationDefaults?: IpGenerationDefaults;
+}
+
 export interface ProjectReference {
   id: string;
   url: string;                   // Fal Storage URL
@@ -100,6 +118,7 @@ export interface ProjectReference {
   identityCore?: string;         // 核心身份描述（形狀/比例/Logo）
   styleTraits?: string;          // 風格特徵描述
   angleVisibility?: string;      // 此視角可見/不可見重點
+  ipProfile?: IpProfile;         // 來自角色庫的 IP 套件設定
 }
 
 // 提示詞模板

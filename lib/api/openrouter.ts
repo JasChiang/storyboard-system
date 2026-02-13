@@ -2,6 +2,7 @@ import { PromptTemplate, StoryboardGenerationResponse, ProjectReference, Transit
 import { OpenRouterResponse } from '../types/api-responses';
 import { buildSystemPrompt } from '../prompts/prompt-builder';
 import { buildConsolidatedReferenceRules } from '../references/consistency-rules';
+import { sanitizeStaticFrameDescription } from '../prompts/image-static';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -143,12 +144,14 @@ export async function generateStoryboardScript(
         : (index === scenesRaw.length - 1 ? 'fade_black' : 'dissolve');
 
       const requiresEndFrame = Boolean(scene.requiresEndFrame) || transitionType === 'continuation';
-      const description = typeof scene.description === 'string' ? scene.description.trim() : '';
+      const rawDescription = typeof scene.description === 'string' ? scene.description.trim() : '';
+      const description = sanitizeStaticFrameDescription(rawDescription) || rawDescription;
       const endFrameDescriptionRaw = typeof scene.endFrameDescription === 'string'
         ? scene.endFrameDescription.trim()
         : '';
+      const sanitizedEndFrame = sanitizeStaticFrameDescription(endFrameDescriptionRaw || description);
       const endFrameDescription = requiresEndFrame
-        ? (endFrameDescriptionRaw || description)
+        ? (sanitizedEndFrame || description)
         : '';
 
       const sceneNumberValue = Number(scene.sceneNumber);

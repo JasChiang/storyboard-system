@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Scissors, CheckCircle2, XCircle, Zap, Wand2 } from 'lucide-react';
 import Link from 'next/link';
 import { useProjectStore } from '@/stores/project-store';
@@ -25,12 +25,16 @@ export default function ExportPage() {
   }, [projectId, setCurrentProject]);
 
   useEffect(() => {
-    if (!currentProject?.editingSuggestions) return;
-    setEditingSuggestion(currentProject.editingSuggestions);
-  }, [currentProject?.editingSuggestions]);
+    setEditingSuggestion(currentProject?.editingSuggestions || null);
+  }, [currentProject?.editingSuggestions, currentProject?.id]);
 
   const scenes = currentProject?.storyboard?.scenes || [];
   const scenesWithVideos = scenes.filter(s => s.generatedVideo);
+  const hasEditingSuggestionCoverage = useMemo(() => {
+    if (!editingSuggestion?.scenes?.length || scenesWithVideos.length === 0) return false;
+    const suggestedSceneIds = new Set(editingSuggestion.scenes.map(scene => scene.sceneId));
+    return scenesWithVideos.every(scene => suggestedSceneIds.has(scene.id));
+  }, [editingSuggestion, scenesWithVideos]);
 
   // 檢查完成度
   const hasStoryboard = !!currentProject?.storyboard;
@@ -44,7 +48,6 @@ export default function ExportPage() {
     if (currentProject) {
       updateProject(projectId, {
         editingSuggestions: suggestion,
-        blenderScript: JSON.stringify(suggestion),
         status: 'complete',
       });
     }
@@ -241,6 +244,26 @@ export default function ExportPage() {
             </div>
           </div>
         </div>
+
+        {renderMode !== 'blender' && hasVideos && (
+          <div className="max-w-4xl mx-auto mb-8 space-y-4">
+            <div className="p-4 bg-white/60 dark:bg-slate-900/60 rounded-lg border border-slate-200 dark:border-slate-800 backdrop-blur-sm">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">AI 剪輯建議</h3>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                {hasEditingSuggestionCoverage
+                  ? '已取得可用建議，OpenReel/FFmpeg 會直接套用。可手動重新分析更新結果。'
+                  : '尚未完成分析，系統會自動分析影片並套用建議。'}
+              </p>
+            </div>
+
+            <VideoAnalyzer
+              key={`analysis-${projectId}-${scenesWithVideos.length}-${hasEditingSuggestionCoverage ? 'ready' : 'pending'}`}
+              storyboard={currentProject.storyboard}
+              onAnalysisComplete={handleAnalysisComplete}
+              autoStart={!hasEditingSuggestionCoverage}
+            />
+          </div>
+        )}
 
         {/* OpenReel 編輯模式 */}
         {renderMode === 'openreel' && (

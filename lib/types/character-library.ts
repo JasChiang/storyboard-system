@@ -5,6 +5,24 @@
 
 import type { ProjectReference } from './storyboard';
 
+export type IpTextLogoPolicy = 'lock_visible_text' | 'forbid_new_text';
+
+export interface CharacterGenerationDefaults {
+  preferredVideoModel?: 'kling' | 'seedance';
+  preferredOutputAspectRatio?: '16:9' | '9:16' | '1:1';
+  preferredKlingDuration?: 5 | 10;
+  preferredSeedanceDuration?: number; // 4-12
+}
+
+export interface CharacterIpProfile {
+  profileVersion: number;
+  strictIdentity: boolean;
+  allowAccessoryChanges: boolean;
+  textLogoPolicy: IpTextLogoPolicy;
+  immutableRules?: string[];
+  generationDefaults?: CharacterGenerationDefaults;
+}
+
 export interface CharacterLibraryItem {
   id: string;
   name: string;                    // 角色名稱（如 "吉祥物小熊"）
@@ -25,6 +43,7 @@ export interface CharacterLibraryItem {
   }[];
 
   // 中繼資料
+  ipProfile?: CharacterIpProfile;     // IP 套件設定（版本、硬規則、預設參數）
   createdAt: string;
   updatedAt: string;
   usageCount: number;               // 被引用次數
@@ -61,5 +80,31 @@ export function characterLibraryItemToProjectReference(
     identityCore: view.identityCore,
     styleTraits: view.styleTraits,
     angleVisibility: view.angleVisibility,
+    ipProfile: item.ipProfile,
   };
+}
+
+export function characterLibraryItemToProjectReferences(
+  item: CharacterLibraryItem,
+  mode: 'front' | 'all' = 'front'
+): ProjectReference[] {
+  if (mode === 'front') {
+    return [characterLibraryItemToProjectReference(item, 'front')];
+  }
+
+  return item.views.map((view) => ({
+    id: crypto.randomUUID(),
+    url: view.url,
+    description: view.description,
+    type: item.type,
+    name: item.name,
+    angle: view.angle,
+    descriptionSource: 'ai',
+    guidelines: item.guidelines,
+    mustKeepFeatures: view.mustKeepFeatures,
+    identityCore: view.identityCore,
+    styleTraits: view.styleTraits,
+    angleVisibility: view.angleVisibility,
+    ipProfile: item.ipProfile,
+  }));
 }

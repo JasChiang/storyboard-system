@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Settings2 } from 'lucide-react';
 import { ReferenceUploader } from './ReferenceUploader';
 import { ImagePreview } from './ImagePreview';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/lib/prompts/image-static';
+import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 
 interface ImageGeneratorProps {
     scene: Scene;
@@ -44,6 +45,20 @@ export function ImageGenerator({
             .filter(ref => styleProfile.styleReferenceIds!.includes(ref.id))
             .map(ref => ref.url)
         : styleProjectReferences.map(ref => ref.url);
+    const selectedContentRefs = contentProjectReferences.filter(ref => selectedProjectRefs.includes(ref.id));
+    const sceneScopedContentRefs = getSceneRelevantReferences(scene, selectedContentRefs);
+    const scenePreferredAspectRatio = useMemo(() => {
+        const withDefault = sceneScopedContentRefs.find((ref) => ref.ipProfile?.generationDefaults?.preferredOutputAspectRatio);
+        return withDefault?.ipProfile?.generationDefaults?.preferredOutputAspectRatio;
+    }, [sceneScopedContentRefs]);
+
+    useEffect(() => {
+        if (scenePreferredAspectRatio) {
+            setAspectRatio(scenePreferredAspectRatio);
+        } else {
+            setAspectRatio('16:9');
+        }
+    }, [scene.id, scenePreferredAspectRatio]);
 
     // 取得選中的專案參考圖 URL
     const getSelectedReferenceUrls = (options?: { includeStartFrameForEnd?: boolean; includePreviousSceneEnd?: boolean }): string[] => {
@@ -55,11 +70,7 @@ export function ImageGenerator({
             urls.push(scene.generatedImage.url);
         }
         urls.push(...selectedStyleReferenceUrls);
-        contentProjectReferences.forEach(r => {
-            if (selectedProjectRefs.includes(r.id)) {
-                urls.push(r.url);
-            }
-        });
+        sceneScopedContentRefs.forEach(ref => urls.push(ref.url));
         if (referenceImage) {
             urls.push(referenceImage);
         }
@@ -90,18 +101,41 @@ export function ImageGenerator({
         }
 
         if (selectedProjectRefs.length > 0) {
-            const selectedRefs = contentProjectReferences.filter(r => selectedProjectRefs.includes(r.id));
-            if (selectedRefs.length > 0) {
+            if (sceneScopedContentRefs.length > 0) {
                 parts.push('Content references:');
-                selectedRefs.forEach(ref => {
+                sceneScopedContentRefs.forEach(ref => {
                     const nameTag = ref.name ? `<${ref.name}>` : ref.type;
                     const guidelineText = ref.guidelines ? ` (Rules: ${ref.guidelines})` : '';
                     parts.push(`${nameTag}: ${ref.description}${guidelineText}`);
                     if (ref.mustKeepFeatures?.length) {
                         parts.push(`${nameTag} must keep: ${ref.mustKeepFeatures.join(', ')}`);
                     }
+                    if (ref.ipProfile?.immutableRules?.length) {
+                        parts.push(`${nameTag} hard rules: ${ref.ipProfile.immutableRules.join('; ')}`);
+                    }
+                    if (ref.ipProfile) {
+                        parts.push(
+                            `${nameTag} policy: identity=${ref.ipProfile.strictIdentity ? 'strict' : 'flexible'}, accessories=${ref.ipProfile.allowAccessoryChanges ? 'allowed' : 'locked'}`
+                        );
+                    }
                 });
+                if (selectedContentRefs.length > sceneScopedContentRefs.length) {
+                    parts.push('Ignore non-tagged references for this shot; keep only the scene-mentioned identities.');
+                }
             }
+        }
+
+        const hasLockVisibleText = sceneScopedContentRefs.some(
+            (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
+        );
+        const hasForbidNewText = sceneScopedContentRefs.some(
+            (ref) => ref.ipProfile?.textLogoPolicy === 'forbid_new_text'
+        );
+        if (hasLockVisibleText) {
+            parts.push('If brand text or logos are visible, keep them exactly legible and unchanged in spelling, shape, and placement.');
+        }
+        if (hasForbidNewText) {
+            parts.push('Do not invent any new letters, numbers, brand marks, or package text.');
         }
 
         // 2. 選擇正確的描述（首幀或尾幀）

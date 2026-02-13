@@ -39,7 +39,11 @@ export function buildSystemPrompt(
                 const mustKeepText = r.mustKeepFeatures?.length
                     ? ` | 不可改變：${r.mustKeepFeatures.join('、')}`
                     : '';
-                prompt += `- **<${charName}>**${angleInfo}: ${r.description}${identityText}${mustKeepText}${guidelineText}\n`;
+                const ipVersionText = r.ipProfile?.profileVersion ? ` | IP版本：v${r.ipProfile.profileVersion}` : '';
+                const ipRuleText = r.ipProfile?.immutableRules?.length
+                    ? ` | IP硬規則：${r.ipProfile.immutableRules.join('；')}`
+                    : '';
+                prompt += `- **<${charName}>**${angleInfo}: ${r.description}${identityText}${mustKeepText}${guidelineText}${ipVersionText}${ipRuleText}\n`;
             });
             prompt += '\n';
         }
@@ -53,7 +57,12 @@ export function buildSystemPrompt(
                 const mustKeepText = r.mustKeepFeatures?.length
                     ? ` | 不可改變：${r.mustKeepFeatures.join('、')}`
                     : '';
-                prompt += `- **<${prodName}>**${angleInfo}: ${r.description}${identityText}${mustKeepText}\n`;
+                const guidelineText = r.guidelines ? ` | 規則：${r.guidelines}` : '';
+                const ipVersionText = r.ipProfile?.profileVersion ? ` | IP版本：v${r.ipProfile.profileVersion}` : '';
+                const ipRuleText = r.ipProfile?.immutableRules?.length
+                    ? ` | IP硬規則：${r.ipProfile.immutableRules.join('；')}`
+                    : '';
+                prompt += `- **<${prodName}>**${angleInfo}: ${r.description}${identityText}${mustKeepText}${guidelineText}${ipVersionText}${ipRuleText}\n`;
             });
             prompt += '\n';
         }

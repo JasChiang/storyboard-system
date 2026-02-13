@@ -100,7 +100,24 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
               <input
                 type="checkbox"
                 checked={editedScene.requiresEndFrame || false}
-                onChange={(e) => setEditedScene({ ...editedScene, requiresEndFrame: e.target.checked })}
+                onChange={(e) => {
+                  const nextChecked = e.target.checked;
+                  const nextTransition = editedScene.transitionToNext?.type === 'continuation' && !nextChecked
+                    ? {
+                      ...editedScene.transitionToNext,
+                      type: 'dissolve' as TransitionType,
+                      useEndFrameAsNextStart: false,
+                      reason: 'Switched from continuation because end frame was disabled.',
+                    }
+                    : editedScene.transitionToNext;
+
+                  setEditedScene({
+                    ...editedScene,
+                    requiresEndFrame: nextChecked,
+                    endFrameDescription: nextChecked ? (editedScene.endFrameDescription || editedScene.description) : '',
+                    transitionToNext: nextTransition,
+                  });
+                }}
                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
               需要尾幀

@@ -101,7 +101,16 @@ export default function StoryboardPage() {
     if (!currentProject?.storyboard) return;
 
     const updatedScenes = currentProject.storyboard.scenes.map((scene) =>
-      scene.id === sceneId ? { ...scene, ...updates } : scene
+      scene.id === sceneId
+        ? {
+          ...scene,
+          ...updates,
+          generatedEndFrame: updates.requiresEndFrame === false ? undefined : scene.generatedEndFrame,
+          endFrameDescription: updates.requiresEndFrame === false
+            ? ''
+            : (updates.endFrameDescription ?? scene.endFrameDescription),
+        }
+        : scene
     );
 
     updateProject(projectId, {

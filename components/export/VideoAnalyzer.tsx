@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Brain, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { Storyboard } from '@/lib/types/storyboard';
 import type { EditingSuggestion } from '@/lib/types/project';
@@ -8,16 +8,29 @@ import type { EditingSuggestion } from '@/lib/types/project';
 interface VideoAnalyzerProps {
     storyboard: Storyboard;
     onAnalysisComplete: (suggestion: EditingSuggestion) => void;
+    autoStart?: boolean;
 }
 
-export function VideoAnalyzer({ storyboard, onAnalysisComplete }: VideoAnalyzerProps) {
+export function VideoAnalyzer({ storyboard, onAnalysisComplete, autoStart = false }: VideoAnalyzerProps) {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState<EditingSuggestion | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [autoTriggered, setAutoTriggered] = useState(false);
 
-    const scenesWithVideos = storyboard.scenes.filter(s => s.generatedVideo);
+    const scenesWithVideos = useMemo(
+        () => storyboard.scenes.filter(s => s.generatedVideo),
+        [storyboard.scenes]
+    );
 
-    const handleAnalyze = async () => {
+    useEffect(() => {
+        // 當分鏡內容更新時，重置分析狀態，避免沿用舊結果
+        setResult(null);
+        setError(null);
+        setAutoTriggered(false);
+    }, [storyboard.updatedAt]);
+
+    const handleAnalyze = useCallback(async () => {
+        if (scenesWithVideos.length === 0) return;
         setIsAnalyzing(true);
         setError(null);
 
@@ -55,7 +68,15 @@ export function VideoAnalyzer({ storyboard, onAnalysisComplete }: VideoAnalyzerP
         } finally {
             setIsAnalyzing(false);
         }
-    };
+    }, [onAnalysisComplete, scenesWithVideos, storyboard]);
+
+    useEffect(() => {
+        if (!autoStart) return;
+        if (autoTriggered || isAnalyzing || !!result || scenesWithVideos.length === 0) return;
+
+        setAutoTriggered(true);
+        void handleAnalyze();
+    }, [autoStart, autoTriggered, handleAnalyze, isAnalyzing, result, scenesWithVideos.length]);
 
     if (scenesWithVideos.length === 0) {
         return (
@@ -102,12 +123,12 @@ export function VideoAnalyzer({ storyboard, onAnalysisComplete }: VideoAnalyzerP
                     {isAnalyzing ? (
                         <>
                             <Loader2 className="w-5 h-5 animate-spin" />
-                            分析中...
+                            {autoStart ? '自動分析中...' : '分析中...'}
                         </>
                     ) : (
                         <>
                             <Brain className="w-5 h-5" />
-                            開始分析影片
+                            {autoStart ? '重新分析影片' : '開始分析影片'}
                         </>
                     )}
                 </button>

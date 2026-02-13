@@ -10,10 +10,20 @@ const RELATIVE_CUE_PATTERNS: RegExp[] = [
   /(同樣|依舊|保持|仍然|改為|移到|移至|之後|接著|現在)/,
 ];
 
+const RELATIVE_PREFIX_PATTERNS: RegExp[] = [
+  /^(same|still|remain(?:s)?|now|then|after(?:ward)?|previously|as before)\b[\s,:-]*/i,
+  /^(同樣|依舊|仍然|保持|現在|接著|然後|之後|回到|改為|移到|移至)[\s,:，。-]*/,
+];
+
+const RELATIVE_ONLY_PATTERNS: RegExp[] = [
+  /^(same|still|unchanged|as before|maintained)\.?$/i,
+  /^(同樣|依舊|不變|保持不變|維持不變|保持一致|維持一致)。?$/,
+];
+
 function splitSentences(text: string): string[] {
   return text
     .replace(/\s+/g, ' ')
-    .split(/(?<=[.!?。！？])\s+/)
+    .split(/(?<=[.!?。！？;；])\s+/)
     .map((s) => s.trim())
     .filter(Boolean);
 }
@@ -22,20 +32,46 @@ function looksLikeMotionSentence(sentence: string): boolean {
   return MOTION_SENTENCE_PATTERNS.some((pattern) => pattern.test(sentence));
 }
 
-function removeMotionSentences(text: string): string {
-  const sentences = splitSentences(text);
-  const filtered = sentences.filter((sentence) => !looksLikeMotionSentence(sentence));
-  return filtered.join(' ').trim();
+function stripRelativePrefix(sentence: string): string {
+  let output = sentence.trim();
+  RELATIVE_PREFIX_PATTERNS.forEach((pattern) => {
+    output = output.replace(pattern, '').trim();
+  });
+  return output;
+}
+
+function normalizeStaticSentence(sentence: string): string {
+  if (!sentence) return '';
+  if (looksLikeMotionSentence(sentence)) return '';
+
+  const stripped = stripRelativePrefix(sentence)
+    .replace(/\b(after|then|during|while)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!stripped) return '';
+  if (RELATIVE_ONLY_PATTERNS.some((pattern) => pattern.test(stripped))) return '';
+  return stripped;
+}
+
+function uniqueSentences(sentences: string[]): string[] {
+  const seen = new Set<string>();
+  return sentences.filter((sentence) => {
+    const key = sentence.toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export function sanitizeStaticFrameDescription(text: string): string {
   const source = text?.trim() || '';
   if (!source) return '';
 
-  const cleaned = removeMotionSentences(source)
-    .replace(/\b(after|then|during|while)\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const sentences = splitSentences(source)
+    .map(normalizeStaticSentence)
+    .filter(Boolean);
+  const cleaned = uniqueSentences(sentences).join(' ').trim();
 
   return cleaned || source;
 }
@@ -57,4 +93,3 @@ export function buildStaticFrameDescription(
   if (!base) return frame;
   return `${base} Final frame target: ${frame}`.trim();
 }
-

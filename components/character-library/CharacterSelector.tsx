@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Search, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { characterLibraryStorage } from '@/lib/db/character-library-storage';
-import { characterLibraryItemToProjectReference } from '@/lib/types/character-library';
+import { characterLibraryItemToProjectReference, characterLibraryItemToProjectReferences } from '@/lib/types/character-library';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
 import type { ProjectReference } from '@/lib/types/storyboard';
 
@@ -25,12 +25,23 @@ export function CharacterSelector({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | CharacterLibraryItem['type']>('all');
   const [selectedCharacters, setSelectedCharacters] = useState<Map<string, 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other'>>(new Map());
+  const [includeAllViews, setIncludeAllViews] = useState(true);
 
   useEffect(() => {
     if (isOpen) {
-      setCharacters(characterLibraryStorage.getAll());
+      const items = characterLibraryStorage.getAll();
+      setCharacters(items);
+      if (selectedIds.length > 0) {
+        const preselected = new Map<string, 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other'>();
+        selectedIds.forEach((id) => {
+          if (items.some((item) => item.id === id)) {
+            preselected.set(id, 'front');
+          }
+        });
+        setSelectedCharacters(preselected);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, selectedIds]);
 
   if (!isOpen) return null;
 
@@ -68,8 +79,12 @@ export function CharacterSelector({
       const character = characters.find(c => c.id === characterId);
       if (character) {
         try {
-          const ref = characterLibraryItemToProjectReference(character, angle);
-          references.push(ref);
+          if (includeAllViews) {
+            references.push(...characterLibraryItemToProjectReferences(character, 'all'));
+          } else {
+            const ref = characterLibraryItemToProjectReference(character, angle);
+            references.push(ref);
+          }
 
           // 增加使用次數
           characterLibraryStorage.incrementUsage(characterId);
@@ -82,6 +97,7 @@ export function CharacterSelector({
     onSelect(references);
     setSelectedCharacters(new Map());
     setSearchQuery('');
+    setIncludeAllViews(true);
     onClose();
   };
 
@@ -144,6 +160,16 @@ export function CharacterSelector({
               </button>
             ))}
           </div>
+
+          <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={includeAllViews}
+              onChange={(e) => setIncludeAllViews(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-300 dark:border-slate-600"
+            />
+            每個 IP 自動加入全部視角（推薦）
+          </label>
         </div>
 
         {/* 角色列表（可捲動） */}

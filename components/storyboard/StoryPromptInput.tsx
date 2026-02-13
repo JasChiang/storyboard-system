@@ -31,6 +31,22 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
   const [showCharacterSelector, setShowCharacterSelector] = useState(false);
   const [showCreateCharacterDialog, setShowCreateCharacterDialog] = useState(false);
 
+  const mergeUniqueReferences = (base: ProjectReference[], incoming: ProjectReference[]) => {
+    const merged = [...base];
+    const seen = new Set(
+      base.map((ref) => `${ref.type}:${ref.name || ''}:${ref.angle || ''}:${ref.url}`)
+    );
+
+    incoming.forEach((ref) => {
+      const key = `${ref.type}:${ref.name || ''}:${ref.angle || ''}:${ref.url}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(ref);
+    });
+
+    return merged;
+  };
+
   const handleSubmit = async () => {
     if (!prompt.trim()) return;
     await onGenerate(prompt, templateId, references, Number(targetDurationSec));
@@ -38,14 +54,14 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
 
   const handleSelectFromLibrary = (newReferences: ProjectReference[]) => {
     // 合並角色庫選擇的角色和已有的暫時上傳
-    setReferences([...references, ...newReferences]);
+    setReferences((prev) => mergeUniqueReferences(prev, newReferences));
   };
 
   const handleCreateToLibrary = (character: Parameters<typeof characterLibraryStorage.add>[0]) => {
     const created = characterLibraryStorage.add(character);
     // 建立後先預設帶入正面視角，讓使用者可立即使用
     const reference = characterLibraryItemToProjectReference(created, 'front');
-    setReferences(prev => [...prev, reference]);
+    setReferences(prev => mergeUniqueReferences(prev, [reference]));
     setShowCreateCharacterDialog(false);
   };
 

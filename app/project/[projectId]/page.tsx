@@ -67,8 +67,8 @@ export default function ProjectPage() {
     {
       id: 'export',
       icon: FileCode,
-      title: 'Blender 腳本',
-      description: '生成自動剪輯腳本',
+      title: '剪輯與匯出',
+      description: 'AI 建議 + OpenReel / FFmpeg / Blender',
       href: `/project/${projectId}/export`,
       available: progress.hasVideos,
       color: 'text-green-500',
