@@ -57,6 +57,12 @@ export function BatchImageGenerator({
     const buildImagePrompt = (scene: Scene, isEndFrame: boolean = false) => {
         const parts = [];
         const sceneScopedContentRefs = getSceneRelevantReferences(scene, contentProjectReferences);
+        const consistencyGuardrails = [
+            'Describe the scene in natural language, not keyword stuffing.',
+            'Anchor identity and product geometry to reference images.',
+            'Keep face structure, hairstyle, body proportions, outfit silhouette/materials, accessories, and logo placement unchanged unless explicitly requested.',
+            'Do not introduce new characters, props, logos, or text unless explicitly requested.',
+        ];
 
         if (styleProfile?.stylePrompt) {
             parts.push(`Style direction: ${styleProfile.stylePrompt}`);
@@ -117,6 +123,7 @@ export function BatchImageGenerator({
             )
         );
         parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
+        parts.push(...consistencyGuardrails);
 
         if (scene.referenceImage || contentProjectReferences.length > 0) {
             parts.push('Maintain the exact appearance, facial features, clothing, and style from the uploaded reference image.');
@@ -135,13 +142,13 @@ export function BatchImageGenerator({
         const prompt = [
             buildImagePrompt(scene, isEndFrame),
             isEndFrame && options?.primaryReferenceUrl
-                ? 'Use the provided start frame as the primary continuity reference. Only apply the explicit end-frame delta.'
+                ? 'Use the provided start frame as the primary continuity reference. Keep everything the same as the primary reference image. Only apply the explicit end-frame delta.'
                 : '',
             isEndFrame
                 ? 'Return a final-state still frame composition, not an intermediate motion step.'
                 : '',
             !isEndFrame && options?.continuityReferenceUrl
-                ? 'This scene should continue naturally from the previous scene end frame while preserving identity.'
+                ? 'This scene should continue naturally from the previous scene end frame while preserving identity. Keep everything the same as the previous scene end frame unless this prompt explicitly changes it.'
                 : '',
         ].filter(Boolean).join('. ');
 

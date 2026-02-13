@@ -82,6 +82,12 @@ export function ImageGenerator({
     // 構建圖片生成 prompt（支援首幀/尾幀）
     const buildImagePrompt = (isEndFrame: boolean = false) => {
         const parts = [];
+        const consistencyGuardrails = [
+            'Describe the scene in natural language, not keyword stuffing.',
+            'Anchor identity and product geometry to reference images.',
+            'Keep face structure, hairstyle, body proportions, outfit silhouette/materials, accessories, and logo placement unchanged unless explicitly requested.',
+            'Do not introduce new characters, props, logos, or text unless explicitly requested.',
+        ];
 
         if (styleProfile?.stylePrompt) {
             parts.push(`Style direction: ${styleProfile.stylePrompt}`);
@@ -174,6 +180,7 @@ export function ImageGenerator({
         }
 
         parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
+        parts.push(...consistencyGuardrails);
 
         // 4. 如果有場景參考圖，加強保持外觀特徵的指令
         if (referenceImage || selectedProjectRefs.length > 0) {
@@ -182,11 +189,13 @@ export function ImageGenerator({
         }
         if (isEndFrame && scene.generatedImage?.url) {
             parts.push('Use the generated start frame as the primary continuity reference.');
+            parts.push('Keep everything the same as the primary reference image. Only change what is explicitly described in the end-frame delta.');
             parts.push('Only change what is explicitly described in the end-frame delta; keep identity, product geometry, logo placement, and material characteristics unchanged.');
             parts.push('Return a final-state still frame composition, not a transition process.');
         }
         if (!isEndFrame && previousEndFrameUrl) {
             parts.push('This scene continues from the previous scene end frame.');
+            parts.push('Keep everything the same as the previous scene end frame unless this prompt explicitly changes it.');
             parts.push('Keep subject identity and key object consistency while updating only composition and action as described.');
         }
 
