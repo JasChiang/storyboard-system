@@ -9,7 +9,7 @@ import type { CharacterLibraryItem } from '@/lib/types/character-library';
 interface CharacterCreateDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (character: Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => void;
+  onSave: (character: Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => void | Promise<void>;
   editingCharacter?: CharacterLibraryItem;
 }
 
@@ -223,7 +223,7 @@ export function CharacterCreateDialog({
     setViews(views.filter(v => v.angle !== angle));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       alert('請輸入名稱');
       return;
@@ -234,7 +234,7 @@ export function CharacterCreateDialog({
       return;
     }
 
-    onSave({
+    await onSave({
       name: name.trim(),
       type,
       description: description.trim() || `${name} - ${TYPE_OPTIONS.find(t => t.value === type)?.label}`,

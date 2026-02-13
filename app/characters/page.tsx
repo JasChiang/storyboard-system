@@ -16,11 +16,12 @@ export default function CharacterLibraryPage() {
   const [editingCharacter, setEditingCharacter] = useState<CharacterLibraryItem | undefined>();
 
   useEffect(() => {
-    loadCharacters();
+    void loadCharacters();
   }, []);
 
-  const loadCharacters = () => {
-    setCharacters(characterLibraryStorage.getAll());
+  const loadCharacters = async () => {
+    const items = await characterLibraryStorage.getAll();
+    setCharacters(items);
   };
 
   const filteredCharacters = characters.filter(char => {
@@ -35,20 +36,24 @@ export default function CharacterLibraryPage() {
 
   const handleDelete = (id: string) => {
     if (confirm('確定要刪除此角色？此操作無法撤銷。')) {
-      characterLibraryStorage.delete(id);
-      loadCharacters();
+      void (async () => {
+        await characterLibraryStorage.delete(id);
+        await loadCharacters();
+      })();
     }
   };
 
   const handleSave = (character: Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => {
-    if (editingCharacter) {
-      characterLibraryStorage.update(editingCharacter.id, character);
-    } else {
-      characterLibraryStorage.add(character);
-    }
-    loadCharacters();
-    setShowCreateDialog(false);
-    setEditingCharacter(undefined);
+    void (async () => {
+      if (editingCharacter) {
+        await characterLibraryStorage.update(editingCharacter.id, character);
+      } else {
+        await characterLibraryStorage.add(character);
+      }
+      await loadCharacters();
+      setShowCreateDialog(false);
+      setEditingCharacter(undefined);
+    })();
   };
 
   const handleEdit = (character: CharacterLibraryItem) => {

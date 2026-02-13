@@ -1,5 +1,5 @@
 /**
- * 全局角色庫本地儲存管理
+ * 角色庫儲存：SQLite API 為主，localStorage 為 fallback。
  */
 
 import type { CharacterLibrary, CharacterLibraryItem } from '@/lib/types/character-library';
@@ -7,15 +7,11 @@ import type { CharacterLibrary, CharacterLibraryItem } from '@/lib/types/charact
 const STORAGE_KEY = 'storyboard_character_library';
 
 class CharacterLibraryStorage {
-  private getLibrary(): CharacterLibrary {
-    if (typeof window === 'undefined') {
-      return { items: [], version: 1 };
-    }
+  private getLocalLibrary(): CharacterLibrary {
+    if (typeof window === 'undefined') return { items: [], version: 1 };
 
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
-      return { items: [], version: 1 };
-    }
+    if (!stored) return { items: [], version: 1 };
 
     try {
       return JSON.parse(stored) as CharacterLibrary;
@@ -24,91 +20,147 @@ class CharacterLibraryStorage {
     }
   }
 
-  private saveLibrary(library: CharacterLibrary): void {
+  private saveLocalLibrary(library: CharacterLibrary): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(library));
   }
 
-  /**
-   * 取得所有角色
-   */
-  getAll(): CharacterLibraryItem[] {
-    return this.getLibrary().items;
+  private async importLocalToApiIfNeeded(remoteItems: CharacterLibraryItem[]): Promise<void> {
+    if (typeof window === 'undefined') return;
+    if (remoteItems.length > 0) return;
+
+    const localItems = this.getLocalLibrary().items;
+    if (!localItems.length) return;
+
+    await fetch('/api/data/character-library/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: localItems }),
+    });
   }
 
-  /**
-   * 根据 ID 取得单个角色
-   */
-  getById(id: string): CharacterLibraryItem | undefined {
-    return this.getLibrary().items.find(item => item.id === id);
-  }
+  async getAll(): Promise<CharacterLibraryItem[]> {
+    try {
+      const response = await fetch('/api/data/character-library');
+      if (!response.ok) throw new Error('Failed to fetch character library');
+      const json = await response.json();
+      const remote = (json.data || []) as CharacterLibraryItem[];
 
-  /**
-   * 新增角色
-   */
-  add(item: Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>): CharacterLibraryItem {
-    const library = this.getLibrary();
-    const newItem: CharacterLibraryItem = {
-      ...item,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      usageCount: 0,
-    };
+      await this.importLocalToApiIfNeeded(remote);
+      if (remote.length === 0) {
+        const retry = await fetch('/api/data/character-library');
+        if (retry.ok) {
+          const retryJson = await retry.json();
+          const retryItems = (retryJson.data || []) as CharacterLibraryItem[];
+          this.saveLocalLibrary({ items: retryItems, version: 1 });
+          return retryItems;
+        }
+      }
 
-    library.items.push(newItem);
-    this.saveLibrary(library);
-    return newItem;
-  }
-
-  /**
-   * 更新角色
-   */
-  update(id: string, updates: Partial<Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'usageCount'>>): void {
-    const library = this.getLibrary();
-    const index = library.items.findIndex(item => item.id === id);
-
-    if (index === -1) {
-      throw new Error('角色不存在');
-    }
-
-    library.items[index] = {
-      ...library.items[index],
-      ...updates,
-      updatedAt: new Date().toISOString(),
-    };
-
-    this.saveLibrary(library);
-  }
-
-  /**
-   * 刪除角色
-   */
-  delete(id: string): void {
-    const library = this.getLibrary();
-    library.items = library.items.filter(item => item.id !== id);
-    this.saveLibrary(library);
-  }
-
-  /**
-   * 增加使用次數
-   */
-  incrementUsage(id: string): void {
-    const library = this.getLibrary();
-    const item = library.items.find(item => item.id === id);
-
-    if (item) {
-      item.usageCount += 1;
-      this.saveLibrary(library);
+      this.saveLocalLibrary({ items: remote, version: 1 });
+      return remote;
+    } catch {
+      return this.getLocalLibrary().items;
     }
   }
 
-  /**
-   * 搜尋角色
-   */
-  search(query: string): CharacterLibraryItem[] {
+  async getById(id: string): Promise<CharacterLibraryItem | undefined> {
+    try {
+      const response = await fetch(`/api/data/character-library/${id}`);
+      if (response.status === 404) return undefined;
+      if (!response.ok) throw new Error('Failed to fetch character library item');
+      const json = await response.json();
+      return json.data as CharacterLibraryItem;
+    } catch {
+      return this.getLocalLibrary().items.find((item) => item.id === id);
+    }
+  }
+
+  async add(item: Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>): Promise<CharacterLibraryItem> {
+    try {
+      const response = await fetch('/api/data/character-library', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      });
+
+      if (!response.ok) throw new Error('Failed to create character library item');
+      const json = await response.json();
+      const created = json.data as CharacterLibraryItem;
+      const items = await this.getAll();
+      this.saveLocalLibrary({ items, version: 1 });
+      return created;
+    } catch {
+      const library = this.getLocalLibrary();
+      const created: CharacterLibraryItem = {
+        ...item,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        usageCount: 0,
+      };
+      library.items.push(created);
+      this.saveLocalLibrary(library);
+      return created;
+    }
+  }
+
+  async update(id: string, updates: Partial<Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'usageCount'>>): Promise<void> {
+    try {
+      const response = await fetch(`/api/data/character-library/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!response.ok) throw new Error('Failed to update character library item');
+      const items = await this.getAll();
+      this.saveLocalLibrary({ items, version: 1 });
+      return;
+    } catch {
+      const library = this.getLocalLibrary();
+      const index = library.items.findIndex((x) => x.id === id);
+      if (index === -1) throw new Error('角色不存在');
+      library.items[index] = {
+        ...library.items[index],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+      this.saveLocalLibrary(library);
+    }
+  }
+
+  async delete(id: string): Promise<void> {
+    try {
+      const response = await fetch(`/api/data/character-library/${id}`, { method: 'DELETE' });
+      if (!response.ok && response.status !== 404) throw new Error('Failed to delete character library item');
+      const items = await this.getAll();
+      this.saveLocalLibrary({ items, version: 1 });
+      return;
+    } catch {
+      const library = this.getLocalLibrary();
+      library.items = library.items.filter((item) => item.id !== id);
+      this.saveLocalLibrary(library);
+    }
+  }
+
+  async incrementUsage(id: string): Promise<void> {
+    try {
+      await fetch(`/api/data/character-library/${id}/increment-usage`, { method: 'POST' });
+      return;
+    } catch {
+      const library = this.getLocalLibrary();
+      const item = library.items.find((x) => x.id === id);
+      if (item) {
+        item.usageCount += 1;
+        this.saveLocalLibrary(library);
+      }
+    }
+  }
+
+  async search(query: string): Promise<CharacterLibraryItem[]> {
     const lowerQuery = query.toLowerCase();
-    return this.getLibrary().items.filter(item =>
+    const items = await this.getAll();
+    return items.filter(item =>
       item.name.toLowerCase().includes(lowerQuery) ||
       item.description.toLowerCase().includes(lowerQuery) ||
       (item.guidelines || '').toLowerCase().includes(lowerQuery) ||
@@ -116,16 +168,11 @@ class CharacterLibraryStorage {
     );
   }
 
-  /**
-   * 按類型篩選
-   */
-  filterByType(type: CharacterLibraryItem['type']): CharacterLibraryItem[] {
-    return this.getLibrary().items.filter(item => item.type === type);
+  async filterByType(type: CharacterLibraryItem['type']): Promise<CharacterLibraryItem[]> {
+    const items = await this.getAll();
+    return items.filter(item => item.type === type);
   }
 
-  /**
-   * 清空角色庫（谨慎使用）
-   */
   clear(): void {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(STORAGE_KEY);

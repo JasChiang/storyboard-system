@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import type { Project } from '@/lib/types/project';
+import type { CharacterLibraryItem } from '@/lib/types/character-library';
 
 const DB_DIR = path.join(process.cwd(), '.data');
 const DB_PATH = path.join(DB_DIR, 'storyboard.sqlite');
@@ -62,11 +63,24 @@ function ensureDb() {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS character_library_items (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      item_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_generation_tasks_project_stage
       ON generation_tasks(project_id, stage, status);
 
     CREATE INDEX IF NOT EXISTS idx_qa_reports_project
       ON storyboard_qa_reports(project_id, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_character_library_name_type
+      ON character_library_items(name, type, updated_at DESC);
   `);
 
   return db;
@@ -342,5 +356,96 @@ export const sqliteQaRepo = {
     const conn = ensureDb();
     const row = conn.prepare('SELECT * FROM storyboard_qa_reports WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
     return row ? rowToQaReport(row) : null;
+  },
+};
+
+function rowToCharacterItem(row: DbRow): CharacterLibraryItem {
+  const parsed = JSON.parse(String(row.item_json)) as CharacterLibraryItem;
+  return {
+    ...parsed,
+    id: String(row.id),
+    name: String(row.name),
+    type: String(row.type) as CharacterLibraryItem['type'],
+    usageCount: Number(row.usage_count || 0),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export const sqliteCharacterLibraryRepo = {
+  getAll(): CharacterLibraryItem[] {
+    const conn = ensureDb();
+    const rows = conn
+      .prepare('SELECT * FROM character_library_items ORDER BY updated_at DESC')
+      .all() as DbRow[];
+    return rows.map(rowToCharacterItem);
+  },
+
+  getById(id: string): CharacterLibraryItem | null {
+    const conn = ensureDb();
+    const row = conn
+      .prepare('SELECT * FROM character_library_items WHERE id = ?')
+      .get(id) as DbRow | undefined;
+    return row ? rowToCharacterItem(row) : null;
+  },
+
+  create(item: CharacterLibraryItem): CharacterLibraryItem {
+    const conn = ensureDb();
+    conn.prepare(`
+      INSERT INTO character_library_items (
+        id, name, type, usage_count, item_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      item.id,
+      item.name,
+      item.type,
+      item.usageCount,
+      JSON.stringify(item),
+      item.createdAt,
+      item.updatedAt
+    );
+    return item;
+  },
+
+  update(id: string, updates: Partial<CharacterLibraryItem>): CharacterLibraryItem | null {
+    const existing = this.getById(id);
+    if (!existing) return null;
+
+    const merged: CharacterLibraryItem = {
+      ...existing,
+      ...updates,
+      id,
+      updatedAt: new Date().toISOString(),
+      createdAt: existing.createdAt,
+      usageCount: typeof updates.usageCount === 'number' ? updates.usageCount : existing.usageCount,
+    };
+
+    const conn = ensureDb();
+    conn.prepare(`
+      UPDATE character_library_items
+      SET name = ?, type = ?, usage_count = ?, item_json = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      merged.name,
+      merged.type,
+      merged.usageCount,
+      JSON.stringify(merged),
+      merged.updatedAt,
+      id
+    );
+
+    return merged;
+  },
+
+  delete(id: string): boolean {
+    const conn = ensureDb();
+    const result = conn.prepare('DELETE FROM character_library_items WHERE id = ?').run(id);
+    return result.changes > 0;
+  },
+
+  incrementUsage(id: string): CharacterLibraryItem | null {
+    const existing = this.getById(id);
+    if (!existing) return null;
+    return this.update(id, { usageCount: existing.usageCount + 1 });
   },
 };

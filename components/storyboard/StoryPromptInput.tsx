@@ -57,8 +57,8 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
     setReferences((prev) => mergeUniqueReferences(prev, newReferences));
   };
 
-  const handleCreateToLibrary = (character: Parameters<typeof characterLibraryStorage.add>[0]) => {
-    const created = characterLibraryStorage.add(character);
+  const handleCreateToLibrary = async (character: Parameters<typeof characterLibraryStorage.add>[0]) => {
+    const created = await characterLibraryStorage.add(character);
     // 建立後先預設帶入正面視角，讓使用者可立即使用
     const reference = characterLibraryItemToProjectReference(created, 'front');
     setReferences(prev => mergeUniqueReferences(prev, [reference]));

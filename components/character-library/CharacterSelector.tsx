@@ -29,17 +29,19 @@ export function CharacterSelector({
 
   useEffect(() => {
     if (isOpen) {
-      const items = characterLibraryStorage.getAll();
-      setCharacters(items);
-      if (selectedIds.length > 0) {
-        const preselected = new Map<string, 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other'>();
-        selectedIds.forEach((id) => {
-          if (items.some((item) => item.id === id)) {
-            preselected.set(id, 'front');
-          }
-        });
-        setSelectedCharacters(preselected);
-      }
+      void (async () => {
+        const items = await characterLibraryStorage.getAll();
+        setCharacters(items);
+        if (selectedIds.length > 0) {
+          const preselected = new Map<string, 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other'>();
+          selectedIds.forEach((id) => {
+            if (items.some((item) => item.id === id)) {
+              preselected.set(id, 'front');
+            }
+          });
+          setSelectedCharacters(preselected);
+        }
+      })();
     }
   }, [isOpen, selectedIds]);
 
@@ -87,7 +89,7 @@ export function CharacterSelector({
           }
 
           // 增加使用次數
-          characterLibraryStorage.incrementUsage(characterId);
+          void characterLibraryStorage.incrementUsage(characterId);
         } catch (error) {
           console.error(`轉換角色 ${character.name} 失敗:`, error);
         }
