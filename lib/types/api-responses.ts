@@ -2,6 +2,7 @@
 export interface FalQueueResponse {
   request_id: string;
   status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  endpoint?: string;
 }
 
 // Fal AI 狀態查詢回應

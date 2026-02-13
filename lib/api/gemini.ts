@@ -31,6 +31,25 @@ export interface ComposeVideoPromptResult {
   sourceModel: string;
 }
 
+export interface ComposeImagePromptInput {
+  scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'requiresEndFrame' | 'endFrameDescription' | 'beatGoal' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev'>;
+  manualEndFrameDescription?: string;
+  references: ProjectReference[];
+  stylePrompt?: string;
+  negativePrompt?: string;
+  hasPreviousEndFrame?: boolean;
+  startFramePrompt?: string;
+  previousSceneDescription?: string;
+  nextSceneDescription?: string;
+}
+
+export interface ComposeImagePromptResult {
+  suggestedEndFrameDescription: string;
+  composedPrompt: string;
+  notes?: string;
+  sourceModel: string;
+}
+
 // 上傳影片到 Gemini Files API
 export async function uploadVideoToGemini(
   file: File,
@@ -271,6 +290,118 @@ Rules:
   };
 }
 
+export async function composeImagePromptWithGemini(
+  input: ComposeImagePromptInput,
+  config: GeminiConfig
+): Promise<ComposeImagePromptResult> {
+  const ai = new GoogleGenAI({ apiKey: config.apiKey });
+  const modelName = process.env.GEMINI_PROMPT_COMPOSER_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
+  const consolidatedRules = buildConsolidatedReferenceRules(input.references || []);
+  const referenceContext = consolidatedRules.map((rule) => {
+    const lock = rule.structuredIdentityLock || buildStructuredIdentityLock({
+      type: rule.type,
+      identityCore: rule.identityCore,
+      mustKeepFeatures: rule.mustKeepFeatures,
+      guidelines: rule.guidelines.join('；'),
+      description: '',
+    });
+
+    return {
+      tag: rule.tag,
+      identityCore: rule.identityCore || '',
+      mustKeepFeatures: rule.mustKeepFeatures.slice(0, 8),
+      guidelines: rule.guidelines.slice(0, 8),
+      structuredLockLine: lock ? buildIdentityLockPromptLine(lock, rule.tag) : '',
+    };
+  });
+
+  const systemPrompt = `You are an image prompt assistant for storyboard static frame generation.
+Return JSON only with keys:
+{
+  "suggestedEndFrameDescription": "string",
+  "composedPrompt": "string",
+  "notes": "string"
+}
+
+Rules:
+1) Generate a concise end-frame final-state description (no temporal language).
+2) Infer terminal framing from cameraMovement, using startFramePrompt as continuity anchor.
+3) If motion implies reframing (e.g., pan right to family), the end frame must reflect that final composition.
+2) Keep identity/product geometry/logo/text constraints unchanged unless explicit delta says otherwise.
+3) Do not invent new logos/text/characters/props.
+4) Composed prompt must be for a single static frame only.
+5) Keep output concise and production-ready.
+6) JSON only, no markdown.`;
+
+  const userPayload = {
+    scene: {
+      id: input.scene.id,
+      sceneNumber: input.scene.sceneNumber,
+      description: input.scene.description,
+      cameraMovement: input.scene.cameraMovement,
+      beatGoal: input.scene.beatGoal || '',
+      shotIntent: input.scene.shotIntent || '',
+      continuityAnchor: input.scene.continuityAnchor || '',
+      changeFromPrev: input.scene.changeFromPrev || '',
+      requiresEndFrame: Boolean(input.scene.requiresEndFrame),
+      endFrameDescription: input.scene.endFrameDescription || '',
+      manualEndFrameDescription: input.manualEndFrameDescription || '',
+      hasPreviousEndFrame: Boolean(input.hasPreviousEndFrame),
+    },
+    context: {
+      startFramePrompt: input.startFramePrompt || '',
+      previousSceneDescription: input.previousSceneDescription || '',
+      nextSceneDescription: input.nextSceneDescription || '',
+    },
+    style: {
+      stylePrompt: input.stylePrompt || '',
+      negativePrompt: input.negativePrompt || '',
+    },
+    consolidatedReferenceRules: referenceContext,
+  };
+
+  const result = await ai.models.generateContent({
+    model: modelName,
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: `${systemPrompt}\n\nInput JSON:\n${JSON.stringify(userPayload, null, 2)}` },
+        ],
+      },
+    ],
+  });
+
+  const responseText = result.text || '';
+  const fenced = responseText.match(/```json\s*([\s\S]*?)```/i);
+  const jsonCandidate = fenced?.[1]?.trim() || responseText.trim();
+
+  let parsed: { suggestedEndFrameDescription?: string; composedPrompt?: string; notes?: string } | null = null;
+  try {
+    parsed = JSON.parse(jsonCandidate);
+  } catch {
+    const firstBrace = responseText.indexOf('{');
+    const lastBrace = responseText.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      parsed = JSON.parse(responseText.slice(firstBrace, lastBrace + 1));
+    }
+  }
+
+  const suggestedEndFrameDescription = parsed?.suggestedEndFrameDescription?.trim();
+  const composedPrompt = parsed?.composedPrompt?.trim();
+
+  if (!suggestedEndFrameDescription || !composedPrompt) {
+    throw new Error('Gemini 未回傳可用的 image compose 結果');
+  }
+
+  return {
+    suggestedEndFrameDescription,
+    composedPrompt,
+    notes: parsed?.notes?.trim() || undefined,
+    sourceModel: modelName,
+  };
+}
 function buildEditingAnalysisPrompt(storyboard: Storyboard, uploadedFiles: UploadedFile[]): string {
   // 建立影片與場景的對應關係
   const scenesWithVideos = storyboard.scenes.filter(s => s.generatedVideo);

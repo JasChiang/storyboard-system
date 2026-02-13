@@ -111,24 +111,69 @@ export async function generateVideoKling(
     aspectRatio?: '16:9' | '9:16' | '1:1';
     enableSound?: boolean;
     endImageUrl?: string;  // 尾幀圖片 URL
+    variant?: 'v26' | 'o3';
   },
   config: FalConfig
 ): Promise<FalQueueResponse> {
   configureFal(config.apiKey);
+  const variant = options.variant || 'v26';
 
-  const endpoint = process.env.FAL_VIDEO_KLING_MODEL || 'fal-ai/kling-video/v2.6/pro/image-to-video';
+  const resolveKlingEndpoint = (variant: 'v26' | 'o3') => {
+    const defaults: Record<'v26' | 'o3', string> = {
+      v26: 'fal-ai/kling-video/v2.6/pro/image-to-video',
+      o3: 'fal-ai/kling-video/o3/pro/image-to-video',
+    };
 
-  const input: Record<string, any> = {
-    start_image_url: imageUrl,  // Kling 使用 start_image_url 而非 image_url
+    const modelsJson = process.env.FAL_VIDEO_KLING_MODELS;
+    if (modelsJson) {
+      try {
+        const parsed = JSON.parse(modelsJson) as Partial<Record<'v26' | 'o3', string>>;
+        const configured = parsed?.[variant]?.trim();
+        if (configured) return configured;
+      } catch (error) {
+        console.warn('Invalid FAL_VIDEO_KLING_MODELS JSON, fallback to legacy env/model defaults.', error);
+      }
+    }
+
+    const legacy = process.env.FAL_VIDEO_KLING_MODEL?.trim();
+    if (legacy) return legacy;
+
+    return defaults[variant];
+  };
+
+  const endpoint = resolveKlingEndpoint(variant);
+
+  const input: Record<string, string | boolean> = {
     prompt,
     duration: String(options.duration || 5),  // 轉為字串
     generate_audio: options.enableSound ?? false,
+    aspect_ratio: options.aspectRatio || '16:9',
   };
+
+  if (variant === 'o3') {
+    // Kling O3 官方 schema 主欄位為 image_url
+    input.image_url = imageUrl;
+  } else {
+    // Kling 2.6 使用 start_image_url
+    input.start_image_url = imageUrl;
+  }
 
   // 如果提供了尾幀圖片，加入到 input
   if (options.endImageUrl) {
     input.end_image_url = options.endImageUrl;
   }
+
+  console.log('[generateVideoKling] submit:', {
+    endpoint,
+    variant,
+    startKey: variant === 'o3' ? 'image_url' : 'start_image_url',
+    hasStartImage: Boolean(variant === 'o3' ? input.image_url : input.start_image_url),
+    hasEndImage: Boolean(input.end_image_url),
+    aspectRatio: input.aspect_ratio,
+    duration: input.duration,
+    generateAudio: input.generate_audio,
+    promptLength: prompt.length,
+  });
 
   const result = await fal.queue.submit(endpoint, {
     input
@@ -137,6 +182,7 @@ export async function generateVideoKling(
   return {
     request_id: result.request_id,
     status: 'IN_QUEUE',
+    endpoint,
   };
 }
 
@@ -157,7 +203,7 @@ export async function generateVideoSeedance(
 
   const endpoint = process.env.FAL_VIDEO_SEEDANCE_MODEL || 'fal-ai/bytedance/seedance/v1.5/pro/image-to-video';
 
-  const input: Record<string, any> = {
+  const input: Record<string, string | boolean> = {
     image_url: imageUrl,
     prompt,
     duration: String(options.duration || 5),  // API 要求字串格式
@@ -170,6 +216,17 @@ export async function generateVideoSeedance(
   if (options.endImageUrl) {
     input.end_image_url = options.endImageUrl;
   }
+
+  console.log('[generateVideoSeedance] submit:', {
+    endpoint,
+    hasImage: Boolean(input.image_url),
+    hasEndImage: Boolean(input.end_image_url),
+    aspectRatio: input.aspect_ratio,
+    resolution: input.resolution,
+    duration: input.duration,
+    generateAudio: input.generate_audio,
+    promptLength: prompt.length,
+  });
 
   const result = await fal.queue.submit(endpoint, {
     input

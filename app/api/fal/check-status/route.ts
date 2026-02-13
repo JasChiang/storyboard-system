@@ -24,6 +24,43 @@ function extractFalErrorMessage(error: unknown): string {
     return 'Generation failed';
 }
 
+function deriveEndpointFromResponseUrl(responseUrl?: string): string | null {
+    if (!responseUrl) return null;
+    try {
+        const url = new URL(responseUrl);
+        // Example: /fal-ai/kling-video/requests/{id}
+        const path = url.pathname.replace(/^\/+/, '');
+        const marker = '/requests/';
+        const idx = path.indexOf(marker);
+        if (idx <= 0) return null;
+        const endpoint = path.slice(0, idx).trim();
+        return endpoint || null;
+    } catch {
+        return null;
+    }
+}
+
+async function fetchResultByResponseUrl(
+    responseUrl: string,
+    apiKey: string
+): Promise<unknown> {
+    const headersList = [
+        {},
+        { Authorization: `Key ${apiKey}` },
+        { Authorization: `Bearer ${apiKey}` },
+    ];
+
+    for (const headers of headersList) {
+        const res = await fetch(responseUrl, { headers, cache: 'no-store' });
+        if (!res.ok) {
+            continue;
+        }
+        return res.json();
+    }
+
+    throw new Error('Failed to fetch result via response_url');
+}
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
@@ -65,6 +102,61 @@ export async function POST(request: NextRequest) {
                     result,
                 });
             } catch (resultError) {
+                console.error('[check-status] Primary result fetch failed:', {
+                    requestId,
+                    endpoint,
+                    responseUrl: status.response_url,
+                    error: extractFalErrorMessage(resultError),
+                });
+
+                // Fallback: 某些 Fal 任務在 status 可用原 endpoint，
+                // 但 result 需要使用 response_url 中的 normalized endpoint。
+                const fallbackEndpoint = deriveEndpointFromResponseUrl(status.response_url);
+                if (fallbackEndpoint && fallbackEndpoint !== endpoint) {
+                    try {
+                        const fallbackResult = type === 'image'
+                            ? await getImageResult(requestId, fallbackEndpoint, { apiKey })
+                            : await getVideoResult(requestId, fallbackEndpoint, { apiKey });
+
+                        return NextResponse.json({
+                            status: 'COMPLETED',
+                            result: fallbackResult,
+                        });
+                    } catch (fallbackError) {
+                        console.error('[check-status] Fallback endpoint result fetch failed:', {
+                            requestId,
+                            fallbackEndpoint,
+                            responseUrl: status.response_url,
+                            error: extractFalErrorMessage(fallbackError),
+                        });
+                    }
+                }
+
+                // Final fallback: 直接使用 Fal 的 response_url 取結果
+                if (status.response_url) {
+                    try {
+                        const raw = await fetchResultByResponseUrl(status.response_url, apiKey);
+                        const payload = raw as {
+                            data?: unknown;
+                            video?: unknown;
+                            images?: unknown;
+                        };
+                        const result = payload.data ?? (payload.video || payload.images ? payload : null);
+                        if (result) {
+                            return NextResponse.json({
+                                status: 'COMPLETED',
+                                result,
+                            });
+                        }
+                    } catch (responseUrlError) {
+                        console.error('[check-status] response_url fetch failed:', {
+                            requestId,
+                            responseUrl: status.response_url,
+                            error: extractFalErrorMessage(responseUrlError),
+                        });
+                    }
+                }
+
                 return NextResponse.json({
                     status: 'FAILED',
                     error: extractFalErrorMessage(resultError),

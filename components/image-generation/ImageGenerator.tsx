@@ -13,18 +13,24 @@ interface ImageGeneratorProps {
     projectId: string;
     scene: Scene;
     onImageGenerated: (imageUrl: string, prompt: string, endFrameUrl?: string, endFramePrompt?: string) => void;
+    onEndFrameDescriptionChanged?: (description: string, enabled: boolean) => void;
     projectReferences?: ProjectReference[];
     styleProfile?: StyleProfile;
     previousEndFrameUrl?: string;
+    previousSceneDescription?: string;
+    nextSceneDescription?: string;
 }
 
 export function ImageGenerator({
     projectId,
     scene,
     onImageGenerated,
+    onEndFrameDescriptionChanged,
     projectReferences = [],
     styleProfile,
     previousEndFrameUrl,
+    previousSceneDescription,
+    nextSceneDescription,
 }: ImageGeneratorProps) {
     const contentProjectReferences = projectReferences.filter(ref => ref.type !== 'style');
     const styleProjectReferences = projectReferences.filter(ref => ref.type === 'style');
@@ -38,10 +44,14 @@ export function ImageGenerator({
     const [customPrompt, setCustomPrompt] = useState('');
     const [promptMode, setPromptMode] = useState<'append' | 'replace' | 'prepend'>('append');
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const [isComposingEndFramePrompt, setIsComposingEndFramePrompt] = useState(false);
+    const [aiEndFrameNotes, setAiEndFrameNotes] = useState('');
     const [manualEndFrameEnabled, setManualEndFrameEnabled] = useState<boolean>(
-        !!scene.generatedEndFrame?.url
+        !!scene.generatedEndFrame?.url || (!scene.requiresEndFrame && !!scene.endFrameDescription)
     );
-    const [manualEndFrameDescription, setManualEndFrameDescription] = useState<string>('');
+    const [manualEndFrameDescription, setManualEndFrameDescription] = useState<string>(
+        !scene.requiresEndFrame && scene.endFrameDescription ? scene.endFrameDescription : ''
+    );
     // 專案參考圖選擇狀態
     const [selectedProjectRefs, setSelectedProjectRefs] = useState<string[]>(
         contentProjectReferences.map(r => r.id)  // 預設全選（不含 style refs）
@@ -66,6 +76,16 @@ export function ImageGenerator({
             setAspectRatio('16:9');
         }
     }, [scene.id, scenePreferredAspectRatio]);
+
+    useEffect(() => {
+        setAiEndFrameNotes('');
+        setManualEndFrameEnabled(
+            !!scene.generatedEndFrame?.url || (!scene.requiresEndFrame && !!scene.endFrameDescription)
+        );
+        setManualEndFrameDescription(
+            !scene.requiresEndFrame && scene.endFrameDescription ? scene.endFrameDescription : ''
+        );
+    }, [scene.id, scene.generatedEndFrame?.url, scene.requiresEndFrame, scene.endFrameDescription]);
 
     const shouldUseEndFrame = scene.requiresEndFrame || manualEndFrameEnabled;
 
@@ -320,6 +340,58 @@ export function ImageGenerator({
         }
     };
 
+    const handleComposeEndFrameWithAI = async () => {
+        setIsComposingEndFramePrompt(true);
+        try {
+            const response = await fetch('/api/gemini/compose-image-prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scene: {
+                        id: scene.id,
+                        sceneNumber: scene.sceneNumber,
+                        description: scene.description,
+                        cameraMovement: scene.cameraMovement,
+                        beatGoal: scene.beatGoal,
+                        shotIntent: scene.shotIntent,
+                        continuityAnchor: scene.continuityAnchor,
+                        changeFromPrev: scene.changeFromPrev,
+                        requiresEndFrame: scene.requiresEndFrame,
+                        endFrameDescription: scene.endFrameDescription,
+                    },
+                    manualEndFrameDescription,
+                    references: sceneScopedContentRefs,
+                    stylePrompt: styleProfile?.stylePrompt,
+                    negativePrompt: styleProfile?.negativePrompt,
+                    hasPreviousEndFrame: Boolean(previousEndFrameUrl),
+                    startFramePrompt: scene.generatedImage?.prompt,
+                    previousSceneDescription,
+                    nextSceneDescription,
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'AI compose failed');
+            }
+
+            const suggested = typeof data.suggestedEndFrameDescription === 'string'
+                ? data.suggestedEndFrameDescription.trim()
+                : '';
+            if (!suggested) {
+                throw new Error('AI 未回傳可用尾幀描述');
+            }
+
+            setManualEndFrameDescription(suggested);
+            onEndFrameDescriptionChanged?.(suggested, true);
+            setAiEndFrameNotes(typeof data.notes === 'string' ? data.notes : '');
+        } catch (error) {
+            console.error('Compose end-frame prompt error:', error);
+            alert(error instanceof Error ? error.message : 'AI 組合失敗');
+        } finally {
+            setIsComposingEndFramePrompt(false);
+        }
+    };
+
     const pollStatus = async (
         requestId: string,
         endpoint: string,
@@ -435,23 +507,53 @@ export function ImageGenerator({
                         <input
                             type="checkbox"
                             checked={manualEndFrameEnabled}
-                            onChange={(e) => setManualEndFrameEnabled(e.target.checked)}
+                            onChange={(e) => {
+                                const enabled = e.target.checked;
+                                setManualEndFrameEnabled(enabled);
+                                if (!enabled) {
+                                    setManualEndFrameDescription('');
+                                    onEndFrameDescriptionChanged?.('', false);
+                                } else {
+                                    onEndFrameDescriptionChanged?.(manualEndFrameDescription.trim(), true);
+                                }
+                            }}
                             disabled={isGeneratingStart || isGeneratingEnd}
                         />
                         手動啟用尾幀（適合跨主體運鏡）
                     </label>
                     {manualEndFrameEnabled && (
-                        <textarea
-                            value={manualEndFrameDescription}
-                            onChange={(e) => setManualEndFrameDescription(e.target.value)}
-                            placeholder="尾幀補充描述（選填）。例如：最後畫面停在家人中景，冷氣仍在左上角可見。"
-                            className="mt-2 w-full px-3 py-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg
+                        <div className="space-y-2 mt-2">
+                            <div className="flex items-center justify-between">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    可先讓 AI 產生尾幀描述，再按「生成尾幀」
+                                </p>
+                                <button
+                                    onClick={handleComposeEndFrameWithAI}
+                                    disabled={isGeneratingStart || isGeneratingEnd || isComposingEndFramePrompt}
+                                    className="px-2.5 py-1.5 text-xs bg-slate-900 hover:bg-slate-700 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 rounded
+                                    disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    {isComposingEndFramePrompt ? 'AI 生成中...' : 'AI 產生尾幀描述'}
+                                </button>
+                            </div>
+                            <textarea
+                                value={manualEndFrameDescription}
+                                onChange={(e) => setManualEndFrameDescription(e.target.value)}
+                                onBlur={() => onEndFrameDescriptionChanged?.(manualEndFrameDescription.trim(), true)}
+                                placeholder="尾幀補充描述（選填）。例如：最後畫面停在家人中景，冷氣仍在左上角可見。"
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg
                    text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400
                    focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600
                    transition-colors resize-none"
-                            rows={2}
-                            disabled={isGeneratingStart || isGeneratingEnd}
-                        />
+                                rows={2}
+                                disabled={isGeneratingStart || isGeneratingEnd || isComposingEndFramePrompt}
+                            />
+                            {aiEndFrameNotes && (
+                                <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                                    AI 備註：{aiEndFrameNotes}
+                                </p>
+                            )}
+                        </div>
                     )}
                 </div>
             )}

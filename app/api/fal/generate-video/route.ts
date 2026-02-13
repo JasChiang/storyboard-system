@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
             enableSound,
             enableAudio,
             endImageUrl,  // 尾幀圖片 URL
+            klingVariant,
         } = body;
         const apiKey = process.env.FAL_API_KEY;
 
@@ -24,7 +25,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (!imageUrl || !prompt || !model) {
+        const normalizedImageUrl = typeof imageUrl === 'string' ? imageUrl.trim() : '';
+        const normalizedPrompt = typeof prompt === 'string' ? prompt.trim() : '';
+
+        if (!normalizedImageUrl || !normalizedPrompt || !model) {
             return NextResponse.json(
                 { error: 'Missing required fields' },
                 { status: 400 }
@@ -39,34 +43,48 @@ export async function POST(request: NextRequest) {
 
         const promptPolicy = enforceVideoPromptPolicy(prompt, model);
         const safePrompt = promptPolicy.prompt;
+        const normalizedEndImageUrl = typeof endImageUrl === 'string' ? endImageUrl.trim() : undefined;
+
+        console.log('[generate-video] request summary:', {
+            model,
+            klingVariant: model === 'kling' ? klingVariant : undefined,
+            hasStartImage: Boolean(normalizedImageUrl),
+            hasEndImage: Boolean(normalizedEndImageUrl),
+            duration,
+            aspectRatio,
+            enableSound,
+            enableAudio,
+            promptLength: safePrompt.length,
+        });
 
         let result;
         let endpoint = '';
 
         if (model === 'kling') {
             result = await generateVideoKling(
-                imageUrl,
+                normalizedImageUrl,
                 safePrompt,
                 {
                     duration: duration as 5 | 10,
                     aspectRatio: aspectRatio as '16:9' | '9:16' | '1:1',
                     enableSound,
-                    endImageUrl,  // 傳遞尾幀圖片 URL
+                    endImageUrl: normalizedEndImageUrl,  // 傳遞尾幀圖片 URL
+                    variant: klingVariant === 'o3' ? 'o3' : 'v26',
                 },
                 { apiKey }
             );
-            endpoint = process.env.FAL_VIDEO_KLING_MODEL || 'fal-ai/kling-video/v2.6/pro/image-to-video';
+            endpoint = result.endpoint || '';
         } else if (model === 'seedance') {
             const { aspectRatio, resolution } = body;
             result = await generateVideoSeedance(
-                imageUrl,
+                normalizedImageUrl,
                 safePrompt,
                 {
                     duration,
                     aspectRatio,
                     resolution,
                     enableAudio,
-                    endImageUrl,  // 傳遞尾幀圖片 URL
+                    endImageUrl: normalizedEndImageUrl,  // 傳遞尾幀圖片 URL
                 },
                 { apiKey }
             );

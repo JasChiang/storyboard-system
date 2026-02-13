@@ -41,6 +41,9 @@ export default function ImagesPage() {
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
   const selectedSceneIndex = scenes.findIndex(s => s.id === selectedSceneId);
   const previousScene = selectedSceneIndex > 0 ? scenes[selectedSceneIndex - 1] : null;
+  const nextScene = selectedSceneIndex >= 0 && selectedSceneIndex < scenes.length - 1
+    ? scenes[selectedSceneIndex + 1]
+    : null;
   const previousEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
     ? previousScene.generatedEndFrame?.url
     : undefined;
@@ -97,6 +100,32 @@ export default function ImagesPage() {
         updatedAt: new Date().toISOString(),
       },
       status: 'images',
+    });
+  };
+
+  const handleEndFrameDescriptionChanged = (sceneId: string, description: string, enabled: boolean) => {
+    if (!currentProject?.storyboard) return;
+
+    const updatedScenes = currentProject.storyboard.scenes.map(scene => {
+      if (scene.id !== sceneId) return scene;
+
+      if (scene.requiresEndFrame) {
+        return scene;
+      }
+
+      return {
+        ...scene,
+        endFrameDescription: enabled ? (description || undefined) : undefined,
+        generatedEndFrame: enabled ? scene.generatedEndFrame : undefined,
+      };
+    });
+
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        scenes: updatedScenes,
+        updatedAt: new Date().toISOString(),
+      },
     });
   };
 
@@ -272,9 +301,14 @@ export default function ImagesPage() {
                     onImageGenerated={(url, prompt, endFrameUrl, endFramePrompt) =>
                       handleImageGenerated(selectedScene.id, url, prompt, endFrameUrl, endFramePrompt)
                     }
+                    onEndFrameDescriptionChanged={(description, enabled) =>
+                      handleEndFrameDescriptionChanged(selectedScene.id, description, enabled)
+                    }
                     projectReferences={currentProject.storyboard?.projectReferences}
                     styleProfile={activeStyleProfile}
                     previousEndFrameUrl={previousEndFrameUrl}
+                    previousSceneDescription={previousScene?.description}
+                    nextSceneDescription={nextScene?.description}
                   />
                 </div>
               ) : (

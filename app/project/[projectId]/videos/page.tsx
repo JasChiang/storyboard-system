@@ -65,6 +65,32 @@ export default function VideosPage() {
     });
   };
 
+  const handleVideoPromptDraftChanged = (
+    sceneId: string,
+    draftPrompt: string,
+    notes?: string
+  ) => {
+    if (!currentProject?.storyboard) return;
+
+    const updatedScenes = currentProject.storyboard.scenes.map(scene =>
+      scene.id === sceneId
+        ? {
+          ...scene,
+          videoPromptDraft: draftPrompt,
+          videoPromptDraftNotes: notes,
+        }
+        : scene
+    );
+
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        scenes: updatedScenes,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  };
+
   if (!currentProject?.storyboard) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
@@ -235,6 +261,9 @@ export default function VideosPage() {
                     scene={selectedScene}
                     previousEndFrameUrl={previousEndFrameUrl}
                     projectReferences={currentProject.storyboard?.projectReferences}
+                    onPromptDraftChanged={(draftPrompt, notes) =>
+                      handleVideoPromptDraftChanged(selectedScene.id, draftPrompt, notes)
+                    }
                     onVideoGenerated={(url, motionPrompt, composedPrompt, model) =>
                       handleVideoGenerated(selectedScene.id, url, motionPrompt, composedPrompt, model)
                     }

@@ -55,6 +55,8 @@ export interface Scene {
     timestamp: string;
   };
   motionPrompt?: string;         // 動作提示詞
+  videoPromptDraft?: string;     // 影片提示詞草稿（AI Composer 產生但尚未生成影片）
+  videoPromptDraftNotes?: string; // AI Composer 備註
   generatedVideo?: {
     url: string;
     model: 'kling' | 'seedance';

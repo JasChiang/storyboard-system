@@ -13,12 +13,14 @@ import { enforceVideoPromptPolicy } from '@/lib/video/prompt-policy';
 
 type VideoModel = 'kling' | 'seedance';
 type PromptMode = 'deterministic' | 'ai_composer';
+type KlingVariant = 'v26' | 'o3';
 
 interface VideoGeneratorProps {
     projectId: string;
     scene: Scene;
     previousEndFrameUrl?: string; // 當前一場景的 continuation 轉場時，傳入其 endFrame URL
     projectReferences?: ProjectReference[];
+    onPromptDraftChanged?: (draftPrompt: string, notes?: string) => void;
     onVideoGenerated: (
         videoUrl: string,
         motionPrompt: string,
@@ -47,7 +49,14 @@ function resolveEditableMotionPrompt(data: {
     return data.cameraMovement || '';
 }
 
-export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectReferences = [], onVideoGenerated }: VideoGeneratorProps) {
+export function VideoGenerator({
+    projectId,
+    scene,
+    previousEndFrameUrl,
+    projectReferences = [],
+    onPromptDraftChanged,
+    onVideoGenerated
+}: VideoGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [model, setModel] = useState<VideoModel>('kling');
     // 優先使用 AI 生成的運鏡指令，如果沒有則使用已儲存的 motionPrompt
@@ -60,19 +69,23 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [promptMode, setPromptMode] = useState<PromptMode>('deterministic');
     const [isComposingPrompt, setIsComposingPrompt] = useState(false);
-    const [aiComposedPrompt, setAiComposedPrompt] = useState('');
-    const [aiComposeNotes, setAiComposeNotes] = useState('');
+    const [aiComposedPrompt, setAiComposedPrompt] = useState(scene.videoPromptDraft || '');
+    const [aiComposeNotes, setAiComposeNotes] = useState(scene.videoPromptDraftNotes || '');
 
     // Kling 選項
     const [klingDuration, setKlingDuration] = useState<5 | 10>(5);
     const [klingAspectRatio, setKlingAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('16:9');
     const [klingEnableSound, setKlingEnableSound] = useState(false);
+    const [klingVariant, setKlingVariant] = useState<KlingVariant>('v26');
 
     // Seedance 選項
     const [seedanceDuration, setSeedanceDuration] = useState(5);
     const [seedanceAspectRatio, setSeedanceAspectRatio] = useState<'21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16'>('16:9');
     const [seedanceResolution, setSeedanceResolution] = useState<'480p' | '720p' | '1080p'>('720p');
     const [seedanceEnableAudio, setSeedanceEnableAudio] = useState(false);
+    const shouldUseEndFrameForVideo = Boolean(
+        scene.generatedEndFrame?.url && (scene.requiresEndFrame || scene.endFrameDescription)
+    );
     const contentRefs = useMemo(
         () => projectReferences.filter(ref => ref.type !== 'style'),
         [projectReferences]
@@ -89,9 +102,9 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
             cameraMovement: scene.cameraMovement,
         });
         setMotionPrompt(newMotionPrompt);
-        setAiComposedPrompt('');
-        setAiComposeNotes('');
-    }, [scene.id, scene.motionPrompt, scene.cameraMovement]);
+        setAiComposedPrompt(scene.videoPromptDraft || '');
+        setAiComposeNotes(scene.videoPromptDraftNotes || '');
+    }, [scene.id, scene.motionPrompt, scene.cameraMovement, scene.videoPromptDraft, scene.videoPromptDraftNotes]);
 
     useEffect(() => {
         const profileWithDefaults = scopedRefs.find((ref) => ref.ipProfile?.generationDefaults);
@@ -151,6 +164,7 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
             }
             setAiComposedPrompt(composed);
             setAiComposeNotes(typeof data.notes === 'string' ? data.notes : '');
+            onPromptDraftChanged?.(composed, typeof data.notes === 'string' ? data.notes : '');
             if (!motionPrompt.trim() && typeof data.suggestedMotionPrompt === 'string') {
                 setMotionPrompt(data.suggestedMotionPrompt);
             }
@@ -201,6 +215,9 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
             // Continuation 轉場邏輯：如果有 previousEndFrameUrl，使用它作為起始幀
             // 這讓影片生成能從前一場景的結束畫面開始，實現無縫銜接
             const startImageUrl = previousEndFrameUrl || scene.generatedImage.url;
+            if (!startImageUrl || !startImageUrl.trim()) {
+                throw new Error('Missing start image URL');
+            }
 
             // 呼叫生成 API
             const response = await fetch('/api/fal/generate-video', {
@@ -210,12 +227,13 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
                     imageUrl: startImageUrl,
                     prompt: composedPrompt,
                     model,
+                    klingVariant: model === 'kling' ? klingVariant : undefined,
                     duration: model === 'kling' ? klingDuration : seedanceDuration,
                     aspectRatio: model === 'kling' ? klingAspectRatio : seedanceAspectRatio,
                     resolution: model === 'seedance' ? seedanceResolution : undefined,
                     enableSound: model === 'kling' ? klingEnableSound : undefined,
                     enableAudio: model === 'seedance' ? seedanceEnableAudio : undefined,
-                    endImageUrl: scene.generatedEndFrame?.url,  // 只要有尾幀就傳遞（含手動尾幀）
+                    endImageUrl: shouldUseEndFrameForVideo ? scene.generatedEndFrame?.url : undefined,
                 }),
             });
 
@@ -354,7 +372,7 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
                 </div>
 
                 {/* 尾幀（如果存在） */}
-                {scene.generatedEndFrame && (
+                {shouldUseEndFrameForVideo && (
                     <div className="space-y-2 p-3 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
                         <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 bg-purple-600 dark:bg-purple-400 rounded-full"></div>
@@ -483,6 +501,21 @@ export function VideoGenerator({ projectId, scene, previousEndFrameUrl, projectR
                         {model === 'kling' ? (
                             <>
                                 <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                            Kling 版本
+                                        </label>
+                                        <select
+                                            value={klingVariant}
+                                            onChange={(e) => setKlingVariant(e.target.value as KlingVariant)}
+                                            disabled={isGenerating}
+                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                                        >
+                                            <option value="v26">Kling 2.6 Pro</option>
+                                            <option value="o3">Kling O3 Pro</option>
+                                        </select>
+                                    </div>
                                     <div className="space-y-2">
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                             影片長度
