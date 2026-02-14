@@ -37,6 +37,12 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
    - 固定 (Static shot)
    ⚠️ 注意：cameraMovement 只描述鏡頭運動，不要包含畫面內容
 
+3.5 結構化鏡頭欄位（請一併輸出）：
+   - sceneIntent: 這一鏡要完成的訊息目標（一句話）
+   - startComposition: 首幀構圖摘要（主體/前中後景/畫面重心）
+   - subjectMotion: 主體允許動作範圍（例如「人物微動，商品固定」）
+   - continuityLock: 此鏡必須維持不變的要點（身份/空間幾何/logo/道具相對位置）
+
 4. 🆕 智慧首尾幀判斷 (requiresEndFrame) - 根據以下邏輯判斷是否需要生成「尾幀」：
    
    【判斷規則】：
@@ -65,6 +71,12 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
    - ❌ 禁止使用：「同樣的」、「相同角度」、「依舊」等相對描述詞
    - ✅ 正確範例：將 description 的場景設定完整複製，只修改變化的物件
    - 如果 requiresEndFrame = false，此欄位必須留空 ("")
+
+5.5 尾幀差異 (endFrameDelta)：
+   - 只在 requiresEndFrame = true 時填寫
+   - 只描述「相對首幀」需要改變的部分，不要重寫整個場景
+   - 範例：「鏡頭最終落點改為右側家庭三人，冷氣退至左上中景；其他空間與道具位置維持不變」
+   - 若 requiresEndFrame = false，此欄位必須留空 ("")
 
 6. 對話/旁白 (dialogue) - 該場景的對白或旁白文字
 7. 時長建議 (duration) - 以秒為單位的建議時長
@@ -134,6 +146,22 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                             type: 'string',
                             description: '鏡頭運動方式（不含畫面內容）'
                         },
+                        sceneIntent: {
+                            type: 'string',
+                            description: '此鏡頭要傳達的核心訊息（一句話）'
+                        },
+                        startComposition: {
+                            type: 'string',
+                            description: '首幀構圖摘要（主體、景別、前中後景）'
+                        },
+                        subjectMotion: {
+                            type: 'string',
+                            description: '主體允許動作範圍（人物/商品可動邊界）'
+                        },
+                        continuityLock: {
+                            type: 'string',
+                            description: '此鏡頭不允許改變的連續性約束'
+                        },
                         requiresEndFrame: {
                             type: 'boolean',
                             description: 'AI 判斷是否需要生成尾幀（依據運鏡幅度與商品規則）'
@@ -141,6 +169,10 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                         endFrameDescription: {
                             type: 'string',
                             description: '尾幀的靜態畫面描述（只在 requiresEndFrame = true 時填寫，否則留空）'
+                        },
+                        endFrameDelta: {
+                            type: 'string',
+                            description: '尾幀相對首幀的差異描述（只在 requiresEndFrame = true 時填寫）'
                         },
                         dialogue: {
                             type: 'string',
@@ -193,7 +225,7 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                             required: ['type', 'reason']
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext']
                 }
             }
         },

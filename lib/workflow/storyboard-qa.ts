@@ -42,6 +42,9 @@ export function validateStoryboard(storyboard: Storyboard): {
     if (scene.requiresEndFrame && !scene.endFrameDescription?.trim()) {
       issues.push(issue('high', 'missing_endframe_description', '此場景啟用了尾幀，但沒有尾幀描述。', scene));
     }
+    if (scene.requiresEndFrame && !scene.endFrameDelta?.trim()) {
+      issues.push(issue('medium', 'missing_endframe_delta', '此場景啟用了尾幀，但沒有 endFrameDelta（差異描述）。', scene));
+    }
 
     if (scene.duration <= 0) {
       issues.push(issue('high', 'invalid_duration', '場景時長必須大於 0。', scene));
@@ -49,6 +52,12 @@ export function validateStoryboard(storyboard: Storyboard): {
 
     if (!scene.cameraMovement?.trim()) {
       issues.push(issue('low', 'missing_camera_movement', '場景缺少運鏡描述，影片提示詞可能過於平。', scene));
+    }
+    if (!scene.startComposition?.trim()) {
+      issues.push(issue('low', 'missing_start_composition', '缺少 startComposition，首幀構圖錨點較弱。', scene));
+    }
+    if (!scene.continuityLock?.trim()) {
+      issues.push(issue('medium', 'missing_continuity_lock', '缺少 continuityLock，首尾幀幾何延續風險較高。', scene));
     }
 
     if (!scene.shotIntent?.trim()) {

@@ -112,6 +112,7 @@ export function ImageGenerator({
             scene.endFrameDescription
             || manualEndFrameDescription
             || scene.description;
+        const effectiveEndFrameDelta = scene.endFrameDelta || manualEndFrameDescription || '';
         const hasLockVisibleText = sceneScopedContentRefs.some(
             (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
         );
@@ -126,19 +127,19 @@ export function ImageGenerator({
             const safeCustomPrompt = customPrompt ? sanitizeStaticFrameDescription(customPrompt) : '';
 
             if (!safeCustomPrompt) {
-                deltaParts.push(effectiveEndFrameDescription);
+                deltaParts.push(effectiveEndFrameDelta || effectiveEndFrameDescription);
             } else {
                 switch (promptMode) {
                     case 'replace':
                         deltaParts.push(safeCustomPrompt);
                         break;
                     case 'append':
-                        deltaParts.push(effectiveEndFrameDescription);
+                        deltaParts.push(effectiveEndFrameDelta || effectiveEndFrameDescription);
                         deltaParts.push(safeCustomPrompt);
                         break;
                     case 'prepend':
                         deltaParts.push(safeCustomPrompt);
-                        deltaParts.push(effectiveEndFrameDescription);
+                        deltaParts.push(effectiveEndFrameDelta || effectiveEndFrameDescription);
                         break;
                 }
             }
@@ -419,12 +420,17 @@ export function ImageGenerator({
                         sceneNumber: scene.sceneNumber,
                         description: scene.description,
                         cameraMovement: scene.cameraMovement,
+                        sceneIntent: scene.sceneIntent,
+                        startComposition: scene.startComposition,
+                        subjectMotion: scene.subjectMotion,
+                        continuityLock: scene.continuityLock,
                         beatGoal: scene.beatGoal,
                         shotIntent: scene.shotIntent,
                         continuityAnchor: scene.continuityAnchor,
                         changeFromPrev: scene.changeFromPrev,
                         requiresEndFrame: scene.requiresEndFrame,
                         endFrameDescription: scene.endFrameDescription,
+                        endFrameDelta: scene.endFrameDelta,
                     },
                     manualEndFrameDescription,
                     references: sceneScopedContentRefs,

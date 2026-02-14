@@ -115,6 +115,7 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
                     ...editedScene,
                     requiresEndFrame: nextChecked,
                     endFrameDescription: nextChecked ? (editedScene.endFrameDescription || editedScene.description) : '',
+                    endFrameDelta: nextChecked ? (editedScene.endFrameDelta || '') : '',
                     transitionToNext: nextTransition,
                   });
                 }}
@@ -123,13 +124,22 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
               需要尾幀
             </label>
             {editedScene.requiresEndFrame && (
-              <textarea
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
-                value={editedScene.endFrameDescription || ''}
-                onChange={(e) => setEditedScene({ ...editedScene, endFrameDescription: e.target.value })}
-                placeholder="尾幀描述"
-                rows={2}
-              />
+              <div className="space-y-1">
+                <textarea
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
+                  value={editedScene.endFrameDescription || ''}
+                  onChange={(e) => setEditedScene({ ...editedScene, endFrameDescription: e.target.value })}
+                  placeholder="尾幀完整描述"
+                  rows={2}
+                />
+                <textarea
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
+                  value={editedScene.endFrameDelta || ''}
+                  onChange={(e) => setEditedScene({ ...editedScene, endFrameDelta: e.target.value })}
+                  placeholder="尾幀差異（只寫相對首幀改變）"
+                  rows={2}
+                />
+              </div>
             )}
           </div>
         </td>
@@ -227,6 +237,11 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
             {scene.endFrameDescription && (
               <div className="max-w-xs line-clamp-2 text-xs text-slate-500 dark:text-slate-400" title={scene.endFrameDescription}>
                 尾幀: {scene.endFrameDescription}
+              </div>
+            )}
+            {scene.endFrameDelta && (
+              <div className="max-w-xs line-clamp-2 text-xs text-violet-600 dark:text-violet-300" title={scene.endFrameDelta}>
+                差異: {scene.endFrameDelta}
               </div>
             )}
           </div>

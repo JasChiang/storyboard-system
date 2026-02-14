@@ -139,6 +139,9 @@ export default function StoryboardPage() {
           endFrameDescription: updates.requiresEndFrame === false
             ? ''
             : (updates.endFrameDescription ?? scene.endFrameDescription),
+          endFrameDelta: updates.requiresEndFrame === false
+            ? ''
+            : (updates.endFrameDelta ?? scene.endFrameDelta),
         }
         : scene
     );

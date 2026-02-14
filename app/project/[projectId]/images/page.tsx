@@ -117,6 +117,7 @@ export default function ImagesPage() {
       return {
         ...scene,
         endFrameDescription: enabled ? (description || undefined) : undefined,
+        endFrameDelta: enabled ? (description || undefined) : undefined,
         generatedEndFrame: enabled ? scene.generatedEndFrame : undefined,
       };
     });

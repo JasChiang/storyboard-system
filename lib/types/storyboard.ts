@@ -23,6 +23,10 @@ export interface Scene {
   sceneNumber: number;
   description: string;           // 場景描述
   cameraMovement: string;        // 鏡頭運動
+  sceneIntent?: string;          // 此鏡頭想傳達的訊息/情緒目標
+  startComposition?: string;     // 首幀構圖摘要（供首尾幀延續）
+  subjectMotion?: string;        // 主體允許動作範圍（人物/商品）
+  continuityLock?: string;       // 必須維持不變的連續性約束
   dialogue: string;              // 對話/旁白
   duration: number;              // 時長建議 (秒)
   notes?: string;                // 備註
@@ -38,6 +42,7 @@ export interface Scene {
   // Smart Keyframing (智慧首尾幀)
   requiresEndFrame?: boolean;    // AI 判斷是否需要生成尾幀
   endFrameDescription?: string;  // 尾幀的靜態畫面描述
+  endFrameDelta?: string;        // 尾幀相對首幀的變更描述（只寫差異）
 
   // 與下一場景的轉場設定
   transitionToNext?: TransitionToNext;

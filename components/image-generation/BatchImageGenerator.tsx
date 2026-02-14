@@ -128,10 +128,17 @@ export function BatchImageGenerator({
         parts.push(
             buildStaticFrameDescription(
                 scene.description,
-                isEndFrame ? scene.endFrameDescription : scene.description,
+                isEndFrame
+                    ? (scene.endFrameDescription
+                        || (scene.endFrameDelta ? `${scene.description}。僅變更：${scene.endFrameDelta}` : scene.description))
+                    : scene.description,
                 isEndFrame
             )
         );
+        if (isEndFrame && scene.endFrameDelta) {
+            parts.push(`Apply only this end-frame delta: ${scene.endFrameDelta}`);
+            parts.push('Only make minimal local edits required by the delta; do not globally recompose the scene.');
+        }
         parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
         parts.push(...consistencyGuardrails);
 

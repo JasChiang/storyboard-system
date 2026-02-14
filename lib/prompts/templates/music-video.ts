@@ -17,12 +17,14 @@ MV 分鏡要點：
 1. 場景編號 (sceneNumber)
 2. 場景描述 (description) - 靜態畫面：場景佈置、人物造型、色彩基調、光影效果、構圖美學
 3. 鏡頭運動 (cameraMovement) - 動態運鏡：旋轉、推拉、搖移、快速剪接等
+3.5 結構化欄位：sceneIntent、startComposition、subjectMotion、continuityLock
 4. 對話/旁白 (dialogue) - 對應的歌詞段落
 5. 時長建議 (duration)
 6. 備註 (notes) - 特效、後製提示
 7. 角色引用 (charactersUsed) - 本場景使用的角色標記陣列
 8. 商品引用 (productsUsed) - 本場景使用的商品標記陣列
 9. 場景差異 (changeFromPrev) - 相對前一場景的關鍵變化（第一場填 "N/A"）
+10. 尾幀差異 (endFrameDelta) - 若 requiresEndFrame=true，僅描述相對首幀改變；否則留空
 
 ⚠️ 注意：description 描述靜態視覺，cameraMovement 描述鏡頭動作，兩者分開。`,
 
@@ -50,6 +52,22 @@ MV 分鏡要點：
                             type: 'string',
                             description: '鏡頭運動方式'
                         },
+                        sceneIntent: {
+                            type: 'string',
+                            description: '此鏡頭要傳遞的情緒/敘事目標'
+                        },
+                        startComposition: {
+                            type: 'string',
+                            description: '首幀構圖摘要'
+                        },
+                        subjectMotion: {
+                            type: 'string',
+                            description: '主體允許動作範圍'
+                        },
+                        continuityLock: {
+                            type: 'string',
+                            description: '需要維持不變的連續性約束'
+                        },
                         requiresEndFrame: {
                             type: 'boolean',
                             description: 'AI 判斷是否需要生成尾幀'
@@ -57,6 +75,10 @@ MV 分鏡要點：
                         endFrameDescription: {
                             type: 'string',
                             description: '尾幀描述（requiresEndFrame=true 時填寫）- 必須包含完整場景設定，不使用相對描述詞'
+                        },
+                        endFrameDelta: {
+                            type: 'string',
+                            description: '尾幀相對首幀的差異描述（requiresEndFrame=true 時填寫）'
                         },
                         dialogue: {
                             type: 'string',
@@ -85,7 +107,7 @@ MV 分鏡要點：
                             description: '相對前一場景的變化摘要（第一場景填 N/A）'
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev']
                 }
             }
         },

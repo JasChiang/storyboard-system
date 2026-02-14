@@ -17,12 +17,14 @@ export const DOCUMENTARY_TEMPLATE: PromptTemplate = {
 1. 場景編號 (sceneNumber)
 2. 場景描述 (description) - 靜態畫面：拍攝地點、人物狀態、環境細節、光線條件、構圖選擇
 3. 鏡頭運動 (cameraMovement) - 動態運鏡：跟拍、手持晃動、穩定器移動、固定機位等
+3.5 結構化欄位：sceneIntent、startComposition、subjectMotion、continuityLock
 4. 對話/旁白 (dialogue) - 訪談內容或旁白文字
 5. 時長建議 (duration)
 6. 備註 (notes) - 拍攝提示、音效需求
 7. 角色引用 (charactersUsed) - 本場景使用的角色標記陣列（如 ["<Host>"]）
 8. 商品引用 (productsUsed) - 本場景使用的商品標記陣列（如 ["<ProductA>"]）
 9. 場景差異 (changeFromPrev) - 相對前一場景的關鍵變化（第一場填 "N/A"）
+10. 尾幀差異 (endFrameDelta) - 若 requiresEndFrame=true，僅描述相對首幀的改變；否則留空
 
 ⚠️ 關鍵：description 只寫靜態畫面內容，cameraMovement 只寫鏡頭運動方式。`,
 
@@ -50,6 +52,22 @@ export const DOCUMENTARY_TEMPLATE: PromptTemplate = {
                             type: 'string',
                             description: '鏡頭運動方式'
                         },
+                        sceneIntent: {
+                            type: 'string',
+                            description: '此鏡頭要完成的敘事目標'
+                        },
+                        startComposition: {
+                            type: 'string',
+                            description: '首幀構圖摘要'
+                        },
+                        subjectMotion: {
+                            type: 'string',
+                            description: '主體允許動作範圍'
+                        },
+                        continuityLock: {
+                            type: 'string',
+                            description: '需要維持不變的連續性約束'
+                        },
                         requiresEndFrame: {
                             type: 'boolean',
                             description: 'AI 判斷是否需要生成尾幀'
@@ -57,6 +75,10 @@ export const DOCUMENTARY_TEMPLATE: PromptTemplate = {
                         endFrameDescription: {
                             type: 'string',
                             description: '尾幀描述（requiresEndFrame=true 時填寫）- 必須包含完整場景設定，不使用相對描述詞'
+                        },
+                        endFrameDelta: {
+                            type: 'string',
+                            description: '尾幀相對首幀的差異描述（requiresEndFrame=true 時填寫）'
                         },
                         dialogue: {
                             type: 'string',
@@ -85,7 +107,7 @@ export const DOCUMENTARY_TEMPLATE: PromptTemplate = {
                             description: '相對前一場景的變化摘要（第一場景填 N/A）'
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev']
                 }
             }
         },

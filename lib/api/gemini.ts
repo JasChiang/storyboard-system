@@ -32,7 +32,7 @@ export interface ComposeVideoPromptResult {
 }
 
 export interface ComposeImagePromptInput {
-  scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'requiresEndFrame' | 'endFrameDescription' | 'beatGoal' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev'>;
+  scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'requiresEndFrame' | 'endFrameDescription' | 'endFrameDelta' | 'beatGoal' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev'>;
   manualEndFrameDescription?: string;
   references: ProjectReference[];
   stylePrompt?: string;
@@ -328,11 +328,12 @@ Rules:
 1) Generate a concise end-frame final-state description (no temporal language).
 2) Infer terminal framing from cameraMovement, using startFramePrompt as continuity anchor.
 3) If motion implies reframing (e.g., pan right to family), the end frame must reflect that final composition.
-2) Keep identity/product geometry/logo/text constraints unchanged unless explicit delta says otherwise.
-3) Do not invent new logos/text/characters/props.
-4) Composed prompt must be for a single static frame only.
-5) Keep output concise and production-ready.
-6) JSON only, no markdown.`;
+4) Generate endFrameDelta as delta-only instructions relative to start frame.
+5) Keep identity/product geometry/logo/text constraints unchanged unless explicit delta says otherwise.
+6) Do not invent new logos/text/characters/props.
+7) Composed prompt must be for a single static frame only.
+8) Keep output concise and production-ready.
+9) JSON only, no markdown.`;
 
   const userPayload = {
     scene: {
@@ -340,12 +341,17 @@ Rules:
       sceneNumber: input.scene.sceneNumber,
       description: input.scene.description,
       cameraMovement: input.scene.cameraMovement,
+      sceneIntent: input.scene.sceneIntent || '',
+      startComposition: input.scene.startComposition || '',
+      subjectMotion: input.scene.subjectMotion || '',
+      continuityLock: input.scene.continuityLock || '',
       beatGoal: input.scene.beatGoal || '',
       shotIntent: input.scene.shotIntent || '',
       continuityAnchor: input.scene.continuityAnchor || '',
       changeFromPrev: input.scene.changeFromPrev || '',
       requiresEndFrame: Boolean(input.scene.requiresEndFrame),
       endFrameDescription: input.scene.endFrameDescription || '',
+      endFrameDelta: input.scene.endFrameDelta || '',
       manualEndFrameDescription: input.manualEndFrameDescription || '',
       hasPreviousEndFrame: Boolean(input.hasPreviousEndFrame),
     },

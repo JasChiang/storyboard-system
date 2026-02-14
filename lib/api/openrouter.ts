@@ -43,6 +43,53 @@ export async function generateStoryboardScript(
   };
 
   const parseJsonContent = (content: string) => JSON.parse(stripMarkdownFence(content));
+  const stringValue = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+  const hasKeywords = (value: string, regex: RegExp) => regex.test(value);
+  const hasTerminalCameraTarget = (cameraMovement: string) =>
+    hasKeywords(
+      cameraMovement,
+      /(from\s+.*\s+to|ending\s+with|end\s+on|reveal|land\s+on|最後|最終|結尾|從.+到|由.+到|聚焦到|露出|轉到)/i
+    );
+  const hasStrongReframingMotion = (cameraMovement: string) =>
+    hasKeywords(
+      cameraMovement,
+      /(pan|tilt|dolly|zoom|truck|crane|orbit|arc|push\s*in|pull\s*out|reframe|平移|推軌|拉近|拉遠|環繞|移鏡|搖鏡|轉向)/i
+    );
+  const hasStateChangeSignal = (text: string) =>
+    hasKeywords(
+      text,
+      /(open|close|pour|transform|move\s+to|pick\s+up|put\s+down|slide|fold|unfold|打開|關閉|倒出|移到|拿起|放下|展開|收合|亮起|熄滅|變形|切換狀態)/i
+    );
+
+  const shouldRequireEndFrame = ({
+    explicitRequiresEndFrame,
+    transitionType,
+    cameraMovement,
+    endFrameDescription,
+    endFrameDelta,
+    description,
+  }: {
+    explicitRequiresEndFrame?: boolean;
+    transitionType: TransitionType;
+    cameraMovement: string;
+    endFrameDescription: string;
+    endFrameDelta: string;
+    description: string;
+  }) => {
+    if (transitionType === 'continuation') return true;
+
+    const hasExplicitDelta = Boolean(endFrameDelta);
+    const hasExplicitEndFrame = Boolean(endFrameDescription && endFrameDescription !== description);
+    const stateChangeDetected = hasStateChangeSignal(`${cameraMovement} ${endFrameDelta} ${endFrameDescription}`);
+    const cameraNeedsTerminalState = hasStrongReframingMotion(cameraMovement) && hasTerminalCameraTarget(cameraMovement);
+
+    if (hasExplicitDelta || hasExplicitEndFrame) return true;
+    if (stateChangeDetected) return true;
+    if (cameraNeedsTerminalState) return true;
+
+    return Boolean(explicitRequiresEndFrame && stateChangeDetected);
+  };
+
   const consolidatedRules = buildConsolidatedReferenceRules(references);
   const targetDurationSec = Number(options?.targetDurationSec);
   const hasTargetDuration = Number.isFinite(targetDurationSec) && targetDurationSec > 0;
@@ -143,15 +190,45 @@ export async function generateStoryboardScript(
         ? transitionRaw.type
         : (index === scenesRaw.length - 1 ? 'fade_black' : 'dissolve');
 
-      const requiresEndFrame = Boolean(scene.requiresEndFrame) || transitionType === 'continuation';
-      const rawDescription = typeof scene.description === 'string' ? scene.description.trim() : '';
+      const rawDescription = stringValue(scene.description);
       const description = sanitizeStaticFrameDescription(rawDescription) || rawDescription;
-      const endFrameDescriptionRaw = typeof scene.endFrameDescription === 'string'
-        ? scene.endFrameDescription.trim()
-        : '';
+      const endFrameDescriptionRaw = stringValue(scene.endFrameDescription);
+      const endFrameDeltaRaw = stringValue(scene.endFrameDelta);
+      const explicitRequiresEndFrame = typeof scene.requiresEndFrame === 'boolean'
+        ? scene.requiresEndFrame
+        : undefined;
+      const requiresEndFrame = shouldRequireEndFrame({
+        explicitRequiresEndFrame,
+        transitionType,
+        cameraMovement: stringValue(scene.cameraMovement),
+        endFrameDescription: endFrameDescriptionRaw,
+        endFrameDelta: endFrameDeltaRaw,
+        description,
+      });
       const sanitizedEndFrame = sanitizeStaticFrameDescription(endFrameDescriptionRaw || description);
+      const sceneIntent = stringValue((scene as Record<string, unknown>).sceneIntent)
+        || stringValue(scene.shotIntent)
+        || stringValue(scene.beatGoal)
+        || `完成場景 ${index + 1} 的敘事目標`;
+      const startComposition = sanitizeStaticFrameDescription(
+        stringValue((scene as Record<string, unknown>).startComposition) || description
+      ) || description;
+      const subjectMotion = stringValue((scene as Record<string, unknown>).subjectMotion)
+        || '主體保持穩定，僅做必要動作。';
+      const continuityLock = stringValue((scene as Record<string, unknown>).continuityLock)
+        || stringValue(scene.continuityAnchor)
+        || '保持角色/商品身份、空間幾何與關鍵道具相對位置一致。';
+      const endFrameDelta = requiresEndFrame
+        ? (
+          sanitizeStaticFrameDescription(
+            endFrameDeltaRaw
+            || (endFrameDescriptionRaw && endFrameDescriptionRaw !== description ? endFrameDescriptionRaw : '')
+          )
+          || `鏡頭完成運動後落在「${stringValue(scene.cameraMovement) || '最終構圖'}」所指定的終態構圖。`
+        )
+        : '';
       const endFrameDescription = requiresEndFrame
-        ? (sanitizedEndFrame || description)
+        ? (sanitizedEndFrame || `${startComposition}。僅變更：${endFrameDelta}`)
         : '';
 
       const sceneNumberValue = Number(scene.sceneNumber);
@@ -161,9 +238,14 @@ export async function generateStoryboardScript(
       return {
         sceneNumber: Number.isFinite(sceneNumberValue) ? sceneNumberValue : index + 1,
         description,
+        sceneIntent,
+        startComposition,
+        subjectMotion,
+        continuityLock,
         cameraMovement: typeof scene.cameraMovement === 'string' ? scene.cameraMovement.trim() : 'Static shot',
         requiresEndFrame,
         endFrameDescription,
+        endFrameDelta,
         dialogue: typeof scene.dialogue === 'string' ? scene.dialogue.trim() : '',
         duration: Number.isFinite(sceneDurationValue) ? sceneDurationValue : 3,
         notes: typeof scene.notes === 'string' ? scene.notes.trim() : '',
@@ -277,6 +359,9 @@ export async function generateStoryboardScript(
 - ${hasTargetDuration ? `保持約 ${targetSceneCount} 場（每場約 5 秒，總長約 ${targetDurationSec} 秒），除非原本不足，否則不要大幅增減。` : '保持 5-7 場景，除非原本不足，否則不要大幅增減。'}
 - 若 transitionToNext.type = "continuation"，requiresEndFrame 必須為 true。
 - 若 requiresEndFrame = false，endFrameDescription 必須是空字串 ""。
+- 若 requiresEndFrame = false，endFrameDelta 也必須是空字串 ""。
+- 每個場景都要有 sceneIntent/startComposition/subjectMotion/continuityLock。
+- endFrameDelta 必須用「相對首幀差異」描述，不可重寫整個場景。
 - 若 description 內使用 <角色>/<商品> 標記，charactersUsed/productsUsed 必須同步列出。
 - 不可在 description 重新定義角色/商品外觀（髮型、服裝、顏色、材質、Logo 細節）。
 - 只輸出 JSON。`;

@@ -25,6 +25,12 @@ export const COMMERCIAL_TEMPLATE: PromptTemplate = {
 2. 場景描述 (description) - 只描述靜態畫面：產品擺放、人物姿態、環境佈置、光線氛圍、構圖方式
 3. 鏡頭運動 (cameraMovement) - 只描述鏡頭動態：推近產品、環繞拍攝、快速切換等
 
+3.5 結構化鏡頭欄位（請一併輸出）：
+   - sceneIntent: 這一鏡要完成的商業訊息（一句話）
+   - startComposition: 首幀構圖摘要（主商品位置、景別、視覺重心）
+   - subjectMotion: 主體允許動作範圍（人物/商品可動邊界）
+   - continuityLock: 品牌保真鎖（身份、幾何、材質、Logo 與道具相對位置）
+
 4. 🔥 智慧首尾幀判斷 (requiresEndFrame) - **商業廣告特別嚴格規則**：
    
    【商品拍攝專用判斷（保守）】：
@@ -50,6 +56,10 @@ export const COMMERCIAL_TEMPLATE: PromptTemplate = {
    - 只修改：物體狀態的改變（如：包裝打開、液體倒出）
    - ❌ 禁止：「同樣」、「相同」、「依舊」等詞彙
    - ✅ 範例：完整重寫場景，只改變化的元素
+5.5 尾幀差異 (endFrameDelta)：
+   - 只在 requiresEndFrame = true 時填寫
+   - 只描述「相對首幀」的改變，不要重寫全場景
+   - 若 requiresEndFrame = false，請填空字串 ""
 6. 對話/旁白 (dialogue) - 廣告文案或旁白
 7. 時長建議 (duration)
 8. 備註 (notes) - 特效、音樂提示等
@@ -115,6 +125,22 @@ export const COMMERCIAL_TEMPLATE: PromptTemplate = {
                             type: 'string',
                             description: '鏡頭運動方式'
                         },
+                        sceneIntent: {
+                            type: 'string',
+                            description: '此鏡頭的商業訊息目標'
+                        },
+                        startComposition: {
+                            type: 'string',
+                            description: '首幀構圖摘要（商品/人物/景別）'
+                        },
+                        subjectMotion: {
+                            type: 'string',
+                            description: '主體允許動作範圍（人物/商品）'
+                        },
+                        continuityLock: {
+                            type: 'string',
+                            description: '品牌與空間連續性硬約束'
+                        },
                         requiresEndFrame: {
                             type: 'boolean',
                             description: 'AI 判斷是否需要生成尾幀（商業廣告嚴格遵守 Logo 保護規則）'
@@ -122,6 +148,10 @@ export const COMMERCIAL_TEMPLATE: PromptTemplate = {
                         endFrameDescription: {
                             type: 'string',
                             description: '尾幀描述（只在 requiresEndFrame = true 時填寫）'
+                        },
+                        endFrameDelta: {
+                            type: 'string',
+                            description: '尾幀相對首幀的差異描述（只在 requiresEndFrame = true 時填寫）'
                         },
                         dialogue: {
                             type: 'string',
@@ -174,7 +204,7 @@ export const COMMERCIAL_TEMPLATE: PromptTemplate = {
                             required: ['type', 'reason']
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'requiresEndFrame', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext']
                 }
             }
         },
