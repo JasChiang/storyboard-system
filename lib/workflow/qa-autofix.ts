@@ -120,7 +120,8 @@ export async function autoFixStoryboardBlockingIssues(args: {
   });
 
   const blockedSceneNumbers = Array.from(blockedSceneNumberSet).sort((a, b) => a - b);
-  const maxScenes = Math.max(1, Math.min(10, options?.maxScenes ?? blockedSceneNumbers.length || 1));
+  const requestedMaxScenes = options?.maxScenes ?? blockedSceneNumbers.length;
+  const maxScenes = Math.max(1, Math.min(10, requestedMaxScenes || 1));
   const targetSceneNumbers = blockedSceneNumbers.slice(0, maxScenes);
   const skippedSceneIds: string[] = [];
   const fixedSceneIds: string[] = [];

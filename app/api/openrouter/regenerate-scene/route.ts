@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
     );
 
     const merged = {
-      sceneNumber: body.sceneNumber,
       description: body.scene.description || '',
       cameraMovement: body.scene.cameraMovement || 'Static shot',
       dialogue: body.scene.dialogue || '',

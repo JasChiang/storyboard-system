@@ -44,8 +44,8 @@ async function fetchResultByResponseUrl(
     responseUrl: string,
     apiKey: string
 ): Promise<unknown> {
-    const headersList = [
-        {},
+    const headersList: Array<HeadersInit | undefined> = [
+        undefined,
         { Authorization: `Key ${apiKey}` },
         { Authorization: `Bearer ${apiKey}` },
     ];

@@ -49,19 +49,19 @@ export function scenesToTimeline(scenes: Scene[]): TimelineData {
         src: scene.generatedVideo?.url || scene.generatedImage?.url,
         poster: scene.generatedImage?.url,
         sceneNumber: scene.sceneNumber,
-        subtitle: scene.subtitles || scene.description,
+        subtitle: scene.dialogue || scene.description,
       },
     });
 
     // 字幕軌道
-    if (scene.subtitles || scene.description) {
+    if (scene.dialogue || scene.description) {
       subtitleActions.push({
         id: `subtitle-${scene.id}`,
         start,
         end,
         effectId: 'subtitle',
         data: {
-          subtitle: scene.subtitles || scene.description,
+          subtitle: scene.dialogue || scene.description,
         },
       });
     }
@@ -98,11 +98,14 @@ export function timelineToScenes(
     // 找到對應的原始場景
     const sceneId = action.id.replace('scene-', '');
     const originalScene = originalScenes.find(s => s.id === sceneId) || originalScenes[index];
+    if (!originalScene) {
+      throw new Error(`Missing original scene for action ${action.id}`);
+    }
 
     return {
       ...originalScene,
       duration: action.end - action.start,
-      subtitles: action.data?.subtitle,
+      dialogue: action.data?.subtitle ?? originalScene.dialogue,
     };
   });
 }

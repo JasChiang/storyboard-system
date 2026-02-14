@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import "@xzdarcy/react-timeline-editor/dist/react-timeline-editor.css";
 import { FalConfigProvider } from "@/components/providers/FalConfigProvider";
 import { cn } from "@/lib/utils";
 

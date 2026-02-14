@@ -104,13 +104,13 @@ function rowToProject(row: DbRow): Project {
 export const sqliteProjectRepo = {
   getAll(): Project[] {
     const conn = ensureDb();
-    const rows = conn.prepare('SELECT * FROM projects ORDER BY updated_at DESC').all();
+    const rows = conn.prepare('SELECT * FROM projects ORDER BY updated_at DESC').all() as DbRow[];
     return rows.map(rowToProject);
   },
 
   getById(id: string): Project | null {
     const conn = ensureDb();
-    const row = conn.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+    const row = conn.prepare('SELECT * FROM projects WHERE id = ?').get(id) as DbRow | undefined;
     return row ? rowToProject(row) : null;
   },
 
@@ -266,7 +266,7 @@ export const sqliteTaskRepo = {
 
   update(id: string, updates: Partial<GenerationTask>): GenerationTask | null {
     const conn = ensureDb();
-    const row = conn.prepare('SELECT * FROM generation_tasks WHERE id = ?').get(id);
+    const row = conn.prepare('SELECT * FROM generation_tasks WHERE id = ?').get(id) as DbRow | undefined;
     if (!row) return null;
 
     const current = rowToTask(row);
@@ -331,7 +331,7 @@ export const sqliteTaskRepo = {
 
     const rows = conn
       .prepare(`SELECT * FROM generation_tasks WHERE ${clauses.join(' AND ')} ORDER BY created_at DESC`)
-      .all(...params);
+      .all(...params) as DbRow[];
     return rows.map(rowToTask);
   },
 
@@ -445,7 +445,9 @@ export const sqliteQaRepo = {
 
   getLatestByProject(projectId: string): StoryboardQaReport | null {
     const conn = ensureDb();
-    const row = conn.prepare('SELECT * FROM storyboard_qa_reports WHERE project_id = ? ORDER BY created_at DESC LIMIT 1').get(projectId);
+    const row = conn
+      .prepare('SELECT * FROM storyboard_qa_reports WHERE project_id = ? ORDER BY created_at DESC LIMIT 1')
+      .get(projectId) as DbRow | undefined;
     return row ? rowToQaReport(row) : null;
   },
 };

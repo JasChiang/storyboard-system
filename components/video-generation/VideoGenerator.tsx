@@ -84,8 +84,9 @@ export function VideoGenerator({
     const [seedanceAspectRatio, setSeedanceAspectRatio] = useState<'21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16'>('16:9');
     const [seedanceResolution, setSeedanceResolution] = useState<'480p' | '720p' | '1080p'>('720p');
     const [seedanceEnableAudio, setSeedanceEnableAudio] = useState(false);
+    const endFrameUrl = scene.generatedEndFrame?.url;
     const shouldUseEndFrameForVideo = Boolean(
-        scene.generatedEndFrame?.url && (scene.requiresEndFrame || scene.endFrameDelta || scene.endFrameDescription)
+        endFrameUrl && (scene.requiresEndFrame || scene.endFrameDelta || scene.endFrameDescription)
     );
     const effectiveStartFrameUrl = previousEndFrameUrl || scene.generatedImage?.url;
     const contentRefs = useMemo(
@@ -381,7 +382,7 @@ export function VideoGenerator({
                 </div>
 
                 {/* 尾幀（如果存在） */}
-                {shouldUseEndFrameForVideo && (
+                {shouldUseEndFrameForVideo && endFrameUrl && (
                     <div className="space-y-2 p-3 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
                         <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 bg-purple-600 dark:bg-purple-400 rounded-full"></div>
@@ -389,7 +390,7 @@ export function VideoGenerator({
                         </div>
                         <div className="relative aspect-video rounded-lg overflow-hidden border border-purple-300 dark:border-purple-700">
                             <img
-                                src={scene.generatedEndFrame.url}
+                                src={endFrameUrl}
                                 alt={`Scene ${scene.sceneNumber} End Frame`}
                                 className="w-full h-full object-cover"
                             />
