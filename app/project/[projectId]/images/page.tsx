@@ -1,8 +1,8 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Sparkles, Grid3x3, List } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, ArrowRight, Sparkles, Grid3x3, List, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useProjectStore } from '@/stores/project-store';
@@ -14,6 +14,17 @@ import { DEFAULT_STYLE_PROFILE_ID, findStyleProfileById } from '@/lib/constants/
 import { getWorkflowProgress } from '@/lib/project/workflow';
 import type { StyleProfile } from '@/lib/types/storyboard';
 
+type WorkflowTaskStage = 'image_start' | 'image_end' | 'video';
+type WorkflowTaskStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+interface WorkflowTask {
+  id: string;
+  sceneId?: string;
+  stage: WorkflowTaskStage;
+  status: WorkflowTaskStatus;
+  updatedAt: string;
+}
+
 export default function ImagesPage() {
   const params = useParams();
   const projectId = params.projectId as string;
@@ -24,10 +35,45 @@ export default function ImagesPage() {
   const [showStylePanel, setShowStylePanel] = useState(false);
   const [selectedStyleProfileId, setSelectedStyleProfileId] = useState<string>(DEFAULT_STYLE_PROFILE_ID);
   const [customStyleProfiles, setCustomStyleProfiles] = useState<StyleProfile[]>([]);
+  const [generationTasks, setGenerationTasks] = useState<WorkflowTask[]>([]);
 
   useEffect(() => {
     setCurrentProject(projectId);
   }, [projectId, setCurrentProject]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchTasks = async () => {
+      try {
+        const response = await fetch(`/api/workflow/tasks?projectId=${encodeURIComponent(projectId)}`);
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { data?: WorkflowTask[] };
+        if (!cancelled) {
+          setGenerationTasks(Array.isArray(payload.data) ? payload.data : []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to fetch workflow tasks', error);
+        }
+      } finally {
+        if (!cancelled) {
+          timer = setTimeout(fetchTasks, 3000);
+        }
+      }
+    };
+
+    void fetchTasks();
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [projectId]);
 
   useEffect(() => {
     if (!currentProject?.storyboard) return;
@@ -42,6 +88,38 @@ export default function ImagesPage() {
   const processableScenes = scenes.filter((s) => s.qaStatus !== 'block');
   const progress = getWorkflowProgress(currentProject);
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
+  const latestImageTaskMap = useMemo(() => {
+    const map = new Map<string, WorkflowTask>();
+    const sortedTasks = [...generationTasks].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+
+    for (const task of sortedTasks) {
+      if (!task.sceneId || (task.stage !== 'image_start' && task.stage !== 'image_end')) {
+        continue;
+      }
+      const key = `${task.sceneId}:${task.stage}`;
+      if (!map.has(key)) {
+        map.set(key, task);
+      }
+    }
+
+    return map;
+  }, [generationTasks]);
+
+  const getSceneGenerationState = (sceneId: string) => {
+    const startTask = latestImageTaskMap.get(`${sceneId}:image_start`);
+    const endTask = latestImageTaskMap.get(`${sceneId}:image_end`);
+    return {
+      isGeneratingStart: startTask?.status === 'running',
+      isGeneratingEnd: endTask?.status === 'running',
+    };
+  };
+
+  const selectedSceneGenerationState = selectedScene
+    ? getSceneGenerationState(selectedScene.id)
+    : { isGeneratingStart: false, isGeneratingEnd: false };
+
   const selectedSceneIndex = scenes.findIndex(s => s.id === selectedSceneId);
   const previousScene = selectedSceneIndex > 0 ? scenes[selectedSceneIndex - 1] : null;
   const nextScene = selectedSceneIndex >= 0 && selectedSceneIndex < scenes.length - 1
@@ -297,6 +375,8 @@ export default function ImagesPage() {
                     ? prev.generatedEndFrame?.url
                     : undefined;
                   const sceneStartPreviewUrl = scene.generatedImage?.url || inheritedStartUrl;
+                  const sceneGenerationState = getSceneGenerationState(scene.id);
+                  const isSceneGenerating = sceneGenerationState.isGeneratingStart || sceneGenerationState.isGeneratingEnd;
                   return (
                   <button
                     key={scene.id}
@@ -338,7 +418,12 @@ export default function ImagesPage() {
                           <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                             場景 {scene.sceneNumber}
                           </span>
-                        {sceneStartPreviewUrl ? (
+                        {isSceneGenerating ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 rounded">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            生成中
+                          </span>
+                        ) : sceneStartPreviewUrl ? (
                             <span className="text-[11px] px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 rounded">
                               已生成
                             </span>
@@ -362,7 +447,12 @@ export default function ImagesPage() {
                       <span className="text-[11px] text-slate-500 dark:text-slate-400">
                         風格：{activeStyleProfile?.name || '預設'}
                       </span>
-                      {scene.generatedEndFrame && (
+                      {sceneGenerationState.isGeneratingEnd ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          尾幀生成中
+                        </span>
+                      ) : scene.generatedEndFrame && (
                         <span className="text-[11px] px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
                           有尾幀
                         </span>
@@ -450,6 +540,8 @@ export default function ImagesPage() {
                         previousEndFrameUrl={previousEndFrameUrl}
                         previousSceneDescription={previousScene?.description}
                         nextSceneDescription={nextScene?.description}
+                        externalGeneratingStart={selectedSceneGenerationState.isGeneratingStart}
+                        externalGeneratingEnd={selectedSceneGenerationState.isGeneratingEnd}
                       />
                     </div>
                   )}

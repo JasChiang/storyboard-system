@@ -20,6 +20,8 @@ interface ImageGeneratorProps {
     previousEndFrameUrl?: string;
     previousSceneDescription?: string;
     nextSceneDescription?: string;
+    externalGeneratingStart?: boolean;
+    externalGeneratingEnd?: boolean;
 }
 
 export function ImageGenerator({
@@ -32,6 +34,8 @@ export function ImageGenerator({
     previousEndFrameUrl,
     previousSceneDescription,
     nextSceneDescription,
+    externalGeneratingStart = false,
+    externalGeneratingEnd = false,
 }: ImageGeneratorProps) {
     const contentProjectReferences = projectReferences.filter(ref => ref.type !== 'style');
     const styleProjectReferences = projectReferences.filter(ref => ref.type === 'style');
@@ -90,6 +94,9 @@ export function ImageGenerator({
 
     const shouldUseEndFrame = scene.requiresEndFrame || manualEndFrameEnabled;
     const hasContinuationStart = Boolean(previousEndFrameUrl && !scene.generatedImage?.url);
+    const startGenerationLoading = isGeneratingStart || externalGeneratingStart;
+    const endGenerationLoading = isGeneratingEnd || externalGeneratingEnd;
+    const isAnyGenerationLoading = startGenerationLoading || endGenerationLoading;
 
     // 取得選中的專案參考圖 URL
     const getSelectedReferenceUrls = (options?: { includeStartFrameForEnd?: boolean; includePreviousSceneEnd?: boolean }): string[] => {
@@ -359,7 +366,23 @@ export function ImageGenerator({
         }
     };
 
+    const updateTaskStatus = async (taskId: string, updates: Record<string, unknown>) => {
+        try {
+            await fetch(`/api/workflow/tasks/${taskId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+        } catch (error) {
+            console.error('Failed to update generation task', error);
+        }
+    };
+
     const handleGenerate = async (isEndFrame: boolean = false) => {
+        if (isAnyGenerationLoading) {
+            return;
+        }
+
         if (!isEndFrame && hasContinuationStart && previousEndFrameUrl) {
             const reusedPrompt = `${buildImagePrompt(false)}. Start frame reused from previous scene end frame due to continuation transition.`;
             onImageGenerated(
@@ -371,6 +394,8 @@ export function ImageGenerator({
             return;
         }
 
+        let taskId: string | null = null;
+
         if (isEndFrame) {
             setIsGeneratingEnd(true);
         } else {
@@ -379,7 +404,7 @@ export function ImageGenerator({
 
         try {
             const prompt = buildImagePrompt(isEndFrame);
-            const taskId = crypto.randomUUID();
+            taskId = crypto.randomUUID();
             await fetch('/api/workflow/tasks', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -417,17 +442,17 @@ export function ImageGenerator({
             const data = await response.json();
 
             if (!response.ok) {
-                await fetch(`/api/workflow/tasks/${taskId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        status: 'failed',
-                        error: data.error || 'Generation failed',
-                    }),
+                await updateTaskStatus(taskId, {
+                    status: 'failed',
+                    error: data.error || 'Generation failed',
                 });
                 throw new Error(data.error || 'Generation failed');
             }
             if (!data.endpoint) {
+                await updateTaskStatus(taskId, {
+                    status: 'failed',
+                    error: 'Missing endpoint from server',
+                });
                 throw new Error('Missing endpoint from server');
             }
 
@@ -437,6 +462,12 @@ export function ImageGenerator({
 
             await pollStatus(requestId, endpoint, prompt, isEndFrame, taskId);
         } catch (error) {
+            if (taskId) {
+                await updateTaskStatus(taskId, {
+                    status: 'failed',
+                    error: error instanceof Error ? error.message : 'Generation failed',
+                });
+            }
             console.error('Generate error:', error);
             alert(error instanceof Error ? error.message : '生成失敗');
         } finally {
@@ -531,13 +562,9 @@ export function ImageGenerator({
             if (data.status === 'COMPLETED') {
                 const imageUrl = data.result.images[0]?.url;
                 if (imageUrl) {
-                    await fetch(`/api/workflow/tasks/${taskId}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            status: 'completed',
-                            outputUrl: imageUrl,
-                        }),
+                    await updateTaskStatus(taskId, {
+                        status: 'completed',
+                        outputUrl: imageUrl,
                     });
                     // 如果是尾幀，保留現有的首幀資訊
                     if (isEndFrame) {
@@ -559,14 +586,10 @@ export function ImageGenerator({
                 }
                 return;
             } else if (data.status === 'FAILED') {
-                await fetch(`/api/workflow/tasks/${taskId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        status: 'failed',
-                        error: data.error || 'Generation failed',
-                        attempts: attempts + 1,
-                    }),
+                await updateTaskStatus(taskId, {
+                    status: 'failed',
+                    error: data.error || 'Generation failed',
+                    attempts: attempts + 1,
                 });
                 throw new Error(data.error || 'Generation failed');
             }
@@ -577,6 +600,11 @@ export function ImageGenerator({
             attempts++;
         }
 
+        await updateTaskStatus(taskId, {
+            status: 'failed',
+            error: 'Generation timeout',
+            attempts: attempts,
+        });
         throw new Error('Generation timeout');
     };
 
@@ -608,7 +636,7 @@ export function ImageGenerator({
                 <ImagePreview
                     imageUrl={scene.generatedImage?.url || null}
                     prompt={scene.generatedImage?.prompt}
-                    isLoading={isGeneratingStart}
+                    isLoading={startGenerationLoading}
                     onRegenerate={() => handleGenerate(false)}
                 />
             </div>
@@ -630,7 +658,7 @@ export function ImageGenerator({
                                     onEndFrameDescriptionChanged?.(manualEndFrameDescription.trim(), true);
                                 }
                             }}
-                            disabled={isGeneratingStart || isGeneratingEnd}
+                            disabled={isAnyGenerationLoading}
                         />
                         手動啟用尾幀（適合跨主體運鏡）
                     </label>
@@ -642,7 +670,7 @@ export function ImageGenerator({
                                 </p>
                                 <button
                                     onClick={handleComposeEndFrameWithAI}
-                                    disabled={isGeneratingStart || isGeneratingEnd || isComposingEndFramePrompt}
+                                    disabled={isAnyGenerationLoading || isComposingEndFramePrompt}
                                     className="px-2.5 py-1.5 text-xs bg-slate-900 hover:bg-slate-700 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 rounded
                                     disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
@@ -659,7 +687,7 @@ export function ImageGenerator({
                    focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600
                    transition-colors resize-none"
                                 rows={2}
-                                disabled={isGeneratingStart || isGeneratingEnd || isComposingEndFramePrompt}
+                                disabled={isAnyGenerationLoading || isComposingEndFramePrompt}
                             />
                             {aiEndFrameNotes && (
                                 <p className="text-xs text-slate-500 dark:text-slate-400 italic">
@@ -684,7 +712,7 @@ export function ImageGenerator({
                     <ImagePreview
                         imageUrl={scene.generatedEndFrame?.url || null}
                         prompt={scene.generatedEndFrame?.prompt}
-                        isLoading={isGeneratingEnd}
+                        isLoading={endGenerationLoading}
                         onRegenerate={() => handleGenerate(true)}
                     />
                 </div>
@@ -702,7 +730,7 @@ export function ImageGenerator({
                         <select
                             value={promptMode}
                             onChange={(e) => setPromptMode(e.target.value as 'append' | 'replace' | 'prepend')}
-                            disabled={(isGeneratingStart || isGeneratingEnd) || !customPrompt}
+                            disabled={isAnyGenerationLoading || !customPrompt}
                             className="appearance-none pl-3 pr-8 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
                                      text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-600
                                      disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
@@ -737,7 +765,7 @@ export function ImageGenerator({
                    focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600
                    transition-colors resize-none"
                     rows={3}
-                    disabled={isGeneratingStart || isGeneratingEnd}
+                    disabled={isAnyGenerationLoading}
                 />
 
                 {/* 即時預覽最終 Prompt */}
@@ -809,7 +837,7 @@ export function ImageGenerator({
                                         setSelectedProjectRefs(prev => [...prev, ref.id]);
                                     }
                                 }}
-                                disabled={isGeneratingStart || isGeneratingEnd}
+                                disabled={isAnyGenerationLoading}
                                 className={`
                                     relative rounded-lg overflow-hidden border-2 transition-all
                                     ${selectedProjectRefs.includes(ref.id)
@@ -847,7 +875,7 @@ export function ImageGenerator({
             <ReferenceUploader
                 value={referenceImage}
                 onChange={setReferenceImage}
-                disabled={isGeneratingStart || isGeneratingEnd}
+                disabled={isAnyGenerationLoading}
             />
 
             {/* 進階設定 */}
@@ -869,7 +897,7 @@ export function ImageGenerator({
                             <select
                                 value={aspectRatio}
                                 onChange={(e) => setAspectRatio(e.target.value)}
-                                disabled={isGeneratingStart || isGeneratingEnd}
+                                disabled={isAnyGenerationLoading}
                                 className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
                          text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
                             >
@@ -888,7 +916,7 @@ export function ImageGenerator({
                             <select
                                 value={resolution}
                                 onChange={(e) => setResolution(e.target.value as '1K' | '2K' | '4K')}
-                                disabled={isGeneratingStart || isGeneratingEnd}
+                                disabled={isAnyGenerationLoading}
                                 className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
                          text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
                             >
@@ -905,13 +933,13 @@ export function ImageGenerator({
             <div className="grid grid-cols-2 gap-3">
                 <button
                     onClick={() => handleGenerate(false)}
-                    disabled={isGeneratingStart || isGeneratingEnd}
+                    disabled={isAnyGenerationLoading}
                     className="py-3 px-4 bg-blue-600 hover:bg-blue-700
                      text-white font-medium rounded-lg
                      disabled:opacity-50 disabled:cursor-not-allowed
                      transition-all flex items-center justify-center gap-2 shadow-sm"
                 >
-                    {isGeneratingStart ? (
+                    {startGenerationLoading ? (
                         <>
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                             生成中...
@@ -927,13 +955,13 @@ export function ImageGenerator({
                 {shouldUseEndFrame && (
                     <button
                         onClick={() => handleGenerate(true)}
-                        disabled={isGeneratingStart || isGeneratingEnd}
+                        disabled={isAnyGenerationLoading}
                         className="py-3 px-4 bg-purple-600 hover:bg-purple-700
                          text-white font-medium rounded-lg
                          disabled:opacity-50 disabled:cursor-not-allowed
                          transition-all flex items-center justify-center gap-2 shadow-sm"
                     >
-                        {isGeneratingEnd ? (
+                        {endGenerationLoading ? (
                             <>
                                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                 生成中...
