@@ -43,8 +43,13 @@ export function BatchImageGenerator({
     const [aspectRatio, setAspectRatio] = useState<string>('16:9');
     const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('2K');
 
-    const scenesWithoutImages = scenes.filter(s => !s.generatedImage);
-    const totalScenes = scenesWithoutImages.length;
+    const scenesToProcess = scenes.filter((scene) => {
+        const needsStartFrame = !scene.generatedImage;
+        const wantsEndFrame = scene.requiresEndFrame || !!scene.endFrameDescription;
+        const needsEndFrame = wantsEndFrame && !scene.generatedEndFrame;
+        return needsStartFrame || needsEndFrame;
+    });
+    const totalScenes = scenesToProcess.length;
 
     const updateStatus = (sceneId: string, update: Partial<GenerationStatus>) => {
         setStatuses(prev => {
@@ -194,21 +199,32 @@ export function BatchImageGenerator({
     };
 
     const generateSceneImages = async (scene: Scene, previousContinuationEndFrameUrl?: string) => {
-        updateStatus(scene.id, { status: 'generating' });
+        const wantsEndFrame = scene.requiresEndFrame || !!scene.endFrameDescription;
+        const needsStartFrame = !scene.generatedImage;
+        const needsEndFrame = wantsEndFrame && !scene.generatedEndFrame;
+
+        updateStatus(scene.id, { status: needsStartFrame ? 'generating' : 'generating_end_frame' });
 
         try {
-            // 1. 生成首幀
-            const startFrame = await generateSingleImage(scene, false, {
-                continuityReferenceUrl: previousContinuationEndFrameUrl,
-            });
+            // 1. 生成或沿用首幀
+            const startFrame = needsStartFrame
+                ? await generateSingleImage(scene, false, {
+                    continuityReferenceUrl: previousContinuationEndFrameUrl,
+                })
+                : {
+                    url: scene.generatedImage!.url,
+                    prompt: scene.generatedImage?.prompt || '',
+                };
 
-            updateStatus(scene.id, {
-                imageUrl: startFrame.url,
-                prompt: startFrame.prompt,
-            });
+            if (needsStartFrame) {
+                updateStatus(scene.id, {
+                    imageUrl: startFrame.url,
+                    prompt: startFrame.prompt,
+                });
+            }
 
-            // 2. 如果需要尾幀，繼續生成
-            if (scene.requiresEndFrame && scene.endFrameDescription) {
+            // 2. 如果需要且尚未有尾幀，繼續生成
+            if (needsEndFrame) {
                 updateStatus(scene.id, { status: 'generating_end_frame' });
 
                 const endFrame = await generateSingleImage(scene, true, {
@@ -229,7 +245,7 @@ export function BatchImageGenerator({
                 };
             }
 
-            // 3. 不需要尾幀，標記完成
+            // 3. 不需要生成尾幀，標記完成
             updateStatus(scene.id, { status: 'completed' });
 
             return {
@@ -288,14 +304,14 @@ export function BatchImageGenerator({
 
         try {
             // 初始化狀態
-            scenesWithoutImages.forEach(scene => {
+            scenesToProcess.forEach(scene => {
                 updateStatus(scene.id, { status: 'pending' });
             });
 
             const results = new Map<string, { url: string; prompt: string; endFrameUrl?: string; endFramePrompt?: string }>();
 
             // 依序生成（避免超過 API 限制）
-            for (const scene of scenesWithoutImages) {
+            for (const scene of scenesToProcess) {
                 try {
                     const sceneIndex = scenes.findIndex(s => s.id === scene.id);
                     const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
@@ -335,7 +351,7 @@ export function BatchImageGenerator({
                             批次生成
                         </h3>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                            為 {totalScenes} 個尚未生成的場景自動生成圖片
+                            為 {totalScenes} 個待處理場景自動生成圖片（缺首幀或缺尾幀）
                         </p>
                     </div>
                 </div>
@@ -403,7 +419,7 @@ export function BatchImageGenerator({
                 <div className="space-y-2">
                     <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">生成進度</h4>
                     <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {scenesWithoutImages.map(scene => {
+                        {scenesToProcess.map(scene => {
                             const status = statuses.get(scene.id);
                             if (!status) return null;
 

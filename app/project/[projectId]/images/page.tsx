@@ -401,6 +401,7 @@ export default function ImagesPage() {
 
                   <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
                     <ImageGenerator
+                      key={selectedScene.id}
                       projectId={projectId}
                       scene={selectedScene}
                       onImageGenerated={(url, prompt, endFrameUrl, endFramePrompt) =>

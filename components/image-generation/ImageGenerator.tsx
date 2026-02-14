@@ -108,6 +108,70 @@ export function ImageGenerator({
 
     // 構建圖片生成 prompt（支援首幀/尾幀）
     const buildImagePrompt = (isEndFrame: boolean = false) => {
+        const effectiveEndFrameDescription =
+            scene.endFrameDescription
+            || manualEndFrameDescription
+            || scene.description;
+        const hasLockVisibleText = sceneScopedContentRefs.some(
+            (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
+        );
+        const hasForbidNewText = sceneScopedContentRefs.some(
+            (ref) => ref.ipProfile?.textLogoPolicy === 'forbid_new_text'
+        );
+
+        // Tail frame "delta-only" mode:
+        // Use start frame as ground truth and only describe required changes.
+        if (isEndFrame && scene.generatedImage?.url) {
+            const deltaParts: string[] = [];
+            const safeCustomPrompt = customPrompt ? sanitizeStaticFrameDescription(customPrompt) : '';
+
+            if (!safeCustomPrompt) {
+                deltaParts.push(effectiveEndFrameDescription);
+            } else {
+                switch (promptMode) {
+                    case 'replace':
+                        deltaParts.push(safeCustomPrompt);
+                        break;
+                    case 'append':
+                        deltaParts.push(effectiveEndFrameDescription);
+                        deltaParts.push(safeCustomPrompt);
+                        break;
+                    case 'prepend':
+                        deltaParts.push(safeCustomPrompt);
+                        deltaParts.push(effectiveEndFrameDescription);
+                        break;
+                }
+            }
+
+            const minimalParts: string[] = [];
+            if (styleProfile?.stylePrompt) {
+                minimalParts.push(`Style direction: ${styleProfile.stylePrompt}`);
+            }
+            if (styleProfile?.negativePrompt) {
+                minimalParts.push(`Negative constraints: ${styleProfile.negativePrompt}`);
+            }
+
+            minimalParts.push('Use the generated start frame as the single source of truth.');
+            minimalParts.push('Camera movement/reframing is allowed, but keep scene geometry and object continuity physically consistent.');
+            minimalParts.push('Keep static environment layout unchanged: walls, bed, nightstand, lamp, curtain, and furniture must keep the same world relationships.');
+            minimalParts.push('Keep character continuity unchanged unless explicitly requested.');
+            minimalParts.push('Keep movable-object continuity unchanged unless explicitly requested: phone/props position, orientation, and interaction state must remain consistent with start frame.');
+            minimalParts.push(`Apply only this end-frame delta: ${deltaParts.join('. ')}`);
+            minimalParts.push('Only make minimal local edits required by the delta; do not globally recompose the scene.');
+            minimalParts.push('Do not move existing objects unless the delta explicitly requests it.');
+            minimalParts.push('Return one final-state still frame, not a transition sequence.');
+
+            if (hasLockVisibleText || hasForbidNewText) {
+                minimalParts.push('If logos/text are visible, keep spelling, shape, and placement unchanged unless explicitly requested.');
+            }
+
+            minimalParts.push('允許鏡頭重構圖，但必須維持首圖空間與物件連續性。');
+            minimalParts.push('僅依尾圖差異指令做最小局部改動，不得整體重排場景。');
+            minimalParts.push(`尾圖差異指令：${deltaParts.join('。')}`);
+
+            return minimalParts.join('. ');
+        }
+
         const parts = [];
         const consistencyGuardrails = [
             'Describe the scene in natural language, not keyword stuffing.',
@@ -164,12 +228,6 @@ export function ImageGenerator({
             }
         }
 
-        const hasLockVisibleText = sceneScopedContentRefs.some(
-            (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
-        );
-        const hasForbidNewText = sceneScopedContentRefs.some(
-            (ref) => ref.ipProfile?.textLogoPolicy === 'forbid_new_text'
-        );
         if (hasLockVisibleText) {
             parts.push('If brand text or logos are visible, keep them exactly legible and unchanged in spelling, shape, and placement.');
         }
@@ -177,12 +235,7 @@ export function ImageGenerator({
             parts.push('Do not invent any new letters, numbers, brand marks, or package text.');
         }
 
-        // 2. 選擇正確的描述（首幀或尾幀）
-        const effectiveEndFrameDescription =
-            scene.endFrameDescription
-            || manualEndFrameDescription
-            || scene.description;
-
+        // 2. 選擇正確的描述（首幀）
         const sceneDescription = buildStaticFrameDescription(
             scene.description,
             isEndFrame ? effectiveEndFrameDescription : scene.description,

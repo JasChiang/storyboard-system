@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 
 interface ImagePreviewProps {
@@ -17,6 +17,10 @@ export function ImagePreview({
     onRegenerate
 }: ImagePreviewProps) {
     const [imageLoaded, setImageLoaded] = useState(false);
+
+    useEffect(() => {
+        setImageLoaded(false);
+    }, [imageUrl]);
 
     if (isLoading) {
         return (
