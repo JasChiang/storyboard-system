@@ -36,46 +36,48 @@ export function validateStoryboard(storyboard: Storyboard): {
   storyboard.scenes.forEach((scene, index) => {
     const hasCharactersTag = Array.isArray(scene.charactersUsed) && scene.charactersUsed.length > 0;
     const hasProductsTag = Array.isArray(scene.productsUsed) && scene.productsUsed.length > 0;
+    const hasTransition = Boolean(scene.transitionToNext?.type);
+    const hasDescription = Boolean(scene.description?.trim());
+    const hasCameraMovement = Boolean(scene.cameraMovement?.trim());
 
-    if (!hasCharactersTag && !hasProductsTag) {
-      issues.push(issue('medium', 'missing_entity_tags', '場景缺少 charactersUsed/productsUsed，後續一致性過濾會變弱。', scene));
-    }
-
+    // ===== Block（只保留流程必要檢查）=====
     if ((scene.transitionToNext?.type === 'continuation' || scene.transitionToNext?.useEndFrameAsNextStart) && !scene.requiresEndFrame) {
       issues.push(issue('high', 'continuation_without_endframe', '設定了 continuation 但此場景沒有啟用尾幀。', scene));
     }
 
-    if (scene.requiresEndFrame && !scene.endFrameDescription?.trim()) {
-      issues.push(issue('high', 'missing_endframe_description', '此場景啟用了尾幀，但沒有尾幀描述。', scene));
-    }
     if (scene.requiresEndFrame && !scene.endFrameDelta?.trim()) {
-      issues.push(issue('medium', 'missing_endframe_delta', '此場景啟用了尾幀，但沒有 endFrameDelta（差異描述）。', scene));
+      issues.push(issue('high', 'missing_endframe_delta', '此場景啟用了尾幀，但沒有 endFrameDelta（差異描述）。', scene));
     }
 
     if (scene.duration <= 0) {
       issues.push(issue('high', 'invalid_duration', '場景時長必須大於 0。', scene));
     }
 
-    if (!scene.cameraMovement?.trim()) {
-      issues.push(issue('low', 'missing_camera_movement', '場景缺少運鏡描述，影片提示詞可能過於平。', scene));
+    if (!hasDescription) {
+      issues.push(issue('high', 'missing_description', '場景缺少 description，無法穩定生成分鏡圖。', scene));
+    }
+    if (!hasCameraMovement) {
+      issues.push(issue('high', 'missing_camera_movement', '場景缺少 cameraMovement，無法穩定生成影片運鏡。', scene));
+    }
+    if (!hasTransition) {
+      issues.push(issue('high', 'missing_transition', '場景缺少 transitionToNext.type，後續剪輯轉場依據不足。', scene));
+    }
+
+    // ===== Warn（品質提醒，不阻擋流程）=====
+    if (!hasCharactersTag && !hasProductsTag) {
+      issues.push(issue('medium', 'missing_entity_tags', '場景缺少 charactersUsed/productsUsed，一致性追蹤會較弱。', scene));
+    }
+    if (!scene.sceneIntent?.trim()) {
+      issues.push(issue('low', 'missing_scene_intent', '缺少 sceneIntent，建議補上以利腳本語意一致。', scene));
     }
     if (!scene.startComposition?.trim()) {
       issues.push(issue('low', 'missing_start_composition', '缺少 startComposition，首幀構圖錨點較弱。', scene));
     }
     if (!scene.continuityLock?.trim()) {
-      issues.push(issue('medium', 'missing_continuity_lock', '缺少 continuityLock，首尾幀幾何延續風險較高。', scene));
+      issues.push(issue('low', 'missing_continuity_lock', '缺少 continuityLock，首尾幀幾何延續風險提高。', scene));
     }
-
-    if (!scene.shotIntent?.trim()) {
-      issues.push(issue('low', 'missing_shot_intent', '缺少 shotIntent，鏡頭意圖與節奏控制較弱。', scene));
-    }
-
     if (index > 0 && !scene.changeFromPrev?.trim()) {
       issues.push(issue('low', 'missing_change_from_prev', '缺少 changeFromPrev，連場變化語意不完整。', scene));
-    }
-
-    if (index > 0 && !scene.continuityAnchor?.trim()) {
-      issues.push(issue('medium', 'missing_continuity_anchor', '缺少 continuityAnchor，首尾幀或跨鏡頭延續可能漂移。', scene));
     }
   });
 
