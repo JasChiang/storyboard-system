@@ -24,6 +24,12 @@ export function validateStoryboard(storyboard: Storyboard): {
   score: number;
   summary: string;
   issues: StoryboardQaIssue[];
+  sceneReports: Array<{
+    sceneId?: string;
+    sceneNumber?: number;
+    status: 'pass' | 'warn' | 'block';
+    issues: StoryboardQaIssue[];
+  }>;
 } {
   const issues: StoryboardQaIssue[] = [];
 
@@ -90,5 +96,18 @@ export function validateStoryboard(storyboard: Storyboard): {
       ? `QA 未通過：${high} 個高風險、${medium} 個中風險、${low} 個低風險問題。`
       : `QA 通過：${medium} 個中風險、${low} 個低風險提示。`;
 
-  return { score, summary, issues };
+  const sceneReports = storyboard.scenes.map((scene) => {
+    const sceneIssues = issues.filter((i) => i.sceneId === scene.id || i.sceneNumber === scene.sceneNumber);
+    const hasHigh = sceneIssues.some((i) => i.severity === 'high');
+    const hasMedium = sceneIssues.some((i) => i.severity === 'medium');
+    const status: 'pass' | 'warn' | 'block' = hasHigh ? 'block' : hasMedium ? 'warn' : 'pass';
+    return {
+      sceneId: scene.id,
+      sceneNumber: scene.sceneNumber,
+      status,
+      issues: sceneIssues,
+    };
+  });
+
+  return { score, summary, issues, sceneReports };
 }

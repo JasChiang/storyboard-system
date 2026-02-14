@@ -6,6 +6,7 @@ import { ReferenceUploader } from './ReferenceUploader';
 import { ImagePreview } from './ImagePreview';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/lib/prompts/image-static';
+import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 
@@ -113,7 +114,9 @@ export function ImageGenerator({
             || manualEndFrameDescription
             || scene.description;
         const effectiveEndFrameDelta = scene.endFrameDelta || manualEndFrameDescription || '';
+        const effectiveDeltaSpec = scene.endFrameDeltaSpec;
         const hasExplicitDelta = Boolean(effectiveEndFrameDelta.trim());
+        const cameraMovementLower = (scene.cameraMovement || '').toLowerCase();
         const hasLockVisibleText = sceneScopedContentRefs.some(
             (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
         );
@@ -159,11 +162,31 @@ export function ImageGenerator({
             minimalParts.push('Keep character continuity unchanged unless explicitly requested.');
             minimalParts.push('Keep movable-object continuity unchanged unless explicitly requested: phone/props position, orientation, and interaction state must remain consistent with start frame.');
             minimalParts.push(`Apply only this end-frame delta: ${deltaParts.join('. ')}`);
+            if (effectiveDeltaSpec?.reframingGoal) {
+                minimalParts.push(`Reframing target: ${effectiveDeltaSpec.reframingGoal}`);
+            }
+            if (effectiveDeltaSpec?.subjectScaleChangePct) {
+                minimalParts.push(`Subject screen-size change target: ${effectiveDeltaSpec.subjectScaleChangePct}`);
+            }
+            if (effectiveDeltaSpec?.newVisibleArea) {
+                minimalParts.push(`New visible area target: ${effectiveDeltaSpec.newVisibleArea}`);
+            }
+            if (effectiveDeltaSpec?.mustNotChange?.length) {
+                minimalParts.push(`Must not change: ${effectiveDeltaSpec.mustNotChange.join(', ')}`);
+            }
             minimalParts.push('Only make minimal local edits required by the delta; do not globally recompose the scene.');
             minimalParts.push('Do not move existing objects unless the delta explicitly requests it.');
             if (hasExplicitDelta) {
                 minimalParts.push('The final frame must show a clearly noticeable composition change from the start frame according to the delta.');
                 minimalParts.push('Do not return a near-duplicate of the start frame when delta requests reframing.');
+            }
+            if (/dolly|push in|pull out|zoom|拉近|拉遠|變焦/.test(cameraMovementLower)) {
+                minimalParts.push('Camera move must be interpreted as camera reframing/parallax, not object scaling.');
+                minimalParts.push('Do not scale, stretch, or enlarge the product/body to fake camera movement.');
+            }
+            if (/pan|tilt|平移|搖鏡|轉向/.test(cameraMovementLower)) {
+                minimalParts.push('Pan/tilt must preserve world-space object positions; only framing window changes.');
+                minimalParts.push('Do not translate anchored objects to fake pan/tilt.');
             }
             minimalParts.push('Return one final-state still frame, not a transition sequence.');
 
@@ -175,7 +198,7 @@ export function ImageGenerator({
             minimalParts.push('僅依尾圖差異指令做最小局部改動，不得整體重排場景。');
             minimalParts.push(`尾圖差異指令：${deltaParts.join('。')}`);
 
-            return minimalParts.join('. ');
+            return normalizePromptParts(minimalParts, 5000);
         }
 
         const parts = [];
@@ -308,7 +331,7 @@ export function ImageGenerator({
             parts.push('Keep subject identity and key object consistency while updating only composition and action as described.');
         }
 
-        return parts.join('. ');
+        return normalizePromptParts(parts, 5000);
     };
 
     // 取得模式說明

@@ -7,9 +7,11 @@ interface StoryboardTableProps {
   scenes: Scene[];
   onUpdateScene: (sceneId: string, updates: Partial<Scene>) => void;
   onDeleteScene: (sceneId: string) => void;
+  onRegenerateScene?: (sceneId: string) => void;
+  isRegeneratingSceneId?: string | null;
 }
 
-export function StoryboardTable({ scenes, onUpdateScene, onDeleteScene }: StoryboardTableProps) {
+export function StoryboardTable({ scenes, onUpdateScene, onDeleteScene, onRegenerateScene, isRegeneratingSceneId }: StoryboardTableProps) {
   if (scenes.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-12 shadow-sm dark:border-slate-700 dark:bg-slate-800">
@@ -74,6 +76,8 @@ export function StoryboardTable({ scenes, onUpdateScene, onDeleteScene }: Storyb
                 scene={scene}
                 onUpdate={(updates) => onUpdateScene(scene.id, updates)}
                 onDelete={() => onDeleteScene(scene.id)}
+                onRegenerate={onRegenerateScene ? () => onRegenerateScene(scene.id) : undefined}
+                isRegenerating={isRegeneratingSceneId === scene.id}
               />
             ))}
           </tbody>

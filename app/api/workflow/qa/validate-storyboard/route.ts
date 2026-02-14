@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
     });
 
-    return NextResponse.json({ data: report });
+    return NextResponse.json({ data: { ...report, sceneReports: result.sceneReports } });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to validate storyboard' },

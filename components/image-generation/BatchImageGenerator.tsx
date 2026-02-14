@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription } from '@/lib/prompts/image-static';
+import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 
@@ -136,10 +137,31 @@ export function BatchImageGenerator({
             )
         );
         if (isEndFrame && scene.endFrameDelta) {
+            const cameraMovementLower = (scene.cameraMovement || '').toLowerCase();
             parts.push(`Apply only this end-frame delta: ${scene.endFrameDelta}`);
+            if (scene.endFrameDeltaSpec?.reframingGoal) {
+                parts.push(`Reframing target: ${scene.endFrameDeltaSpec.reframingGoal}`);
+            }
+            if (scene.endFrameDeltaSpec?.subjectScaleChangePct) {
+                parts.push(`Subject screen-size change target: ${scene.endFrameDeltaSpec.subjectScaleChangePct}`);
+            }
+            if (scene.endFrameDeltaSpec?.newVisibleArea) {
+                parts.push(`New visible area target: ${scene.endFrameDeltaSpec.newVisibleArea}`);
+            }
+            if (scene.endFrameDeltaSpec?.mustNotChange?.length) {
+                parts.push(`Must not change: ${scene.endFrameDeltaSpec.mustNotChange.join(', ')}`);
+            }
             parts.push('Only make minimal local edits required by the delta; do not globally recompose the scene.');
             parts.push('The final frame must show a clearly noticeable composition change from the start frame according to the delta.');
             parts.push('Do not return a near-duplicate of the start frame when delta requests reframing.');
+            if (/dolly|push in|pull out|zoom|拉近|拉遠|變焦/.test(cameraMovementLower)) {
+                parts.push('Camera move must be interpreted as camera reframing/parallax, not object scaling.');
+                parts.push('Do not scale, stretch, or enlarge objects to fake camera movement.');
+            }
+            if (/pan|tilt|平移|搖鏡|轉向/.test(cameraMovementLower)) {
+                parts.push('Pan/tilt must preserve world-space object positions; only framing changes.');
+                parts.push('Do not translate anchored objects to fake pan/tilt.');
+            }
         }
         parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
         parts.push(...consistencyGuardrails);
@@ -149,7 +171,7 @@ export function BatchImageGenerator({
             parts.push('保持參考圖中的外觀、面部特徵、服裝和風格。');
         }
 
-        return parts.join('. ');
+        return normalizePromptParts(parts, 5000);
     };
 
     const generateSingleImage = async (
@@ -158,7 +180,7 @@ export function BatchImageGenerator({
         options?: { primaryReferenceUrl?: string; continuityReferenceUrl?: string }
     ) => {
         const sceneScopedContentRefs = getSceneRelevantReferences(scene, contentProjectReferences);
-        const prompt = [
+        const prompt = normalizePromptParts([
             buildImagePrompt(scene, isEndFrame),
             isEndFrame && options?.primaryReferenceUrl
                 ? 'Use the provided start frame as the primary continuity reference. Keep everything the same as the primary reference image. Only apply the explicit end-frame delta.'
@@ -169,7 +191,7 @@ export function BatchImageGenerator({
             !isEndFrame && options?.continuityReferenceUrl
                 ? 'This scene should continue naturally from the previous scene end frame while preserving identity. Keep everything the same as the previous scene end frame unless this prompt explicitly changes it.'
                 : '',
-        ].filter(Boolean).join('. ');
+        ], 5000);
 
         // 呼叫生成 API
         const response = await fetch('/api/fal/generate-image', {

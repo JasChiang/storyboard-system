@@ -38,6 +38,8 @@ export default function ImagesPage() {
   }, [currentProject?.storyboard]);
 
   const scenes = currentProject?.storyboard?.scenes || [];
+  const blockedScenes = scenes.filter((s) => s.qaStatus === 'block');
+  const processableScenes = scenes.filter((s) => s.qaStatus !== 'block');
   const progress = getWorkflowProgress(currentProject);
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
   const selectedSceneIndex = scenes.findIndex(s => s.id === selectedSceneId);
@@ -292,8 +294,12 @@ export default function ImagesPage() {
                   <button
                     key={scene.id}
                     onClick={() => setSelectedSceneId(scene.id)}
+                    disabled={scene.qaStatus === 'block'}
                     className={`
                       w-full text-left p-4 rounded-lg border transition-all
+                      ${scene.qaStatus === 'block'
+                        ? 'opacity-60 cursor-not-allowed border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10'
+                        : ''}
                       ${selectedSceneId === scene.id
                         ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 ring-1 ring-blue-200 dark:ring-blue-800'
                         : 'bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
@@ -323,16 +329,21 @@ export default function ImagesPage() {
                           <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                             場景 {scene.sceneNumber}
                           </span>
-                          {scene.generatedImage ? (
+                        {scene.generatedImage ? (
                             <span className="text-[11px] px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 rounded">
                               已生成
                             </span>
-                          ) : (
-                            <span className="text-[11px] px-2 py-0.5 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 rounded">
-                              未生成
-                            </span>
-                          )}
-                        </div>
+                        ) : (
+                          <span className="text-[11px] px-2 py-0.5 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 rounded">
+                            未生成
+                          </span>
+                        )}
+                        {scene.qaStatus === 'block' && (
+                          <span className="text-[11px] px-2 py-0.5 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 rounded">
+                            QA 阻擋
+                          </span>
+                        )}
+                      </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
                           {scene.description}
                         </p>
@@ -357,6 +368,11 @@ export default function ImagesPage() {
             <div className="col-span-8">
               {selectedScene ? (
                 <div className="space-y-4">
+                  {selectedScene.qaStatus === 'block' && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                      此場景被 QA 阻擋，請先回「分鏡腳本」修正或使用單場景重生，再生成圖片。
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-4 backdrop-blur-sm">
                     <div className="space-y-2">
                       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">目前預覽</p>
@@ -400,24 +416,26 @@ export default function ImagesPage() {
                     </div>
                   </div>
 
-                  <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
-                    <ImageGenerator
-                      key={selectedScene.id}
-                      projectId={projectId}
-                      scene={selectedScene}
-                      onImageGenerated={(url, prompt, endFrameUrl, endFramePrompt) =>
-                        handleImageGenerated(selectedScene.id, url, prompt, endFrameUrl, endFramePrompt)
-                      }
-                      onEndFrameDescriptionChanged={(description, enabled) =>
-                        handleEndFrameDescriptionChanged(selectedScene.id, description, enabled)
-                      }
-                      projectReferences={currentProject.storyboard?.projectReferences}
-                      styleProfile={activeStyleProfile}
-                      previousEndFrameUrl={previousEndFrameUrl}
-                      previousSceneDescription={previousScene?.description}
-                      nextSceneDescription={nextScene?.description}
-                    />
-                  </div>
+                  {selectedScene.qaStatus !== 'block' && (
+                    <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
+                      <ImageGenerator
+                        key={selectedScene.id}
+                        projectId={projectId}
+                        scene={selectedScene}
+                        onImageGenerated={(url, prompt, endFrameUrl, endFramePrompt) =>
+                          handleImageGenerated(selectedScene.id, url, prompt, endFrameUrl, endFramePrompt)
+                        }
+                        onEndFrameDescriptionChanged={(description, enabled) =>
+                          handleEndFrameDescriptionChanged(selectedScene.id, description, enabled)
+                        }
+                        projectReferences={currentProject.storyboard?.projectReferences}
+                        styleProfile={activeStyleProfile}
+                        previousEndFrameUrl={previousEndFrameUrl}
+                        previousSceneDescription={previousScene?.description}
+                        nextSceneDescription={nextScene?.description}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 backdrop-blur-sm">
@@ -431,8 +449,13 @@ export default function ImagesPage() {
           </div>
         ) : (
           <div className="max-w-3xl mx-auto">
+            {blockedScenes.length > 0 && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+                有 {blockedScenes.length} 個場景被 QA 阻擋，批次生成會自動跳過它們。
+              </div>
+            )}
             <BatchImageGenerator
-              scenes={scenes}
+              scenes={processableScenes}
               projectReferences={currentProject.storyboard?.projectReferences}
               styleProfile={activeStyleProfile}
               onBatchComplete={handleBatchComplete}

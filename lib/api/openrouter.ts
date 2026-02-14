@@ -1,4 +1,4 @@
-import { PromptTemplate, StoryboardGenerationResponse, ProjectReference, TransitionType } from '../types/storyboard';
+import { PromptTemplate, StoryboardGenerationResponse, ProjectReference, Scene, TransitionType } from '../types/storyboard';
 import { OpenRouterResponse } from '../types/api-responses';
 import { buildSystemPrompt } from '../prompts/prompt-builder';
 import { buildConsolidatedReferenceRules } from '../references/consistency-rules';
@@ -258,6 +258,36 @@ export async function generateStoryboardScript(
           || `鏡頭完成運動後落在「${stringValue(scene.cameraMovement) || '最終構圖'}」所指定的終態構圖。`
         )
         : '';
+      const endFrameDeltaSpecRaw =
+        scene.endFrameDeltaSpec && typeof scene.endFrameDeltaSpec === 'object'
+          ? (scene.endFrameDeltaSpec as Record<string, unknown>)
+          : {};
+      const inferredSpec = {
+        reframingGoal: endFrameDelta,
+        subjectScaleChangePct: hasStrongReframingMotion(stringValue(scene.cameraMovement))
+          ? (/(dolly\s*in|push\s*in|zoom\s*in|拉近|放大)/i.test(stringValue(scene.cameraMovement)) ? '+10%~+20%' : /(dolly\s*out|pull\s*out|zoom\s*out|拉遠|縮小)/i.test(stringValue(scene.cameraMovement)) ? '-10%~-20%' : '0%~+10%')
+          : '0%',
+        newVisibleArea: /(pan\s+right|右移|向右)/i.test(stringValue(scene.cameraMovement))
+          ? '右側環境新增可見區'
+          : /(pan\s+left|左移|向左)/i.test(stringValue(scene.cameraMovement))
+            ? '左側環境新增可見區'
+            : '依鏡頭終態可見範圍自然變化',
+        mustNotChange: [
+          '角色/商品身份',
+          '品牌 logo 與文字拼寫',
+          '靜態空間幾何',
+        ],
+      };
+      const endFrameDeltaSpec = requiresEndFrame
+        ? {
+          reframingGoal: stringValue(endFrameDeltaSpecRaw.reframingGoal) || inferredSpec.reframingGoal,
+          subjectScaleChangePct: stringValue(endFrameDeltaSpecRaw.subjectScaleChangePct) || inferredSpec.subjectScaleChangePct,
+          newVisibleArea: stringValue(endFrameDeltaSpecRaw.newVisibleArea) || inferredSpec.newVisibleArea,
+          mustNotChange: Array.isArray(endFrameDeltaSpecRaw.mustNotChange)
+            ? endFrameDeltaSpecRaw.mustNotChange.filter((v): v is string => typeof v === 'string')
+            : inferredSpec.mustNotChange,
+        }
+        : undefined;
       const endFrameDescription = requiresEndFrame
         ? (sanitizedEndFrame || `${startComposition}。僅變更：${endFrameDelta}`)
         : '';
@@ -277,6 +307,7 @@ export async function generateStoryboardScript(
         requiresEndFrame,
         endFrameDescription,
         endFrameDelta,
+        endFrameDeltaSpec,
         dialogue: typeof scene.dialogue === 'string' ? scene.dialogue.trim() : '',
         duration: Number.isFinite(sceneDurationValue) ? sceneDurationValue : 3,
         notes: typeof scene.notes === 'string' ? scene.notes.trim() : '',
@@ -439,6 +470,109 @@ ${JSON.stringify(firstPassParsed, null, 2)}`,
       consistencyWarnings: violationMap.get(scene.sceneNumber) || [],
     })),
   };
+}
+
+export async function regenerateStoryboardScene(
+  userPrompt: string,
+  template: PromptTemplate,
+  targetScene: Partial<Scene> & { sceneNumber: number },
+  scenesContext: Array<Pick<Scene, 'sceneNumber' | 'description' | 'cameraMovement' | 'dialogue' | 'duration'>>,
+  config: OpenRouterConfig,
+  references?: ProjectReference[]
+): Promise<Partial<Scene>> {
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+  const systemPrompt = buildSystemPrompt(template, references);
+  const sceneSchema = {
+    type: 'object',
+    properties: {
+      sceneNumber: { type: 'integer' },
+      description: { type: 'string' },
+      cameraMovement: { type: 'string' },
+      sceneIntent: { type: 'string' },
+      startComposition: { type: 'string' },
+      subjectMotion: { type: 'string' },
+      continuityLock: { type: 'string' },
+      requiresEndFrame: { type: 'boolean' },
+      endFrameDescription: { type: 'string' },
+      endFrameDelta: { type: 'string' },
+      dialogue: { type: 'string' },
+      duration: { type: 'number' },
+      notes: { type: 'string' },
+      charactersUsed: { type: 'array', items: { type: 'string' } },
+      productsUsed: { type: 'array', items: { type: 'string' } },
+      changeFromPrev: { type: 'string' },
+      transitionToNext: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['cut', 'dissolve', 'fade_black', 'fade_white', 'continuation', 'match_cut', 'wipe', 'push'],
+          },
+          reason: { type: 'string' },
+          duration: { type: 'number' },
+          useEndFrameAsNextStart: { type: 'boolean' },
+        },
+        required: ['type', 'reason'],
+      },
+    },
+    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext'],
+  };
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'http://localhost:3000',
+      'X-Title': 'Storyboard System',
+    },
+    body: JSON.stringify({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: `${systemPrompt}
+
+你現在是「單場景修復器」：只重寫指定場景，保持整體企劃不變。
+請輸出 JSON：{ "scene": <sceneObject> }，scene 必須符合 schema:
+${JSON.stringify(sceneSchema, null, 2)}
+
+規則：
+- 只允許改動目標場景，不要改場景編號。
+- 優先修正：運鏡可執行性、endFrameDelta 可執行性、連續性約束清楚。
+- endFrameDelta 僅描述相對首幀差異，不可重寫整景。
+- 若運鏡有 pan/dolly/zoom 終態，requiresEndFrame 應為 true。`,
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            originalPrompt: userPrompt,
+            targetSceneNumber: targetScene.sceneNumber,
+            targetScene,
+            scenesContext,
+          }, null, 2),
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`OpenRouter API error (${response.status}): ${text}`);
+  }
+  const data: OpenRouterResponse = await response.json();
+  const content = data.choices[0]?.message?.content;
+  if (!content) throw new Error('OpenRouter 沒有回傳內容');
+
+  const cleaned = content
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+  const parsed = JSON.parse(cleaned) as { scene?: Partial<Scene> };
+  if (!parsed.scene) throw new Error('回傳缺少 scene');
+  return parsed.scene;
 }
 
 /**

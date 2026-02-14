@@ -8,6 +8,8 @@ interface SceneRowProps {
   scene: Scene;
   onUpdate: (updates: Partial<Scene>) => void;
   onDelete: () => void;
+  onRegenerate?: () => void;
+  isRegenerating?: boolean;
 }
 
 // 轉場類型顯示設定
@@ -22,7 +24,7 @@ const TRANSITION_LABELS: Record<TransitionType, { label: string; color: string; 
   push: { label: '推出', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', icon: '📤' },
 };
 
-export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
+export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerating = false }: SceneRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedScene, setEditedScene] = useState(scene);
 
@@ -197,6 +199,26 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
         <div className="max-w-md text-sm leading-6 text-slate-800 dark:text-slate-100">
           {scene.description}
         </div>
+        {scene.qaStatus && (
+          <div className="mt-2">
+            <span
+              className={`inline-flex rounded-md border px-2 py-1 text-xs ${
+                scene.qaStatus === 'block'
+                  ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300'
+                  : scene.qaStatus === 'warn'
+                    ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300'
+                    : 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300'
+              }`}
+            >
+              QA: {scene.qaStatus === 'block' ? '阻擋' : scene.qaStatus === 'warn' ? '警告' : '通過'}
+            </span>
+          </div>
+        )}
+        {scene.qaIssues && scene.qaIssues.length > 0 && (
+          <div className="mt-1 max-w-md text-xs text-slate-600 dark:text-slate-400 line-clamp-2" title={scene.qaIssues.join('\n')}>
+            {scene.qaIssues[0]}
+          </div>
+        )}
         {scene.consistencyWarnings && scene.consistencyWarnings.length > 0 && (
           <div className="mt-2 space-y-1">
             <span className="inline-flex rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-300">
@@ -282,6 +304,16 @@ export function SceneRow({ scene, onUpdate, onDelete }: SceneRowProps) {
           >
             <Trash2 className="h-4 w-4" />
           </button>
+          {onRegenerate && (
+            <button
+              onClick={onRegenerate}
+              disabled={isRegenerating}
+              className="rounded-lg border border-indigo-200 bg-indigo-100 p-1.5 text-indigo-700 transition hover:bg-indigo-200 disabled:opacity-50 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300 dark:hover:bg-indigo-900/40"
+              title="重生此場景"
+            >
+              {isRegenerating ? '...' : '↻'}
+            </button>
+          )}
         </div>
       </td>
     </tr>

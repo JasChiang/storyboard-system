@@ -18,6 +18,7 @@ export default function StoryboardPage() {
 
   const { currentProject, setCurrentProject, updateProject } = useProjectStore();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [regeneratingSceneId, setRegeneratingSceneId] = useState<string | null>(null);
   const [generationNotice, setGenerationNotice] = useState<{
     type: 'success' | 'warning' | 'error';
     message: string;
@@ -68,7 +69,7 @@ export default function StoryboardPage() {
       const data: StoryboardGenerationResponse = result.data;
 
       // 轉換為 Scene 格式並生成 ID
-      const scenes: Scene[] = data.scenes.map((scene, index) => ({
+      const rawScenes: Scene[] = data.scenes.map((scene, index) => ({
         ...scene,
         id: `scene-${Date.now()}-${index}`,
       }));
@@ -80,7 +81,7 @@ export default function StoryboardPage() {
         title: data.title,
         originalPrompt: prompt,
         templateUsed: result.templateUsed,
-        scenes,
+        scenes: rawScenes,
         projectReferences: references.length > 0 ? references : undefined,
         selectedStyleProfileId: DEFAULT_STYLE_PROFILE_ID,
         createdAt: new Date().toISOString(),
@@ -98,6 +99,8 @@ export default function StoryboardPage() {
       const highIssues = Array.isArray(qaReport?.issues)
         ? qaReport.issues.filter((i: { severity: string }) => i.severity === 'high')
         : [];
+      const scenes = applyQaStatusToScenes(rawScenes, qaReport?.issues);
+      storyboard.scenes = scenes;
 
       // 更新專案
       updateProject(projectId, {
@@ -124,6 +127,110 @@ export default function StoryboardPage() {
       });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const applyQaStatusToScenes = (
+    scenes: Scene[],
+    issues: Array<{ sceneId?: string; sceneNumber?: number; severity: 'high' | 'medium' | 'low'; message: string }> = []
+  ): Scene[] => {
+    return scenes.map((scene) => {
+      const sceneIssues = issues.filter((i) => i.sceneId === scene.id || i.sceneNumber === scene.sceneNumber);
+      const hasHigh = sceneIssues.some((i) => i.severity === 'high');
+      const hasMedium = sceneIssues.some((i) => i.severity === 'medium');
+      return {
+        ...scene,
+        qaStatus: hasHigh ? 'block' : hasMedium ? 'warn' : 'pass',
+        qaIssues: sceneIssues.map((i) => i.message),
+      };
+    });
+  };
+
+  const handleRegenerateScene = async (sceneId: string) => {
+    if (!currentProject?.storyboard) return;
+    const targetScene = currentProject.storyboard.scenes.find((s) => s.id === sceneId);
+    if (!targetScene) return;
+
+    setRegeneratingSceneId(sceneId);
+    try {
+      const response = await fetch('/api/openrouter/regenerate-scene', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userPrompt: currentProject.storyboard.originalPrompt,
+          templateId: currentProject.storyboard.templateUsed,
+          references: currentProject.storyboard.projectReferences || [],
+          sceneNumber: targetScene.sceneNumber,
+          scene: targetScene,
+          scenesContext: currentProject.storyboard.scenes.map((s) => ({
+            sceneNumber: s.sceneNumber,
+            description: s.description,
+            cameraMovement: s.cameraMovement,
+            dialogue: s.dialogue,
+            duration: s.duration,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => null);
+        throw new Error(err?.error || '重生場景失敗');
+      }
+
+      const payload = await response.json();
+      const regenerated = payload?.data?.scene as Partial<Scene> | undefined;
+      if (!regenerated) throw new Error('重生結果缺少 scene');
+
+      const mergedScenes = currentProject.storyboard.scenes.map((scene) =>
+        scene.id === sceneId
+          ? {
+            ...scene,
+            ...regenerated,
+            id: scene.id,
+            sceneNumber: scene.sceneNumber,
+            generatedImage: undefined,
+            generatedEndFrame: undefined,
+            generatedVideo: undefined,
+            motionPrompt: undefined,
+            videoPromptDraft: undefined,
+            videoPromptDraftNotes: undefined,
+          }
+          : scene
+      );
+
+      const qaResponse = await fetch('/api/workflow/qa/validate-storyboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          storyboard: {
+            ...currentProject.storyboard,
+            scenes: mergedScenes,
+          },
+        }),
+      });
+      const qaJson = qaResponse.ok ? await qaResponse.json() : null;
+      const qaIssues = qaJson?.data?.issues || [];
+      const scenesWithQa = applyQaStatusToScenes(mergedScenes, qaIssues);
+
+      updateProject(projectId, {
+        storyboard: {
+          ...currentProject.storyboard,
+          scenes: scenesWithQa,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+      setGenerationNotice({
+        type: 'success',
+        message: `已重生場景 ${targetScene.sceneNumber}，並重新套用 QA。`,
+      });
+    } catch (error) {
+      setGenerationNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : '重生場景失敗',
+      });
+    } finally {
+      setRegeneratingSceneId(null);
     }
   };
 
@@ -244,6 +351,8 @@ export default function StoryboardPage() {
             scenes={currentProject.storyboard?.scenes || []}
             onUpdateScene={handleUpdateScene}
             onDeleteScene={handleDeleteScene}
+            onRegenerateScene={handleRegenerateScene}
+            isRegeneratingSceneId={regeneratingSceneId}
           />
 
           {/* 下一步按鈕 */}

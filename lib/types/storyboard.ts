@@ -38,11 +38,19 @@ export interface Scene {
   charactersUsed?: string[];     // 本場景使用的角色標記（如 <Alice>）
   productsUsed?: string[];       // 本場景使用的商品標記（如 <iPhone>）
   consistencyWarnings?: string[]; // 一致性檢查警告（由生成後校驗標記）
+  qaStatus?: 'pass' | 'warn' | 'block';
+  qaIssues?: string[];
 
   // Smart Keyframing (智慧首尾幀)
   requiresEndFrame?: boolean;    // AI 判斷是否需要生成尾幀
   endFrameDescription?: string;  // 尾幀的靜態畫面描述
   endFrameDelta?: string;        // 尾幀相對首幀的變更描述（只寫差異）
+  endFrameDeltaSpec?: {
+    reframingGoal?: string;      // 構圖目標（如主體移至左1/3）
+    subjectScaleChangePct?: string; // 主體畫面比例變化（如 +10% / -15%）
+    newVisibleArea?: string;     // 新增可見區域
+    mustNotChange?: string[];    // 不可改變項目
+  };
 
   // 與下一場景的轉場設定
   transitionToNext?: TransitionToNext;

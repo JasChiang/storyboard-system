@@ -174,6 +174,16 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                             type: 'string',
                             description: '尾幀相對首幀的差異描述（只在 requiresEndFrame = true 時填寫）'
                         },
+                        endFrameDeltaSpec: {
+                            type: 'object',
+                            description: '尾幀差異的半結構化規格（可量化）',
+                            properties: {
+                                reframingGoal: { type: 'string' },
+                                subjectScaleChangePct: { type: 'string' },
+                                newVisibleArea: { type: 'string' },
+                                mustNotChange: { type: 'array', items: { type: 'string' } },
+                            },
+                        },
                         dialogue: {
                             type: 'string',
                             description: '對話或旁白'
