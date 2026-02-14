@@ -138,6 +138,8 @@ export function BatchImageGenerator({
         if (isEndFrame && scene.endFrameDelta) {
             parts.push(`Apply only this end-frame delta: ${scene.endFrameDelta}`);
             parts.push('Only make minimal local edits required by the delta; do not globally recompose the scene.');
+            parts.push('The final frame must show a clearly noticeable composition change from the start frame according to the delta.');
+            parts.push('Do not return a near-duplicate of the start frame when delta requests reframing.');
         }
         parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
         parts.push(...consistencyGuardrails);

@@ -60,6 +60,36 @@ export async function generateStoryboardScript(
       text,
       /(open|close|pour|transform|move\s+to|pick\s+up|put\s+down|slide|fold|unfold|打開|關閉|倒出|移到|拿起|放下|展開|收合|亮起|熄滅|變形|切換狀態)/i
     );
+  const inferEndFrameDeltaFromCameraMovement = (cameraMovement: string) => {
+    const movement = cameraMovement.toLowerCase();
+
+    if (/pan\s+right|右移|向右/.test(movement)) {
+      return '鏡頭右移至最終落點；主體在畫面中相對左移，右側新增可見環境內容；世界座標與道具實際位置保持連續。';
+    }
+    if (/pan\s+left|左移|向左/.test(movement)) {
+      return '鏡頭左移至最終落點；主體在畫面中相對右移，左側新增可見環境內容；世界座標與道具實際位置保持連續。';
+    }
+    if (/dolly\s*in|push\s*in|拉近|推近|推軌近/.test(movement)) {
+      return '鏡頭推近至最終落點；主體在畫面中比例增加、背景可視範圍減少；主體與道具世界位置不改變。';
+    }
+    if (/dolly\s*out|pull\s*out|拉遠|推軌遠/.test(movement)) {
+      return '鏡頭拉遠至最終落點；主體在畫面中比例縮小、可視環境範圍增加；主體與道具世界位置不改變。';
+    }
+    if (/zoom\s*in|放大|變焦近/.test(movement)) {
+      return '鏡頭變焦放大到最終構圖；主體更聚焦且畫面裁切更緊；不可改變物體世界位置或幾何。';
+    }
+    if (/zoom\s*out|縮小|變焦遠/.test(movement)) {
+      return '鏡頭變焦縮小到最終構圖；畫面可見範圍增加；不可改變物體世界位置或幾何。';
+    }
+    if (/tilt\s+up|上仰|向上傾/.test(movement)) {
+      return '鏡頭上仰到最終落點；畫面上方可見內容增加；世界幾何與道具位置保持連續。';
+    }
+    if (/tilt\s+down|下俯|向下傾/.test(movement)) {
+      return '鏡頭下俯到最終落點；畫面下方可見內容增加；世界幾何與道具位置保持連續。';
+    }
+
+    return '';
+  };
 
   const shouldRequireEndFrame = ({
     explicitRequiresEndFrame,
@@ -224,6 +254,7 @@ export async function generateStoryboardScript(
             endFrameDeltaRaw
             || (endFrameDescriptionRaw && endFrameDescriptionRaw !== description ? endFrameDescriptionRaw : '')
           )
+          || inferEndFrameDeltaFromCameraMovement(stringValue(scene.cameraMovement))
           || `鏡頭完成運動後落在「${stringValue(scene.cameraMovement) || '最終構圖'}」所指定的終態構圖。`
         )
         : '';

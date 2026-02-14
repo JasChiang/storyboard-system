@@ -113,6 +113,7 @@ export function ImageGenerator({
             || manualEndFrameDescription
             || scene.description;
         const effectiveEndFrameDelta = scene.endFrameDelta || manualEndFrameDescription || '';
+        const hasExplicitDelta = Boolean(effectiveEndFrameDelta.trim());
         const hasLockVisibleText = sceneScopedContentRefs.some(
             (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
         );
@@ -160,6 +161,10 @@ export function ImageGenerator({
             minimalParts.push(`Apply only this end-frame delta: ${deltaParts.join('. ')}`);
             minimalParts.push('Only make minimal local edits required by the delta; do not globally recompose the scene.');
             minimalParts.push('Do not move existing objects unless the delta explicitly requests it.');
+            if (hasExplicitDelta) {
+                minimalParts.push('The final frame must show a clearly noticeable composition change from the start frame according to the delta.');
+                minimalParts.push('Do not return a near-duplicate of the start frame when delta requests reframing.');
+            }
             minimalParts.push('Return one final-state still frame, not a transition sequence.');
 
             if (hasLockVisibleText || hasForbidNewText) {
