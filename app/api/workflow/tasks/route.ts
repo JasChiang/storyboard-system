@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sqliteTaskRepo, type GenerationTask } from '@/lib/db/sqlite';
+import { sqliteTaskRepo, type GenerationTask, type GenerationTaskStage, type GenerationTaskStatus } from '@/lib/db/sqlite';
 
 export const runtime = 'nodejs';
+
+function parseCsvParam(value: string | null): string[] {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,7 +18,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'projectId is required' }, { status: 400 });
     }
 
-    const tasks = sqliteTaskRepo.listByProject(projectId);
+    const statuses = parseCsvParam(req.nextUrl.searchParams.get('status')) as GenerationTaskStatus[];
+    const stages = parseCsvParam(req.nextUrl.searchParams.get('stage')) as GenerationTaskStage[];
+    const tasks = sqliteTaskRepo.listByProject(projectId, {
+      status: statuses.length > 0 ? statuses : undefined,
+      stage: stages.length > 0 ? stages : undefined,
+    });
     return NextResponse.json({ data: tasks });
   } catch (error) {
     return NextResponse.json(
@@ -24,8 +37,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as Partial<GenerationTask>;
 
-    if (!body.projectId || !body.stage || !body.status) {
-      return NextResponse.json({ error: 'projectId, stage and status are required' }, { status: 400 });
+    if (!body.projectId || !body.stage) {
+      return NextResponse.json({ error: 'projectId and stage are required' }, { status: 400 });
     }
 
     const created = sqliteTaskRepo.create({
@@ -33,7 +46,7 @@ export async function POST(req: NextRequest) {
       projectId: body.projectId,
       sceneId: body.sceneId,
       stage: body.stage,
-      status: body.status,
+      status: body.status || 'queued',
       model: body.model,
       prompt: body.prompt,
       inputUrl: body.inputUrl,

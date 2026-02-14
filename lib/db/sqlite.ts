@@ -182,7 +182,7 @@ export const sqliteProjectRepo = {
   },
 };
 
-export type GenerationTaskStage = 'image_start' | 'image_end' | 'video';
+export type GenerationTaskStage = 'image_start' | 'image_end' | 'video' | 'qa_autofix';
 export type GenerationTaskStatus = 'queued' | 'running' | 'completed' | 'failed';
 
 export interface GenerationTask {
@@ -258,6 +258,12 @@ export const sqliteTaskRepo = {
     return payload;
   },
 
+  getById(id: string): GenerationTask | null {
+    const conn = ensureDb();
+    const row = conn.prepare('SELECT * FROM generation_tasks WHERE id = ?').get(id) as DbRow | undefined;
+    return row ? rowToTask(row) : null;
+  },
+
   update(id: string, updates: Partial<GenerationTask>): GenerationTask | null {
     const conn = ensureDb();
     const row = conn.prepare('SELECT * FROM generation_tasks WHERE id = ?').get(id);
@@ -296,10 +302,95 @@ export const sqliteTaskRepo = {
     return merged;
   },
 
-  listByProject(projectId: string): GenerationTask[] {
+  listByProject(
+    projectId: string,
+    options?: {
+      status?: GenerationTaskStatus | GenerationTaskStatus[];
+      stage?: GenerationTaskStage | GenerationTaskStage[];
+    }
+  ): GenerationTask[] {
     const conn = ensureDb();
-    const rows = conn.prepare('SELECT * FROM generation_tasks WHERE project_id = ? ORDER BY created_at DESC').all(projectId);
+    const clauses = ['project_id = ?'];
+    const params: unknown[] = [projectId];
+
+    const statuses = options?.status
+      ? (Array.isArray(options.status) ? options.status : [options.status]).filter(Boolean)
+      : [];
+    if (statuses.length > 0) {
+      clauses.push(`status IN (${statuses.map(() => '?').join(', ')})`);
+      params.push(...statuses);
+    }
+
+    const stages = options?.stage
+      ? (Array.isArray(options.stage) ? options.stage : [options.stage]).filter(Boolean)
+      : [];
+    if (stages.length > 0) {
+      clauses.push(`stage IN (${stages.map(() => '?').join(', ')})`);
+      params.push(...stages);
+    }
+
+    const rows = conn
+      .prepare(`SELECT * FROM generation_tasks WHERE ${clauses.join(' AND ')} ORDER BY created_at DESC`)
+      .all(...params);
     return rows.map(rowToTask);
+  },
+
+  claimNextQueued(options?: { projectId?: string; stage?: GenerationTaskStage }): GenerationTask | null {
+    const conn = ensureDb();
+    const clauses = ['status = ?'];
+    const params: unknown[] = ['queued'];
+
+    if (options?.projectId) {
+      clauses.push('project_id = ?');
+      params.push(options.projectId);
+    }
+    if (options?.stage) {
+      clauses.push('stage = ?');
+      params.push(options.stage);
+    }
+
+    const claimTx = conn.transaction((): GenerationTask | null => {
+      const row = conn
+        .prepare(`SELECT id FROM generation_tasks WHERE ${clauses.join(' AND ')} ORDER BY created_at ASC LIMIT 1`)
+        .get(...params) as DbRow | undefined;
+      if (!row?.id) return null;
+
+      const taskId = String(row.id);
+      const now = new Date().toISOString();
+      const updateResult = conn
+        .prepare(`
+          UPDATE generation_tasks
+          SET status = 'running',
+              attempts = attempts + 1,
+              error = NULL,
+              updated_at = ?
+          WHERE id = ? AND status = 'queued'
+        `)
+        .run(now, taskId);
+      if (updateResult.changes === 0) {
+        return null;
+      }
+
+      const claimedRow = conn.prepare('SELECT * FROM generation_tasks WHERE id = ?').get(taskId) as DbRow | undefined;
+      return claimedRow ? rowToTask(claimedRow) : null;
+    });
+
+    return claimTx();
+  },
+
+  markStaleRunningAsFailed(staleBeforeIso: string, reason = 'Task marked failed due to stale running state'): number {
+    const conn = ensureDb();
+    const now = new Date().toISOString();
+    const result = conn
+      .prepare(`
+        UPDATE generation_tasks
+        SET status = 'failed',
+            error = ?,
+            updated_at = ?
+        WHERE status = 'running' AND updated_at < ?
+      `)
+      .run(reason, now, staleBeforeIso);
+    return result.changes;
   },
 };
 

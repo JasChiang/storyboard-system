@@ -8,7 +8,7 @@ import { StoryboardTable } from '@/components/storyboard/StoryboardTable';
 import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator';
 import { Scene, Storyboard, StoryboardGenerationResponse, ProjectReference } from '@/lib/types/storyboard';
 import { DEFAULT_STYLE_PROFILE_ID } from '@/lib/constants/style-profiles';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -19,6 +19,7 @@ export default function StoryboardPage() {
   const { currentProject, setCurrentProject, updateProject } = useProjectStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [regeneratingSceneId, setRegeneratingSceneId] = useState<string | null>(null);
+  const [isAutoFixing, setIsAutoFixing] = useState(false);
   const [generationNotice, setGenerationNotice] = useState<{
     type: 'success' | 'warning' | 'error';
     message: string;
@@ -234,6 +235,77 @@ export default function StoryboardPage() {
     }
   };
 
+  const handleAutoFixBlockedScenes = async () => {
+    if (!currentProject?.storyboard) return;
+
+    setIsAutoFixing(true);
+    setGenerationNotice(null);
+
+    try {
+      const response = await fetch('/api/workflow/qa/auto-fix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          storyboard: currentProject.storyboard,
+        }),
+      });
+      const payload = await response.json().catch(() => null) as {
+        data?: {
+          storyboard?: Storyboard;
+          blockedBefore?: number;
+          blockedAfter?: number;
+          fixedSceneIds?: string[];
+          skippedSceneIds?: string[];
+        };
+        error?: string;
+      } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error || '自動修復失敗');
+      }
+
+      const updatedStoryboard = payload?.data?.storyboard;
+      if (!updatedStoryboard) {
+        throw new Error('自動修復回傳缺少 storyboard');
+      }
+
+      updateProject(projectId, {
+        storyboard: updatedStoryboard,
+        status: 'storyboard',
+      });
+
+      const blockedBefore = Number(payload?.data?.blockedBefore || 0);
+      const blockedAfter = Number(payload?.data?.blockedAfter || 0);
+      const fixedCount = Number(payload?.data?.fixedSceneIds?.length || 0);
+      const skippedCount = Number(payload?.data?.skippedSceneIds?.length || 0);
+
+      if (blockedBefore === 0) {
+        setGenerationNotice({
+          type: 'success',
+          message: '目前沒有被 QA 阻擋的場景。',
+        });
+      } else if (blockedAfter === 0) {
+        setGenerationNotice({
+          type: 'success',
+          message: `自動修復完成：已處理 ${fixedCount} 個場景，所有阻擋問題已解除。`,
+        });
+      } else {
+        setGenerationNotice({
+          type: 'warning',
+          message: `已嘗試修復 ${fixedCount} 個場景（略過 ${skippedCount} 個），仍有 ${blockedAfter} 個高風險問題需手動調整。`,
+        });
+      }
+    } catch (error) {
+      setGenerationNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : '自動修復失敗',
+      });
+    } finally {
+      setIsAutoFixing(false);
+    }
+  };
+
   const handleUpdateScene = (sceneId: string, updates: Partial<Scene>) => {
     if (!currentProject?.storyboard) return;
 
@@ -277,6 +349,8 @@ export default function StoryboardPage() {
       },
     });
   };
+
+  const blockedSceneCount = currentProject?.storyboard?.scenes.filter((scene) => scene.qaStatus === 'block').length || 0;
 
   if (!currentProject) {
     return (
@@ -357,7 +431,20 @@ export default function StoryboardPage() {
 
           {/* 下一步按鈕 */}
           {currentProject.storyboard && currentProject.storyboard.scenes.length > 0 && (
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                {blockedSceneCount > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleAutoFixBlockedScenes}
+                    disabled={isAutoFixing || !!regeneratingSceneId}
+                  >
+                    {isAutoFixing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    一鍵修復阻擋場景 ({blockedSceneCount})
+                  </Button>
+                )}
+              </div>
               <Link href={`/project/${projectId}/images`}>
                 <Button size="lg">
                   下一步：生成分鏡圖片

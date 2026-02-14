@@ -9,7 +9,9 @@
     "install:all": "npm install && pnpm -C external/openreel-video install",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@fal-ai/client": "^1.8.4",
@@ -52,6 +54,7 @@
     "postcss": "^8",
     "tailwindcss": "^4.0.0",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^2.1.8"
   }
 }
