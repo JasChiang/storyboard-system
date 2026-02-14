@@ -85,8 +85,9 @@ export function VideoGenerator({
     const [seedanceResolution, setSeedanceResolution] = useState<'480p' | '720p' | '1080p'>('720p');
     const [seedanceEnableAudio, setSeedanceEnableAudio] = useState(false);
     const shouldUseEndFrameForVideo = Boolean(
-        scene.generatedEndFrame?.url && (scene.requiresEndFrame || scene.endFrameDescription)
+        scene.generatedEndFrame?.url && (scene.requiresEndFrame || scene.endFrameDelta || scene.endFrameDescription)
     );
+    const effectiveStartFrameUrl = previousEndFrameUrl || scene.generatedImage?.url;
     const contentRefs = useMemo(
         () => projectReferences.filter(ref => ref.type !== 'style'),
         [projectReferences]
@@ -176,8 +177,13 @@ export function VideoGenerator({
     };
 
     const handleGenerate = async () => {
+        if (scene.qaStatus === 'block') {
+            alert('此場景被 QA 阻擋，請先回分鏡頁修正。');
+            return;
+        }
+
         // 檢查是否有生成的圖片
-        if (!scene.generatedImage?.url) {
+        if (!effectiveStartFrameUrl) {
             alert('請先生成場景圖片');
             return;
         }
@@ -208,7 +214,7 @@ export function VideoGenerator({
                     status: 'running',
                     model,
                     prompt: composedPrompt,
-                    inputUrl: previousEndFrameUrl || scene.generatedImage.url,
+                    inputUrl: effectiveStartFrameUrl,
                     metadata: {
                         promptPolicy,
                     },
@@ -216,7 +222,7 @@ export function VideoGenerator({
             });
             // Continuation 轉場邏輯：如果有 previousEndFrameUrl，使用它作為起始幀
             // 這讓影片生成能從前一場景的結束畫面開始，實現無縫銜接
-            const startImageUrl = previousEndFrameUrl || scene.generatedImage.url;
+            const startImageUrl = effectiveStartFrameUrl;
             if (!startImageUrl || !startImageUrl.trim()) {
                 throw new Error('Missing start image URL');
             }
@@ -355,15 +361,15 @@ export function VideoGenerator({
                             </span>
                         )}
                     </div>
-                    {scene.generatedImage ? (
+                    {effectiveStartFrameUrl ? (
                         <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
                             <img
-                                src={scene.generatedImage.url}
+                                src={effectiveStartFrameUrl}
                                 alt={`Scene ${scene.sceneNumber}`}
                                 className="w-full h-full object-cover"
                             />
                             <div className="absolute top-2 right-2 px-2 py-1 bg-green-500/90 text-white text-xs rounded shadow-sm">
-                                已生成
+                                {previousEndFrameUrl ? '沿用前景尾幀' : '已生成'}
                             </div>
                         </div>
                     ) : (

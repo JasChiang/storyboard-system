@@ -239,9 +239,16 @@ export function BatchImageGenerator({
         try {
             // 1. 生成或沿用首幀
             const startFrame = needsStartFrame
-                ? await generateSingleImage(scene, false, {
-                    continuityReferenceUrl: previousContinuationEndFrameUrl,
-                })
+                ? (
+                    previousContinuationEndFrameUrl
+                        ? {
+                            url: previousContinuationEndFrameUrl,
+                            prompt: `${buildImagePrompt(scene, false)}. Start frame reused from previous scene end frame due to continuation transition.`,
+                        }
+                        : await generateSingleImage(scene, false, {
+                            continuityReferenceUrl: previousContinuationEndFrameUrl,
+                        })
+                )
                 : {
                     url: scene.generatedImage!.url,
                     prompt: scene.generatedImage?.prompt || '',

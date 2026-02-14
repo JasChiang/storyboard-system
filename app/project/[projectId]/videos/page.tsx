@@ -24,6 +24,7 @@ export default function VideosPage() {
   }, [projectId, setCurrentProject]);
 
   const scenes = currentProject?.storyboard?.scenes || [];
+  const blockedScenes = scenes.filter((s) => s.qaStatus === 'block');
   const progress = getWorkflowProgress(currentProject);
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
 
@@ -166,15 +167,25 @@ export default function VideosPage() {
             <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 px-2">選擇場景</h2>
             <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
               {scenes.map((scene) => {
-                const hasImage = !!scene.generatedImage;
+                const sceneIndex = scenes.findIndex((s) => s.id === scene.id);
+                const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
+                const previousEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
+                  ? previousScene.generatedEndFrame?.url
+                  : undefined;
+                const effectiveStartFrameUrl = previousEndFrameUrl || scene.generatedImage?.url;
+                const hasImage = !!effectiveStartFrameUrl;
                 const hasVideo = !!scene.generatedVideo;
 
                 return (
                   <button
                     key={scene.id}
                     onClick={() => setSelectedSceneId(scene.id)}
+                    disabled={scene.qaStatus === 'block'}
                     className={`
                       w-full text-left p-4 rounded-lg border transition-all
+                      ${scene.qaStatus === 'block'
+                        ? 'opacity-60 cursor-not-allowed border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10'
+                        : ''}
                       ${selectedSceneId === scene.id
                         ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 ring-1 ring-blue-200 dark:ring-blue-800'
                         : 'bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
@@ -200,19 +211,31 @@ export default function VideosPage() {
                     <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mb-2">
                       {scene.description}
                     </p>
+                    {scene.qaStatus === 'block' && (
+                      <p className="text-xs text-red-600 dark:text-red-300 mb-2">
+                        QA 阻擋：請先回分鏡頁修正或重生此場景
+                      </p>
+                    )}
 
                     {/* 預覽縮圖 */}
-                    {scene.generatedImage && (
+                    {effectiveStartFrameUrl && (
                       <div className="space-y-1.5">
                         <div className="relative aspect-video rounded overflow-hidden border border-slate-200 dark:border-slate-700">
                           <Image
-                            src={scene.generatedImage.url}
+                            src={effectiveStartFrameUrl}
                             alt={`Scene ${scene.sceneNumber}`}
                             fill
                             sizes="(max-width: 1024px) 33vw, 300px"
                             className="object-cover"
+                            loading={selectedSceneId === scene.id ? 'eager' : 'lazy'}
+                            unoptimized
                           />
                         </div>
+                        {previousEndFrameUrl && (
+                          <p className="text-[10px] text-purple-600 dark:text-purple-400">
+                            起始幀來源：場景 {previousScene?.sceneNumber} 尾幀
+                          </p>
+                        )}
                         {scene.generatedEndFrame && (
                           <>
                             <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium flex items-center gap-1">
@@ -226,6 +249,8 @@ export default function VideosPage() {
                                 fill
                                 sizes="(max-width: 1024px) 33vw, 300px"
                                 className="object-cover"
+                                loading={selectedSceneId === scene.id ? 'eager' : 'lazy'}
+                                unoptimized
                               />
                             </div>
                           </>
@@ -250,6 +275,11 @@ export default function VideosPage() {
 
               return (
                 <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
+                  {selectedScene.qaStatus === 'block' && (
+                    <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                      此場景被 QA 阻擋，請先回「分鏡腳本」修正或單場景重生。
+                    </div>
+                  )}
                   {/* Continuation 提示 */}
                   {previousEndFrameUrl && (
                     <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg">
@@ -287,6 +317,13 @@ export default function VideosPage() {
         </div>
 
         {/* 提示訊息 */}
+        {blockedScenes.length > 0 && (
+          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-500/30 rounded-lg">
+            <p className="text-amber-700 dark:text-amber-300 text-sm">
+              目前有 {blockedScenes.length} 個場景被 QA 阻擋，影片頁已禁止直接生成，請先回分鏡頁修正。
+            </p>
+          </div>
+        )}
         {scenesWithImages.length === 0 && (
           <div className="mt-8 p-4 bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-500/30 rounded-lg">
             <p className="text-amber-600 dark:text-amber-400 text-sm">

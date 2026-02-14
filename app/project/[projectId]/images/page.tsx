@@ -50,6 +50,7 @@ export default function ImagesPage() {
   const previousEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
     ? previousScene.generatedEndFrame?.url
     : undefined;
+  const selectedEffectiveStartFrameUrl = previousEndFrameUrl || selectedScene?.generatedImage?.url;
   const activeStyleProfile = findStyleProfileById(selectedStyleProfileId, customStyleProfiles);
 
   const persistStyleSettings = (nextId: string, nextCustomProfiles: StyleProfile[]) => {
@@ -290,7 +291,13 @@ export default function ImagesPage() {
             <div className="col-span-4 space-y-3">
               <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 px-2">選擇場景</h2>
               <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
-                {scenes.map((scene) => (
+                {scenes.map((scene, idx) => {
+                  const prev = idx > 0 ? scenes[idx - 1] : null;
+                  const inheritedStartUrl = prev?.transitionToNext?.useEndFrameAsNextStart
+                    ? prev.generatedEndFrame?.url
+                    : undefined;
+                  const sceneStartPreviewUrl = scene.generatedImage?.url || inheritedStartUrl;
+                  return (
                   <button
                     key={scene.id}
                     onClick={() => setSelectedSceneId(scene.id)}
@@ -308,14 +315,16 @@ export default function ImagesPage() {
                   >
                     <div className="flex items-start gap-3 mb-2">
                       <div className="w-20 h-14 rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0 bg-slate-100 dark:bg-slate-800">
-                        {scene.generatedImage?.url ? (
+                        {sceneStartPreviewUrl ? (
                           <div className="relative w-full h-full">
                             <Image
-                              src={scene.generatedImage.url}
+                              src={sceneStartPreviewUrl}
                               alt={`場景 ${scene.sceneNumber}`}
                               fill
                               sizes="96px"
                               className="object-cover"
+                              loading={selectedSceneId === scene.id ? 'eager' : 'lazy'}
+                              unoptimized
                             />
                           </div>
                         ) : (
@@ -329,7 +338,7 @@ export default function ImagesPage() {
                           <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                             場景 {scene.sceneNumber}
                           </span>
-                        {scene.generatedImage ? (
+                        {sceneStartPreviewUrl ? (
                             <span className="text-[11px] px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 rounded">
                               已生成
                             </span>
@@ -360,7 +369,8 @@ export default function ImagesPage() {
                       )}
                     </div>
                   </button>
-                ))}
+                );
+                })}
               </div>
             </div>
 
@@ -377,14 +387,16 @@ export default function ImagesPage() {
                     <div className="space-y-2">
                       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">目前預覽</p>
                       <div className="aspect-video rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
-                        {selectedScene.generatedImage?.url ? (
+                        {selectedEffectiveStartFrameUrl ? (
                           <div className="relative w-full h-full">
                             <Image
-                              src={selectedScene.generatedImage.url}
+                              src={selectedEffectiveStartFrameUrl}
                               alt={`Scene ${selectedScene.sceneNumber}`}
                               fill
                               sizes="(max-width: 1024px) 50vw, 480px"
                               className="object-cover"
+                              loading="eager"
+                              unoptimized
                             />
                           </div>
                         ) : (
@@ -393,6 +405,11 @@ export default function ImagesPage() {
                           </div>
                         )}
                       </div>
+                      {previousEndFrameUrl && (
+                        <p className="text-[11px] text-purple-600 dark:text-purple-400">
+                          起始幀來源：場景 {previousScene?.sceneNumber} 尾幀（Continuation）
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-3">
                       <div className="space-y-1">
@@ -480,6 +497,8 @@ export default function ImagesPage() {
                             fill
                             sizes="(max-width: 1024px) 33vw, 240px"
                             className="object-cover"
+                            loading={selectedSceneId === scene.id ? 'eager' : 'lazy'}
+                            unoptimized
                           />
                         </div>
                       ) : (
@@ -504,6 +523,8 @@ export default function ImagesPage() {
                               fill
                               sizes="(max-width: 1024px) 33vw, 240px"
                               className="object-cover"
+                              loading={selectedSceneId === scene.id ? 'eager' : 'lazy'}
+                              unoptimized
                             />
                           </div>
                         </div>

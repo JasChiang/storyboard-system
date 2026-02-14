@@ -89,6 +89,7 @@ export function ImageGenerator({
     }, [scene.id, scene.generatedEndFrame?.url, scene.requiresEndFrame, scene.endFrameDescription]);
 
     const shouldUseEndFrame = scene.requiresEndFrame || manualEndFrameEnabled;
+    const hasContinuationStart = Boolean(previousEndFrameUrl && !scene.generatedImage?.url);
 
     // 取得選中的專案參考圖 URL
     const getSelectedReferenceUrls = (options?: { includeStartFrameForEnd?: boolean; includePreviousSceneEnd?: boolean }): string[] => {
@@ -359,6 +360,17 @@ export function ImageGenerator({
     };
 
     const handleGenerate = async (isEndFrame: boolean = false) => {
+        if (!isEndFrame && hasContinuationStart && previousEndFrameUrl) {
+            const reusedPrompt = `${buildImagePrompt(false)}. Start frame reused from previous scene end frame due to continuation transition.`;
+            onImageGenerated(
+                previousEndFrameUrl,
+                reusedPrompt,
+                scene.generatedEndFrame?.url,
+                scene.generatedEndFrame?.prompt
+            );
+            return;
+        }
+
         if (isEndFrame) {
             setIsGeneratingEnd(true);
         } else {
