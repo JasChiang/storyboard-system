@@ -10,7 +10,7 @@ import { HookVariantPanel } from '@/components/storyboard/HookVariantPanel';
 import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator';
 import { Scene, Storyboard, StoryboardGenerationResponse, ProjectReference, CreativeReview, HookVariant } from '@/lib/types/storyboard';
 import { DEFAULT_STYLE_PROFILE_ID } from '@/lib/constants/style-profiles';
-import { ArrowLeft, ArrowRight, Loader2, Sparkles, Zap, Undo2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Sparkles, Zap, Undo2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -32,10 +32,21 @@ export default function StoryboardPage() {
   const [isGeneratingHooks, setIsGeneratingHooks] = useState(false);
   const [deletedSceneStack, setDeletedSceneStack] = useState<{ scene: Scene; index: number }[]>([]);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isPromptCollapsed, setIsPromptCollapsed] = useState(false);
+  const promptCollapsedInitRef = useRef(false);
 
   useEffect(() => {
     setCurrentProject(projectId);
   }, [projectId, setCurrentProject]);
+
+  // 有分鏡腳本時自動收合 StoryPromptInput（只在第一次載入時觸發）
+  useEffect(() => {
+    if (promptCollapsedInitRef.current) return;
+    if (currentProject?.storyboard?.scenes?.length) {
+      setIsPromptCollapsed(true);
+      promptCollapsedInitRef.current = true;
+    }
+  }, [currentProject]);
 
   const handleGenerate = async (
     prompt: string,
@@ -552,7 +563,6 @@ export default function StoryboardPage() {
               </div>
             </div>
 
-            <div />
           </div>
         </div>
       </header>
@@ -609,22 +619,33 @@ export default function StoryboardPage() {
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">
-                建議先把 `阻擋` 場景降到 0 再往下一步，避免後面批次流程中斷。
+                建議先把 <strong>阻擋</strong> 場景降到 0 再往下一步，避免後面批次流程中斷。
               </p>
               <div className="flex flex-wrap items-center gap-2">
+                {/* 暫時操作（undo / 修復） */}
                 {deletedSceneStack.length > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleUndoDelete}
-                  >
+                  <Button type="button" variant="outline" size="sm" onClick={handleUndoDelete}>
                     <Undo2 className="mr-1.5 h-3.5 w-3.5" />
                     還原刪除
                   </Button>
                 )}
+                {blockedSceneCount > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAutoFixBlockedScenes}
+                    disabled={isAutoFixing || !!regeneratingSceneId}
+                  >
+                    {isAutoFixing && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                    一鍵修復阻擋 ({blockedSceneCount})
+                  </Button>
+                )}
+
+                {/* AI 工具分組 */}
                 {totalSceneCount > 0 && (
-                  <>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground/60 select-none">AI</span>
                     <Button
                       type="button"
                       variant="outline"
@@ -645,19 +666,10 @@ export default function StoryboardPage() {
                       {isGeneratingHooks ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1.5 h-3.5 w-3.5" />}
                       生成 Hook 變體
                     </Button>
-                  </>
+                  </div>
                 )}
-                {blockedSceneCount > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleAutoFixBlockedScenes}
-                    disabled={isAutoFixing || !!regeneratingSceneId}
-                  >
-                    {isAutoFixing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    一鍵修復阻擋 ({blockedSceneCount})
-                  </Button>
-                )}
+
+                {/* 主流程 */}
                 <Link href={`/project/${projectId}/images`}>
                   <Button size="sm" disabled={totalSceneCount === 0}>
                     下一步：生成分鏡圖片
@@ -669,10 +681,38 @@ export default function StoryboardPage() {
           </div>
 
           {/* 故事輸入 */}
-          <StoryPromptInput
-            onGenerate={handleGenerate}
-            isLoading={isGenerating}
-          />
+          <div className="surface-soft overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setIsPromptCollapsed(prev => !prev)}
+              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">
+                  {totalSceneCount > 0 ? '重新生成分鏡腳本' : '生成分鏡腳本'}
+                </span>
+                {totalSceneCount > 0 && (
+                  <span className="text-xs text-muted-foreground">（會覆蓋現有場景）</span>
+                )}
+              </div>
+              {isPromptCollapsed
+                ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                : <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              }
+            </button>
+            {!isPromptCollapsed && (
+              <div className="border-t border-border/40">
+                <StoryPromptInput
+                  onGenerate={async (...args) => {
+                    await handleGenerate(...args);
+                    setIsPromptCollapsed(true);
+                  }}
+                  isLoading={isGenerating}
+                />
+              </div>
+            )}
+          </div>
 
           {/* 節奏時間軸 */}
           {totalSceneCount > 0 && (

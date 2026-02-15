@@ -70,6 +70,13 @@ export function PacingTimeline({ scenes, onSceneClick }: PacingTimelineProps) {
         })}
       </div>
 
+      {/* 全灰時的引導提示 */}
+      {scenes.every(s => !s.hookScore) && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          點擊上方「分析廣告效果」，AI 會為每個場景評分並以顏色顯示 Hook 強度。
+        </p>
+      )}
+
       {/* Legend */}
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">

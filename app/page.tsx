@@ -36,7 +36,7 @@ export default function Home() {
             <Link href="/characters">
               <Button variant="outline" size="sm">
                 <Users className="w-4 h-4 mr-2" />
-                角色库
+                角色庫
               </Button>
             </Link>
             <Button
