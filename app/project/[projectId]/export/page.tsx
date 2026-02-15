@@ -108,6 +108,7 @@ export default function ExportPage() {
             選擇渲染方式
           </h2>
           <div className="grid grid-cols-3 gap-4">
+            {/* OpenReel */}
             <button
               onClick={() => setRenderMode('openreel')}
               className={`p-6 rounded-xl border-2 transition-all text-left ${
@@ -126,20 +127,22 @@ export default function ExportPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-900 dark:text-white">
-                    OpenReel 線上編輯
+                    我要精細剪輯
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">推薦</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">OpenReel · 需 15-30 分鐘</p>
                 </div>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                完整線上剪輯器，支援多軌時間軸、轉場與字幕。
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                完整線上剪輯器，手動調整每一個細節。
               </p>
-              <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <CheckCircle2 className="w-3 h-3 text-green-500" />
-                可保存專案並直接匯出
-              </div>
+              <ul className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" /> 多軌時間軸剪輯</li>
+                <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" /> 轉場、字幕、音訊控制</li>
+                <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" /> 可儲存並繼續編輯</li>
+              </ul>
             </button>
 
+            {/* FFmpeg */}
             <button
               onClick={() => setRenderMode('ffmpeg')}
               className={`p-6 rounded-xl border-2 transition-all text-left ${
@@ -158,20 +161,22 @@ export default function ExportPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-900 dark:text-white">
-                    FFmpeg 快速渲染
+                    我要快速看到成品
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">快速</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">FFmpeg · 約 30 秒完成</p>
                 </div>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                自動合成所有場景，包含轉場和字幕。一鍵完成。
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                一鍵自動合成，立刻下載成片。
               </p>
-              <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <CheckCircle2 className="w-3 h-3 text-green-500" />
-                伺服器端渲染，极速
-              </div>
+              <ul className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" /> 伺服器端自動渲染</li>
+                <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" /> 自動套用 AI 剪輯建議</li>
+                <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" /> 支援轉場與字幕疊加</li>
+              </ul>
             </button>
 
+            {/* Blender */}
             <button
               onClick={() => setRenderMode('blender')}
               className={`p-6 rounded-xl border-2 transition-all text-left ${
@@ -190,18 +195,19 @@ export default function ExportPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-900 dark:text-white">
-                    Blender 專業匯出
+                    我是專業後製
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">进阶</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Blender · 需 Blender 環境</p>
                 </div>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                匯出 Python 腳本，在 Blender 中手動精修。支援複雜特效。
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                匯出 Python 腳本，在 Blender 中精修。
               </p>
-              <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <CheckCircle2 className="w-3 h-3 text-green-500" />
-                完全控制，高級調色
-              </div>
+              <ul className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" /> 完整節點控制權</li>
+                <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" /> 支援複雜特效與調色</li>
+                <li className="flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" /> 可整合自訂 shader</li>
+              </ul>
             </button>
           </div>
         </div>

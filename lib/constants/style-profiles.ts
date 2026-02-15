@@ -120,6 +120,33 @@ export const PRESET_STYLE_PROFILES: StyleProfile[] = [
       'No overproduced cinematic look, no heavy VFX, no fake studio perfection, no illegible product branding, no distracting background mess.',
     isPreset: true,
   },
+  {
+    id: 'preset-tech-product-studio',
+    name: '科技產品棚拍',
+    stylePrompt:
+      'Premium consumer tech product photography, ultra-clean studio environment, controlled gradient backdrops, precise specular highlights on metal and glass surfaces, accurate screen rendering with vivid UI content, perfect edge definition, professional tech ad quality with Apple-tier visual language.',
+    negativePrompt:
+      'No warped product geometry, no smudged screens, no deformed logos or text, no inconsistent reflections, no cluttered backgrounds, no off-brand color grading.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-lifestyle-tech',
+    name: '科技生活情境',
+    stylePrompt:
+      'Lifestyle tech visual storytelling, authentic daily-use context, warm indoor or soft outdoor lighting, product naturally integrated into believable modern living moments, hero product clearly visible while environment feels lived-in and aspirational.',
+    negativePrompt:
+      'No surreal styling, no fantasy props unrelated to tech use, no obscured product details, no harsh industrial lighting, no low-energy or dull composition.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-cinematic-ad',
+    name: '電影廣告大片',
+    stylePrompt:
+      'Cinematic commercial production quality, intentional dramatic lighting with motivated practical sources, wide cinematic color pipeline (teal-orange or desaturated high-contrast), shallow depth of field with precise focus pulls, emotionally resonant composition, every frame is a magazine cover while preserving product identity.',
+    negativePrompt:
+      'No flat or overexposed lighting, no amateur snapshot aesthetics, no inconsistent film grain, no distorted product proportions between shots, no color casts that misrepresent product color.',
+    isPreset: true,
+  },
 ];
 
 export function findStyleProfileById(

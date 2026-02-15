@@ -11,6 +11,8 @@ export interface Project {
   editingSuggestions?: EditingSuggestion;
   openreelProjectJson?: string;
   status: ProjectStatus;
+  videoType?: string;
+  targetDurationSec?: number;
   createdAt: string;
   updatedAt: string;
 }

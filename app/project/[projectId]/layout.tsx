@@ -1,6 +1,26 @@
-import { ReactNode } from 'react';
+'use client';
+
+import { ReactNode, useState, useEffect } from 'react';
+import { KeyboardShortcutSheet } from '@/components/ui/KeyboardShortcutSheet';
 
 export default function ProjectLayout({ children }: { children: ReactNode }) {
+    const [showShortcuts, setShowShortcuts] = useState(false);
+
+    useEffect(() => {
+        const handleKey = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+            if (isInput) return;
+
+            if (e.key === '?') {
+                e.preventDefault();
+                setShowShortcuts(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+    }, []);
+
     return (
         <div className="min-h-screen relative overflow-hidden bg-background">
             <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
@@ -12,6 +32,11 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
             <div className="relative z-10">
                 {children}
             </div>
+
+            <KeyboardShortcutSheet
+                isOpen={showShortcuts}
+                onClose={() => setShowShortcuts(false)}
+            />
         </div>
     );
 }

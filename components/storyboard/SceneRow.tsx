@@ -2,14 +2,33 @@
 
 import { useState } from 'react';
 import { Scene, TransitionType } from '@/lib/types/storyboard';
-import { Pencil, Trash2, Check, X } from 'lucide-react';
+import { Pencil, Trash2, Check, X, Copy, Star, RotateCcw } from 'lucide-react';
 
 interface SceneRowProps {
   scene: Scene;
   onUpdate: (updates: Partial<Scene>) => void;
   onDelete: () => void;
   onRegenerate?: () => void;
+  onDuplicate?: () => void;
+  onResetScene?: () => void;
   isRegenerating?: boolean;
+  isDraggable?: boolean;
+  isDragOver?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
+}
+
+// 根據場景描述推斷景別
+function inferShotType(description: string): string | null {
+  const lower = description.toLowerCase();
+  if (/extreme\s*close[-\s]?up|極端特寫|超特寫/i.test(lower)) return 'ECU';
+  if (/close[-\s]?up|特寫|近景/i.test(lower)) return 'CU';
+  if (/medium\s*shot|中景|半身/i.test(lower)) return 'MS';
+  if (/wide\s*shot|全景|大全景/i.test(lower)) return 'WS';
+  if (/extreme\s*wide|超遠景|全場景/i.test(lower)) return 'EWS';
+  return null;
 }
 
 // 轉場類型顯示設定
@@ -24,7 +43,21 @@ const TRANSITION_LABELS: Record<TransitionType, { label: string; color: string; 
   push: { label: '推出', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300', icon: '📤' },
 };
 
-export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerating = false }: SceneRowProps) {
+export function SceneRow({
+  scene,
+  onUpdate,
+  onDelete,
+  onRegenerate,
+  onDuplicate,
+  onResetScene,
+  isRegenerating = false,
+  isDraggable,
+  isDragOver,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+}: SceneRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedScene, setEditedScene] = useState(scene);
 
@@ -57,7 +90,14 @@ export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerati
 
   if (isEditing) {
     return (
-      <tr className="bg-slate-100/70 dark:bg-slate-900/55">
+      <tr
+        className="bg-slate-100/70 dark:bg-slate-900/55"
+        draggable={isDraggable}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        onDragEnd={onDragEnd}
+      >
         <td className="px-4 py-3">
           <div className="inline-flex rounded-full border border-blue-200 bg-white px-2.5 py-1 text-xs font-bold text-blue-700 dark:border-blue-700 dark:bg-slate-900 dark:text-blue-300">
             #{scene.sceneNumber}
@@ -187,18 +227,61 @@ export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerati
 
   const transitionType = scene.transitionToNext?.type || 'dissolve';
   const transitionInfo = TRANSITION_LABELS[transitionType];
+  const shotType = inferShotType(scene.description);
+
+  const retentionRiskDot: Record<string, string> = {
+    low: 'bg-green-400',
+    medium: 'bg-amber-400',
+    high: 'bg-red-500',
+  };
+
+  const handleCopyPrompt = () => {
+    const text = [scene.description, scene.cameraMovement, scene.dialogue].filter(Boolean).join('\n');
+    navigator.clipboard.writeText(text).catch(() => {});
+  };
 
   return (
-    <tr className="border-b border-slate-100 transition-colors hover:bg-slate-50/70 dark:border-slate-700 dark:hover:bg-slate-700/40">
+    <tr
+      className={`border-b border-slate-100 transition-colors hover:bg-slate-50/70 dark:border-slate-700 dark:hover:bg-slate-700/40 ${isDragOver ? 'outline outline-2 outline-blue-400 outline-offset-[-2px]' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      draggable={isDraggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+    >
       <td className="px-4 py-3 align-top">
-        <div className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
-          #{scene.sceneNumber}
+        <div className="flex flex-col items-start gap-1.5">
+          <div className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+            #{scene.sceneNumber}
+          </div>
+          {shotType && (
+            <span className="inline-flex rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-xs font-mono font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+              {shotType}
+            </span>
+          )}
+          {scene.retentionRisk && (
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${retentionRiskDot[scene.retentionRisk]}`}
+              title={`流失風險: ${scene.retentionRisk}`}
+            />
+          )}
         </div>
       </td>
       <td className="px-4 py-3 align-top">
         <div className="max-w-md text-sm leading-6 text-slate-800 dark:text-slate-100">
           {scene.description}
         </div>
+        {scene.hookScore && (
+          <div className="mt-1.5 flex items-center gap-1" title={scene.hookScoreReason || `Hook 強度 ${scene.hookScore}/5`}>
+            {Array.from({ length: 5 }, (_, i) => (
+              <Star
+                key={i}
+                className={`h-3.5 w-3.5 ${i < scene.hookScore! ? 'fill-amber-400 text-amber-400' : 'text-slate-200 dark:text-slate-700'}`}
+              />
+            ))}
+            <span className="ml-1 text-xs text-muted-foreground">Hook {scene.hookScore}</span>
+          </div>
+        )}
         {scene.qaStatus && (
           <div className="mt-2">
             <span
@@ -289,7 +372,7 @@ export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerati
         </div>
       </td>
       <td className="px-4 py-3 align-top">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => setIsEditing(true)}
             className="rounded-lg border border-blue-200 bg-blue-100 p-1.5 text-blue-700 transition hover:bg-blue-200 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40"
@@ -297,6 +380,31 @@ export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerati
           >
             <Pencil className="h-4 w-4" />
           </button>
+          {onDuplicate && (
+            <button
+              onClick={onDuplicate}
+              className="rounded-lg border border-slate-200 bg-slate-100 p-1.5 text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+              title="複製場景"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            onClick={handleCopyPrompt}
+            className="rounded-lg border border-slate-200 bg-slate-100 p-1.5 text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+            title="複製 Prompt"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+          {onResetScene && (
+            <button
+              onClick={onResetScene}
+              className="rounded-lg border border-amber-200 bg-amber-50 p-1.5 text-amber-700 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40"
+              title="重置生成（清除圖片/影片）"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          )}
           <button
             onClick={onDelete}
             className="rounded-lg border border-red-200 bg-red-100 p-1.5 text-red-700 transition hover:bg-red-200 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"

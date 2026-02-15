@@ -2,7 +2,8 @@
 
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Sparkles, Grid3x3, List, Loader2, Search } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Sparkles, Grid3x3, List, Loader2, Search, Play } from 'lucide-react';
+import { QuickPreviewPlayer } from '@/components/images/QuickPreviewPlayer';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useProjectStore } from '@/stores/project-store';
@@ -38,6 +39,7 @@ export default function ImagesPage() {
   const [customStyleProfiles, setCustomStyleProfiles] = useState<StyleProfile[]>([]);
   const [generationTasks, setGenerationTasks] = useState<WorkflowTask[]>([]);
   const [sceneQuery, setSceneQuery] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     setCurrentProject(projectId);
@@ -359,6 +361,17 @@ export default function ImagesPage() {
                 </p>
               </div>
             </div>
+
+            {/* Preview Flow Button */}
+            {scenes.some(s => s.generatedImage) && (
+              <button
+                onClick={() => setShowPreview(true)}
+                className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/20"
+              >
+                <Play className="h-4 w-4" />
+                Preview Flow
+              </button>
+            )}
 
             {/* View Mode Toggle */}
             <div className="surface-soft flex items-center gap-2 p-1">
@@ -813,6 +826,14 @@ export default function ImagesPage() {
           )}
         </div>
       </div>
+
+      {/* Quick Preview Player */}
+      {showPreview && (
+        <QuickPreviewPlayer
+          scenes={scenes}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
     </>
   );
 }

@@ -55,6 +55,11 @@ export interface Scene {
   // 與下一場景的轉場設定
   transitionToNext?: TransitionToNext;
 
+  // 廣告效果評估
+  hookScore?: 1 | 2 | 3 | 4 | 5;         // Hook 強度評分（1=弱 5=強）
+  hookScoreReason?: string;               // 評分說明
+  retentionRisk?: 'low' | 'medium' | 'high'; // 觀眾流失風險
+
   // 生成資源
   referenceImage?: string;       // 參考素材圖 (base64 or URL)
   generatedImage?: {
@@ -160,6 +165,32 @@ export interface PromptTemplate {
   description: string;
   systemPrompt: string;
   outputSchema: Record<string, unknown>;  // JSON Schema
+}
+
+// 場景創意評估
+export interface SceneCreativeReview {
+  sceneNumber: number;
+  hookScore: 1 | 2 | 3 | 4 | 5;
+  hookScoreReason: string;
+  retentionRisk: 'low' | 'medium' | 'high';
+  weakPoint: string;
+  suggestion: string;
+}
+
+// 整體創意評估
+export interface CreativeReview {
+  emotionalArc: string;
+  pacing: string;
+  strongestScene: number;
+  weakestScene: number;
+  sceneReviews: SceneCreativeReview[];
+}
+
+// Hook 變體
+export interface HookVariant {
+  variantType: 'shock' | 'question' | 'story';
+  variantLabel: string;
+  scene: Omit<Scene, 'id' | 'referenceImage' | 'generatedImage' | 'motionPrompt' | 'generatedVideo'>;
 }
 
 // API 回應類型

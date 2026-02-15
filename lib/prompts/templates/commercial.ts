@@ -13,6 +13,14 @@ export const COMMERCIAL_TEMPLATE: PromptTemplate = {
 - 一致性優先級：品牌與商品識別一致性 > 故事花樣
 - 首尾幀策略：保守。若無明確必要，優先 requiresEndFrame = false
 
+Hook Design Rules（第一場景必選其一 Pattern Interrupt）：
+- Visual Conflict: 視覺衝突開場（對比色、破碎感、意外物件）
+- Question Hook: 強問句或懸念字幕（「你知道嗎？」「為什麼…」）
+- Action-First: 直接動作開場，跳過鋪墊（人物已在行動中）
+- Counter-Intuitive: 反直覺畫面（顛覆期待的構圖或場景）
+- sceneIntent 必須回答：「觀眾只看此幀為何想繼續？」
+- Re-watch Bait 標記：在 notes 欄加入 [REWATCH: reason] 標示值得重看的場景
+
 廣告分鏡要點：
 - 開場要抓住注意力（3 秒內）
 - 突出產品特點和優勢

@@ -8,7 +8,7 @@ interface ProjectStore {
   isLoading: boolean;
   loadProjects: () => void;
   setCurrentProject: (projectId: string | null) => void;
-  createProject: (name: string, description?: string) => void;
+  createProject: (name: string, description?: string, videoType?: string, targetDurationSec?: number) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
   refreshCurrentProject: () => void;
@@ -29,11 +29,11 @@ async function apiGetProjectById(id: string): Promise<Project | null> {
   return json.data as Project;
 }
 
-async function apiCreateProject(name: string, description?: string): Promise<Project> {
+async function apiCreateProject(name: string, description?: string, videoType?: string, targetDurationSec?: number): Promise<Project> {
   const response = await fetch('/api/data/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, description }),
+    body: JSON.stringify({ name, description, videoType, targetDurationSec }),
   });
   if (!response.ok) throw new Error('Failed to create project');
   const json = await response.json();
@@ -109,14 +109,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     })();
   },
 
-  createProject: (name: string, description?: string) => {
+  createProject: (name: string, description?: string, videoType?: string, targetDurationSec?: number) => {
     void (async () => {
       try {
-        const created = await apiCreateProject(name, description);
+        const created = await apiCreateProject(name, description, videoType, targetDurationSec);
         const projects = await apiGetProjects();
         set({ projects, currentProject: created });
       } catch {
-        const local = projectStorage.create({ name, description, status: 'draft' });
+        const local = projectStorage.create({ name, description, status: 'draft', videoType, targetDurationSec });
         const projects = projectStorage.getAll();
         set({ projects, currentProject: local });
       }

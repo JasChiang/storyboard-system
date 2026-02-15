@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Clapperboard, Image, Video, FileCode } from 'lucide-react';
+import { Clapperboard, Image, Video, FileCode, AlertTriangle } from 'lucide-react';
 import type { Project } from '@/lib/types/project';
 import { getWorkflowProgress } from '@/lib/project/workflow';
 
@@ -65,7 +65,7 @@ export function ProjectStepNavigator({
         <div className="flex items-center gap-2 overflow-x-auto">
           {steps.map((step, index) => {
             const isActive = step.id === currentStep;
-            const isAvailable = step.available || isActive;
+            const isAvailable = step.available;
 
             const content = (
               <span
@@ -74,21 +74,21 @@ export function ProjectStepNavigator({
                     ? 'border-primary/30 bg-primary text-primary-foreground shadow-[0_14px_28px_-18px_hsl(var(--primary)/0.95)]'
                     : isAvailable
                     ? 'pill-nav'
-                    : 'cursor-not-allowed border-border/60 bg-muted/55 text-muted-foreground'
+                    : 'border-border/60 bg-muted/55 text-muted-foreground opacity-70'
                 }`}
               >
-                <step.Icon className="h-4 w-4" />
+                {!isAvailable && !isActive ? (
+                  <AlertTriangle className="h-4 w-4 text-amber-400" />
+                ) : (
+                  <step.Icon className="h-4 w-4" />
+                )}
                 <span>{index + 1}. {step.title}</span>
               </span>
             );
 
             return (
               <div key={step.id} className="flex items-center gap-2">
-                {isAvailable ? (
-                  <Link href={step.href}>{content}</Link>
-                ) : (
-                  content
-                )}
+                <Link href={step.href}>{content}</Link>
                 {index < steps.length - 1 && (
                   <span className="text-slate-300 dark:text-slate-700">·</span>
                 )}

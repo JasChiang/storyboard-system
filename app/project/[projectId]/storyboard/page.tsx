@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { useProjectStore } from '@/stores/project-store';
 import { StoryPromptInput } from '@/components/storyboard/StoryPromptInput';
 import { StoryboardTable } from '@/components/storyboard/StoryboardTable';
+import { PacingTimeline } from '@/components/storyboard/PacingTimeline';
+import { HookVariantPanel } from '@/components/storyboard/HookVariantPanel';
 import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator';
-import { Scene, Storyboard, StoryboardGenerationResponse, ProjectReference } from '@/lib/types/storyboard';
+import { Scene, Storyboard, StoryboardGenerationResponse, ProjectReference, CreativeReview, HookVariant } from '@/lib/types/storyboard';
 import { DEFAULT_STYLE_PROFILE_ID } from '@/lib/constants/style-profiles';
-import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Sparkles, Zap, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -24,6 +26,12 @@ export default function StoryboardPage() {
     type: 'success' | 'warning' | 'error';
     message: string;
   } | null>(null);
+  const [creativeReview, setCreativeReview] = useState<CreativeReview | null>(null);
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [hookVariants, setHookVariants] = useState<HookVariant[]>([]);
+  const [isGeneratingHooks, setIsGeneratingHooks] = useState(false);
+  const [deletedSceneStack, setDeletedSceneStack] = useState<{ scene: Scene; index: number }[]>([]);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setCurrentProject(projectId);
@@ -306,6 +314,145 @@ export default function StoryboardPage() {
     }
   };
 
+  const handleAnalyzeCreativity = async () => {
+    if (!currentProject?.storyboard?.scenes?.length) return;
+    setIsReviewing(true);
+    try {
+      const response = await fetch('/api/openrouter/creative-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenes: currentProject.storyboard.scenes }),
+      });
+      if (!response.ok) throw new Error('分析失敗');
+      const payload = await response.json();
+      const review: CreativeReview = payload.data;
+      setCreativeReview(review);
+
+      // Merge hookScore into scenes
+      const updatedScenes = currentProject.storyboard.scenes.map((scene) => {
+        const sr = review.sceneReviews.find(r => r.sceneNumber === scene.sceneNumber);
+        if (!sr) return scene;
+        return {
+          ...scene,
+          hookScore: sr.hookScore as Scene['hookScore'],
+          hookScoreReason: sr.hookScoreReason,
+          retentionRisk: sr.retentionRisk,
+        };
+      });
+      updateProject(projectId, {
+        storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() },
+      });
+      setGenerationNotice({ type: 'success', message: '廣告效果分析完成，已更新 Hook 評分。' });
+    } catch (error) {
+      setGenerationNotice({ type: 'error', message: error instanceof Error ? error.message : '分析失敗' });
+    } finally {
+      setIsReviewing(false);
+    }
+  };
+
+  const handleGenerateHookVariants = async () => {
+    if (!currentProject?.storyboard?.scenes?.length) return;
+    setIsGeneratingHooks(true);
+    try {
+      const scene1 = currentProject.storyboard.scenes[0];
+      const response = await fetch('/api/openrouter/hook-variants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: currentProject.storyboard.originalPrompt,
+          references: '',
+          existingScene1: scene1,
+        }),
+      });
+      if (!response.ok) throw new Error('生成 Hook 變體失敗');
+      const payload = await response.json();
+      setHookVariants(payload.data?.variants || []);
+    } catch (error) {
+      setGenerationNotice({ type: 'error', message: error instanceof Error ? error.message : '生成 Hook 變體失敗' });
+    } finally {
+      setIsGeneratingHooks(false);
+    }
+  };
+
+  const handleApplyHookVariant = (variant: HookVariant) => {
+    if (!currentProject?.storyboard) return;
+    const scene1 = currentProject.storyboard.scenes[0];
+    if (!scene1) return;
+    const updatedScenes = currentProject.storyboard.scenes.map((s) =>
+      s.id === scene1.id
+        ? {
+          ...s,
+          ...variant.scene,
+          id: s.id,
+          sceneNumber: s.sceneNumber,
+          generatedImage: undefined,
+          generatedEndFrame: undefined,
+          generatedVideo: undefined,
+          motionPrompt: undefined,
+        }
+        : s
+    );
+    updateProject(projectId, {
+      storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() },
+    });
+    setHookVariants([]);
+    setGenerationNotice({ type: 'success', message: `已套用「${variant.variantLabel}」Hook 開場。` });
+  };
+
+  const handleDuplicateScene = (sceneId: string) => {
+    if (!currentProject?.storyboard) return;
+    const scenes = currentProject.storyboard.scenes;
+    const idx = scenes.findIndex(s => s.id === sceneId);
+    if (idx === -1) return;
+    const original = scenes[idx];
+    const clone: Scene = {
+      ...original,
+      id: `scene-${Date.now()}-clone`,
+    };
+    const newScenes = [...scenes.slice(0, idx + 1), clone, ...scenes.slice(idx + 1)].map((s, i) => ({
+      ...s,
+      sceneNumber: i + 1,
+    }));
+    updateProject(projectId, {
+      storyboard: { ...currentProject.storyboard, scenes: newScenes, updatedAt: new Date().toISOString() },
+    });
+  };
+
+  const handleReorderScenes = (orderedIds: string[]) => {
+    if (!currentProject?.storyboard) return;
+    const sceneMap = new Map(currentProject.storyboard.scenes.map(s => [s.id, s]));
+    const reordered = orderedIds
+      .map((id, i) => {
+        const scene = sceneMap.get(id);
+        if (!scene) return null;
+        return { ...scene, sceneNumber: i + 1 };
+      })
+      .filter((s): s is Scene => s !== null);
+    updateProject(projectId, {
+      storyboard: { ...currentProject.storyboard, scenes: reordered, updatedAt: new Date().toISOString() },
+    });
+  };
+
+  const handleResetScene = (sceneId: string) => {
+    if (!currentProject?.storyboard) return;
+    const updatedScenes = currentProject.storyboard.scenes.map(s =>
+      s.id === sceneId
+        ? {
+          ...s,
+          generatedImage: undefined,
+          generatedEndFrame: undefined,
+          generatedVideo: undefined,
+          motionPrompt: undefined,
+          videoPromptDraft: undefined,
+          videoPromptDraftNotes: undefined,
+        }
+        : s
+    );
+    updateProject(projectId, {
+      storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() },
+    });
+  };
+
   const handleUpdateScene = (sceneId: string, updates: Partial<Scene>) => {
     if (!currentProject?.storyboard) return;
 
@@ -337,17 +484,40 @@ export default function StoryboardPage() {
   const handleDeleteScene = (sceneId: string) => {
     if (!currentProject?.storyboard) return;
 
-    const updatedScenes = currentProject.storyboard.scenes.filter(
-      (scene) => scene.id !== sceneId
-    );
+    const scenes = currentProject.storyboard.scenes;
+    const idx = scenes.findIndex(s => s.id === sceneId);
+    if (idx === -1) return;
+
+    const deletedScene = scenes[idx];
+    const updatedScenes = scenes.filter(s => s.id !== sceneId).map((s, i) => ({ ...s, sceneNumber: i + 1 }));
 
     updateProject(projectId, {
-      storyboard: {
-        ...currentProject.storyboard,
-        scenes: updatedScenes,
-        updatedAt: new Date().toISOString(),
-      },
+      storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() },
     });
+
+    // Push to undo stack
+    setDeletedSceneStack(prev => [...prev, { scene: deletedScene, index: idx }]);
+    setGenerationNotice({ type: 'warning', message: `已刪除場景 ${deletedScene.sceneNumber}` });
+
+    // Auto-clear after 5s
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => {
+      setDeletedSceneStack([]);
+      setGenerationNotice(null);
+    }, 5000);
+  };
+
+  const handleUndoDelete = () => {
+    if (!currentProject?.storyboard || deletedSceneStack.length === 0) return;
+    const last = deletedSceneStack[deletedSceneStack.length - 1];
+    const scenes = currentProject.storyboard.scenes;
+    const restored = [...scenes.slice(0, last.index), last.scene, ...scenes.slice(last.index)].map((s, i) => ({ ...s, sceneNumber: i + 1 }));
+    updateProject(projectId, {
+      storyboard: { ...currentProject.storyboard, scenes: restored, updatedAt: new Date().toISOString() },
+    });
+    setDeletedSceneStack(prev => prev.slice(0, -1));
+    setGenerationNotice(null);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
   };
 
   const blockedSceneCount = currentProject?.storyboard?.scenes.filter((scene) => scene.qaStatus === 'block').length || 0;
@@ -441,7 +611,42 @@ export default function StoryboardPage() {
               <p className="text-sm text-muted-foreground">
                 建議先把 `阻擋` 場景降到 0 再往下一步，避免後面批次流程中斷。
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {deletedSceneStack.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleUndoDelete}
+                  >
+                    <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+                    還原刪除
+                  </Button>
+                )}
+                {totalSceneCount > 0 && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAnalyzeCreativity}
+                      disabled={isReviewing}
+                    >
+                      {isReviewing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+                      分析廣告效果
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateHookVariants}
+                      disabled={isGeneratingHooks}
+                    >
+                      {isGeneratingHooks ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1.5 h-3.5 w-3.5" />}
+                      生成 Hook 變體
+                    </Button>
+                  </>
+                )}
                 {blockedSceneCount > 0 && (
                   <Button
                     type="button"
@@ -469,12 +674,48 @@ export default function StoryboardPage() {
             isLoading={isGenerating}
           />
 
+          {/* 節奏時間軸 */}
+          {totalSceneCount > 0 && (
+            <PacingTimeline
+              scenes={currentProject.storyboard?.scenes || []}
+              onSceneClick={(sceneId) => {
+                const el = document.getElementById(`scene-row-${sceneId}`);
+                el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }}
+            />
+          )}
+
+          {/* Hook 變體面板 */}
+          {(hookVariants.length > 0 || isGeneratingHooks) && (
+            <HookVariantPanel
+              variants={hookVariants}
+              onApply={handleApplyHookVariant}
+              isLoading={isGeneratingHooks}
+            />
+          )}
+
+          {/* 創意評估摘要 */}
+          {creativeReview && (
+            <div className="surface-soft rounded-xl p-4 text-sm">
+              <p className="text-kicker mb-2">Creative Review</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div><span className="font-medium text-foreground">情感弧線：</span><span className="text-muted-foreground">{creativeReview.emotionalArc}</span></div>
+                <div><span className="font-medium text-foreground">節奏評估：</span><span className="text-muted-foreground">{creativeReview.pacing}</span></div>
+                <div><span className="font-medium text-foreground">最強場景：</span><span className="text-muted-foreground">#{creativeReview.strongestScene}</span></div>
+                <div><span className="font-medium text-foreground">最弱場景：</span><span className="text-muted-foreground">#{creativeReview.weakestScene}</span></div>
+              </div>
+            </div>
+          )}
+
           {/* 分鏡表格 */}
           <StoryboardTable
             scenes={currentProject.storyboard?.scenes || []}
             onUpdateScene={handleUpdateScene}
             onDeleteScene={handleDeleteScene}
             onRegenerateScene={handleRegenerateScene}
+            onDuplicateScene={handleDuplicateScene}
+            onResetScene={handleResetScene}
+            onReorderScenes={handleReorderScenes}
             isRegeneratingSceneId={regeneratingSceneId}
           />
 

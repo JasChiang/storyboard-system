@@ -1,4 +1,4 @@
-import { PromptTemplate, StoryboardGenerationResponse, ProjectReference, Scene, TransitionType } from '../types/storyboard';
+import { PromptTemplate, StoryboardGenerationResponse, ProjectReference, Scene, TransitionType, CreativeReview, HookVariant } from '../types/storyboard';
 import { OpenRouterResponse } from '../types/api-responses';
 import { buildSystemPrompt } from '../prompts/prompt-builder';
 import { buildConsolidatedReferenceRules } from '../references/consistency-rules';
@@ -733,5 +733,169 @@ export async function generateCharacterProfile(
     };
   } catch {
     throw new Error('角色設定生成回傳格式錯誤，無法解析 JSON');
+  }
+}
+
+/**
+ * 評估分鏡腳本的廣告創意效果
+ */
+export async function reviewStoryboardCreativity(
+  scenes: Scene[],
+  config: OpenRouterConfig
+): Promise<CreativeReview> {
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+
+  const systemPrompt = `你是資深廣告導演，專精於分析短影片的 Hook 強度與觀眾留存率。
+
+請以廣告導演角色評估每個場景的廣告效果，輸出 JSON 格式評估報告。
+
+評估維度：
+- hookScore (1-5): 1=完全沒有 Hook/觀眾會立刻滑走，5=極強 Hook/幾乎必看
+- retentionRisk: low=觀眾會繼續看，medium=可能流失，high=幾乎確定會離開
+- weakPoint: 此場景最大弱點（一句話）
+- suggestion: 改善建議（具體可執行）
+
+整體評估：
+- emotionalArc: 情感弧線描述（好奇→認識→慾望→行動 或其他）
+- pacing: 節奏評估（太慢/合適/太快）
+- strongestScene: 最強場景編號（整數）
+- weakestScene: 最弱場景編號（整數）
+
+只輸出 JSON，不要其他文字。`;
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'http://localhost:3000',
+      'X-Title': 'Storyboard System',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: `請評估以下分鏡腳本的廣告效果：\n${JSON.stringify(
+            scenes.map(s => ({
+              sceneNumber: s.sceneNumber,
+              description: s.description,
+              cameraMovement: s.cameraMovement,
+              dialogue: s.dialogue,
+              duration: s.duration,
+              sceneIntent: s.sceneIntent,
+              notes: s.notes,
+            })),
+            null,
+            2
+          )}\n\n請輸出 JSON：{"emotionalArc":"...","pacing":"...","strongestScene":1,"weakestScene":3,"sceneReviews":[{"sceneNumber":1,"hookScore":4,"hookScoreReason":"...","retentionRisk":"low","weakPoint":"...","suggestion":"..."}]}`,
+        },
+      ],
+      response_format: { type: 'json_object' },
+    }),
+  });
+
+  if (!response.ok) {
+    let errorDetails = '';
+    try {
+      const errorData = await response.json();
+      errorDetails = errorData.error?.message || JSON.stringify(errorData);
+    } catch {
+      errorDetails = await response.text();
+    }
+    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
+  }
+
+  const data: OpenRouterResponse = await response.json();
+  const content = data.choices[0]?.message?.content;
+  if (!content) throw new Error('OpenRouter 沒有回傳任何內容');
+
+  const cleaned = content.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+  try {
+    const parsed = JSON.parse(cleaned) as Partial<CreativeReview>;
+    return {
+      emotionalArc: parsed.emotionalArc || '',
+      pacing: parsed.pacing || '',
+      strongestScene: Number(parsed.strongestScene) || 1,
+      weakestScene: Number(parsed.weakestScene) || 1,
+      sceneReviews: Array.isArray(parsed.sceneReviews) ? parsed.sceneReviews : [],
+    };
+  } catch {
+    throw new Error('創意評估回傳格式錯誤，無法解析 JSON');
+  }
+}
+
+/**
+ * 生成三種 Hook 變體場景
+ */
+export async function generateHookVariants(
+  topic: string,
+  references: string,
+  existingScene1: Partial<Scene>,
+  config: OpenRouterConfig
+): Promise<HookVariant[]> {
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+
+  const systemPrompt = `你是廣告創意導演，專精於短影片開場設計。
+
+請生成 3 種截然不同的 Hook 開場風格（Scene 1 的替代方案）：
+1. Shock Hook（震驚型）：視覺或資訊衝擊，讓觀眾無法滑走
+2. Question Hook（問題型）：製造強力懸念，觀眾必須繼續看才知道答案
+3. Story Hook（故事型）：「我一直以為...直到...」的個人敘事起點
+
+每種變體必須包含完整的 scene 物件，包含：
+- description, cameraMovement, sceneIntent, dialogue, duration, notes
+- notes 必須包含 [HOOK: type] 標記
+
+只輸出 JSON，格式：
+{"variants":[
+  {"variantType":"shock","variantLabel":"震驚型開場","scene":{...}},
+  {"variantType":"question","variantLabel":"懸念問題型","scene":{...}},
+  {"variantType":"story","variantLabel":"故事敘事型","scene":{...}}
+]}`;
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'http://localhost:3000',
+      'X-Title': 'Storyboard System',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: `主題：${topic}\n參考資料：${references}\n\n現有場景 1（請以此為基礎創作 3 種替代 Hook）：\n${JSON.stringify(existingScene1, null, 2)}\n\n請生成 3 種不同 Hook 風格的替代開場。`,
+        },
+      ],
+      response_format: { type: 'json_object' },
+    }),
+  });
+
+  if (!response.ok) {
+    let errorDetails = '';
+    try {
+      const errorData = await response.json();
+      errorDetails = errorData.error?.message || JSON.stringify(errorData);
+    } catch {
+      errorDetails = await response.text();
+    }
+    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
+  }
+
+  const data: OpenRouterResponse = await response.json();
+  const content = data.choices[0]?.message?.content;
+  if (!content) throw new Error('OpenRouter 沒有回傳任何內容');
+
+  const cleaned = content.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
+  try {
+    const parsed = JSON.parse(cleaned) as { variants?: HookVariant[] };
+    return Array.isArray(parsed.variants) ? parsed.variants : [];
+  } catch {
+    throw new Error('Hook 變體生成回傳格式錯誤，無法解析 JSON');
   }
 }
