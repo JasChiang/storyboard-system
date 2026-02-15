@@ -8,7 +8,7 @@ import { StoryboardTable } from '@/components/storyboard/StoryboardTable';
 import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator';
 import { Scene, Storyboard, StoryboardGenerationResponse, ProjectReference } from '@/lib/types/storyboard';
 import { DEFAULT_STYLE_PROFILE_ID } from '@/lib/constants/style-profiles';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -351,6 +351,9 @@ export default function StoryboardPage() {
   };
 
   const blockedSceneCount = currentProject?.storyboard?.scenes.filter((scene) => scene.qaStatus === 'block').length || 0;
+  const warnSceneCount = currentProject?.storyboard?.scenes.filter((scene) => scene.qaStatus === 'warn').length || 0;
+  const passSceneCount = currentProject?.storyboard?.scenes.filter((scene) => !scene.qaStatus || scene.qaStatus === 'pass').length || 0;
+  const totalSceneCount = currentProject?.storyboard?.scenes.length || 0;
 
   if (!currentProject) {
     return (
@@ -362,19 +365,20 @@ export default function StoryboardPage() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-white/50 backdrop-blur-xl dark:bg-black/50 supports-[backdrop-filter]:bg-white/20">
+      <header className="app-header">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href={`/project/${projectId}`}>
-                <Button variant="ghost" size="sm">
+                <Button variant="outline" size="sm">
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   返回
                 </Button>
               </Link>
               <div>
-                <h1 className="text-2xl font-bold">{currentProject.name}</h1>
-                <p className="text-sm text-slate-600 dark:text-slate-400">分鏡腳本編輯</p>
+                <p className="text-kicker">Storyboard</p>
+                <h1 className="text-2xl font-semibold">{currentProject.name}</h1>
+                <p className="text-sm text-muted-foreground">分鏡腳本編輯</p>
               </div>
             </div>
 
@@ -414,6 +418,51 @@ export default function StoryboardPage() {
             </div>
           )}
 
+          <div className="surface-soft p-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="surface-inset p-3">
+                <p className="text-kicker">Scenes</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{totalSceneCount}</p>
+                <p className="mt-1 text-xs text-muted-foreground">目前分鏡場景總數</p>
+              </div>
+              <div className="surface-inset p-3">
+                <p className="text-kicker">QA Pass</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{passSceneCount}</p>
+                <p className="mt-1 text-xs text-muted-foreground">可直接進入圖片生成</p>
+              </div>
+              <div className="surface-inset p-3">
+                <p className="text-kicker">Need Fix</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{blockedSceneCount + warnSceneCount}</p>
+                <p className="mt-1 text-xs text-muted-foreground">阻擋 + 警告場景數</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                建議先把 `阻擋` 場景降到 0 再往下一步，避免後面批次流程中斷。
+              </p>
+              <div className="flex items-center gap-2">
+                {blockedSceneCount > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleAutoFixBlockedScenes}
+                    disabled={isAutoFixing || !!regeneratingSceneId}
+                  >
+                    {isAutoFixing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    一鍵修復阻擋 ({blockedSceneCount})
+                  </Button>
+                )}
+                <Link href={`/project/${projectId}/images`}>
+                  <Button size="sm" disabled={totalSceneCount === 0}>
+                    下一步：生成分鏡圖片
+                    <ArrowRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+
           {/* 故事輸入 */}
           <StoryPromptInput
             onGenerate={handleGenerate}
@@ -429,29 +478,6 @@ export default function StoryboardPage() {
             isRegeneratingSceneId={regeneratingSceneId}
           />
 
-          {/* 下一步按鈕 */}
-          {currentProject.storyboard && currentProject.storyboard.scenes.length > 0 && (
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                {blockedSceneCount > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleAutoFixBlockedScenes}
-                    disabled={isAutoFixing || !!regeneratingSceneId}
-                  >
-                    {isAutoFixing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    一鍵修復阻擋場景 ({blockedSceneCount})
-                  </Button>
-                )}
-              </div>
-              <Link href={`/project/${projectId}/images`}>
-                <Button size="lg">
-                  下一步：生成分鏡圖片
-                </Button>
-              </Link>
-            </div>
-          )}
         </div>
       </main>
     </>

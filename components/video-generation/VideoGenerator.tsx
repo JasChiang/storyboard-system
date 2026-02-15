@@ -5,6 +5,7 @@ import { Film, Settings2, Sparkles } from 'lucide-react';
 import { ModelSelector } from './ModelSelector';
 import { MotionPromptEditor } from './MotionPromptEditor';
 import { VideoPreview } from './VideoPreview';
+import { Button } from '@/components/ui/button';
 import type { Scene, ProjectReference } from '@/lib/types/storyboard';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 import { buildKlingPrompt } from '@/lib/video/adapters/kling';
@@ -341,96 +342,121 @@ export function VideoGenerator({
         throw new Error('Generation timeout');
     };
 
+    const hasStartFrame = Boolean(effectiveStartFrameUrl);
+    const hasEndFrame = Boolean(endFrameUrl);
+    const hasGeneratedVideo = Boolean(scene.generatedVideo?.url);
+    const canGenerateVideo = Boolean(effectiveStartFrameUrl && motionPrompt.trim());
+
     return (
-        <div className="space-y-4">
-            {/* 場景資訊 */}
-            <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
-                <div>
-                    <h3 className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-2">
-                        場景 {scene.sceneNumber}
-                    </h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{scene.description}</p>
+        <div className="space-y-5">
+            <div className="surface-panel space-y-4 p-5">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <p className="text-kicker">Video Stage</p>
+                        <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+                            場景 {scene.sceneNumber}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{scene.description}</p>
+                    </div>
+                    {scene.requiresEndFrame && (
+                        <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                            首尾幀模式
+                        </span>
+                    )}
                 </div>
 
-                {/* 首幀 */}
+                <div className="grid gap-3 md:grid-cols-3">
+                    <div className="surface-inset px-3 py-2">
+                        <p className="text-xs text-slate-500">首幀</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            {hasStartFrame ? '已就緒' : '尚未就緒'}
+                        </p>
+                    </div>
+                    <div className="surface-inset px-3 py-2">
+                        <p className="text-xs text-slate-500">尾幀</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            {shouldUseEndFrameForVideo ? (hasEndFrame ? '已就緒' : '尚未就緒') : '不使用'}
+                        </p>
+                    </div>
+                    <div className="surface-inset px-3 py-2">
+                        <p className="text-xs text-slate-500">影片輸出</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            {isGenerating ? '生成中' : hasGeneratedVideo ? '已完成' : '尚未生成'}
+                        </p>
+                    </div>
+                </div>
+
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
                         <h4 className="text-xs font-medium text-slate-700 dark:text-slate-300">首幀 (Start Frame)</h4>
-                        {scene.requiresEndFrame && (
-                            <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
-                                首尾幀模式
+                        {previousEndFrameUrl && (
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                沿用前景尾幀
                             </span>
                         )}
                     </div>
                     {effectiveStartFrameUrl ? (
-                        <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+                        <div className="relative aspect-video overflow-hidden rounded-xl border border-border/70">
                             <img
                                 src={effectiveStartFrameUrl}
                                 alt={`Scene ${scene.sceneNumber}`}
-                                className="w-full h-full object-cover"
+                                className="h-full w-full object-cover"
                             />
-                            <div className="absolute top-2 right-2 px-2 py-1 bg-green-500/90 text-white text-xs rounded shadow-sm">
-                                {previousEndFrameUrl ? '沿用前景尾幀' : '已生成'}
-                            </div>
                         </div>
                     ) : (
-                        <div className="aspect-video bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700
-                            flex items-center justify-center">
-                            <p className="text-sm text-slate-500 dark:text-slate-500">尚未生成首幀</p>
+                        <div className="flex aspect-video items-center justify-center rounded-xl border border-border/70 bg-slate-50 dark:bg-slate-900">
+                            <p className="text-sm text-slate-500 dark:text-slate-400">尚未生成首幀</p>
                         </div>
                     )}
                 </div>
 
-                {/* 尾幀（如果存在） */}
                 {shouldUseEndFrameForVideo && endFrameUrl && (
-                    <div className="space-y-2 p-3 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <div className="space-y-2 rounded-xl border border-purple-200 bg-purple-50/80 p-3 dark:border-purple-800 dark:bg-purple-900/15">
                         <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 bg-purple-600 dark:bg-purple-400 rounded-full"></div>
+                            <div className="h-1.5 w-1.5 rounded-full bg-purple-600 dark:bg-purple-400"></div>
                             <h4 className="text-xs font-medium text-purple-700 dark:text-purple-300">尾幀 (End Frame)</h4>
                         </div>
-                        <div className="relative aspect-video rounded-lg overflow-hidden border border-purple-300 dark:border-purple-700">
+                        <div className="relative aspect-video overflow-hidden rounded-lg border border-purple-300 dark:border-purple-700">
                             <img
                                 src={endFrameUrl}
                                 alt={`Scene ${scene.sceneNumber} End Frame`}
-                                className="w-full h-full object-cover"
+                                className="h-full w-full object-cover"
                             />
-                            <div className="absolute top-2 right-2 px-2 py-1 bg-purple-500/90 text-white text-xs rounded shadow-sm">
-                                已生成
-                            </div>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* 影片預覽 */}
-            <VideoPreview
-                videoUrl={scene.generatedVideo?.url || null}
-                prompt={scene.generatedVideo?.prompt}
-                model={scene.generatedVideo?.model}
-                isLoading={isGenerating}
-                onRegenerate={handleGenerate}
-            />
+            <div className="surface-panel p-4">
+                <VideoPreview
+                    videoUrl={scene.generatedVideo?.url || null}
+                    prompt={scene.generatedVideo?.prompt}
+                    model={scene.generatedVideo?.model}
+                    isLoading={isGenerating}
+                    onRegenerate={handleGenerate}
+                />
+            </div>
 
-            {/* 模型選擇 */}
-            <ModelSelector
-                value={model}
-                onChange={setModel}
-                disabled={isGenerating}
-            />
+            <div className="surface-panel p-4">
+                <ModelSelector
+                    value={model}
+                    onChange={setModel}
+                    disabled={isGenerating}
+                />
+            </div>
 
-            {/* Prompt 模式 */}
-            <div className="space-y-3 p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+            <div className="surface-panel space-y-3 p-4">
                 <div className="flex items-center justify-between">
                     <h4 className="text-sm font-medium text-slate-900 dark:text-slate-200">提示詞組合模式</h4>
-                    <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-1">
+                    <div className="inline-flex rounded-full border border-border/70 p-1">
                         <button
                             type="button"
                             onClick={() => setPromptMode('deterministic')}
                             disabled={isGenerating || isComposingPrompt}
-                            className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                            className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
                                 promptMode === 'deterministic'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
                             }`}
                         >
                             Deterministic
@@ -439,10 +465,10 @@ export function VideoGenerator({
                             type="button"
                             onClick={() => setPromptMode('ai_composer')}
                             disabled={isGenerating || isComposingPrompt}
-                            className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                            className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
                                 promptMode === 'ai_composer'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
                             }`}
                         >
                             AI Composer
@@ -452,30 +478,29 @@ export function VideoGenerator({
 
                 {promptMode === 'ai_composer' && (
                     <div className="space-y-3">
-                        <button
+                        <Button
                             type="button"
                             onClick={composePromptWithAI}
                             disabled={isGenerating || isComposingPrompt || !motionPrompt.trim()}
-                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-fit rounded-xl"
                         >
                             {isComposingPrompt ? (
                                 <>
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white" />
                                     AI 組合中...
                                 </>
                             ) : (
                                 <>
-                                    <Sparkles className="w-4 h-4" />
+                                    <Sparkles className="mr-2 h-4 w-4" />
                                     產生 AI 提示詞
                                 </>
                             )}
-                        </button>
+                        </Button>
                         <textarea
                             value={aiComposedPrompt}
-                            onChange={(e) => setAiComposedPrompt(e.target.value)}
+                            onChange={(event) => setAiComposedPrompt(event.target.value)}
                             placeholder="點擊上方按鈕，讓 AI 根據場景與參考規則組合可直接送 Kling/Seedance 的提示詞"
-                            className="w-full px-3 py-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg
-                            text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 resize-none"
+                            className="w-full resize-none rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground placeholder:text-slate-400 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                             rows={6}
                             disabled={isGenerating || isComposingPrompt}
                         />
@@ -488,54 +513,53 @@ export function VideoGenerator({
                 )}
             </div>
 
-            {/* 動作提示詞 */}
-            <MotionPromptEditor
-                value={motionPrompt}
-                onChange={setMotionPrompt}
-                disabled={isGenerating}
-                sceneDescription={scene.description}
-            />
+            <div className="surface-panel p-4">
+                <MotionPromptEditor
+                    value={motionPrompt}
+                    onChange={setMotionPrompt}
+                    disabled={isGenerating}
+                    sceneDescription={scene.description}
+                />
+            </div>
 
-            {/* 進階設定 */}
             <div className="space-y-3">
                 <button
                     onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 transition-colors"
+                    className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
                 >
-                    <Settings2 className="w-4 h-4" />
+                    <Settings2 className="h-4 w-4" />
                     進階設定
                 </button>
 
                 {showAdvanced && (
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="surface-soft space-y-4 p-4">
                         {model === 'kling' ? (
                             <>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                             Kling 版本
                                         </label>
                                         <select
                                             value={klingVariant}
-                                            onChange={(e) => setKlingVariant(e.target.value as KlingVariant)}
+                                            onChange={(event) => setKlingVariant(event.target.value as KlingVariant)}
                                             disabled={isGenerating}
-                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                                            className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
                                             <option value="v26">Kling 2.6 Pro</option>
                                             <option value="o3">Kling O3 Pro</option>
                                         </select>
                                     </div>
+
                                     <div className="space-y-2">
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                             影片長度
                                         </label>
                                         <select
                                             value={klingDuration}
-                                            onChange={(e) => setKlingDuration(Number(e.target.value) as 5 | 10)}
+                                            onChange={(event) => setKlingDuration(Number(event.target.value) as 5 | 10)}
                                             disabled={isGenerating}
-                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                                            className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
                                             <option value={5}>5 秒</option>
                                             <option value={10}>10 秒</option>
@@ -548,10 +572,9 @@ export function VideoGenerator({
                                         </label>
                                         <select
                                             value={klingAspectRatio}
-                                            onChange={(e) => setKlingAspectRatio(e.target.value as '16:9' | '9:16' | '1:1')}
+                                            onChange={(event) => setKlingAspectRatio(event.target.value as '16:9' | '9:16' | '1:1')}
                                             disabled={isGenerating}
-                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                                            className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
                                             <option value="16:9">16:9 (橫向)</option>
                                             <option value="9:16">9:16 (直向)</option>
@@ -560,31 +583,29 @@ export function VideoGenerator({
                                     </div>
                                 </div>
 
-                                <label className="flex items-center gap-2 cursor-pointer">
+                                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                                     <input
                                         type="checkbox"
                                         checked={klingEnableSound}
-                                        onChange={(e) => setKlingEnableSound(e.target.checked)}
+                                        onChange={(event) => setKlingEnableSound(event.target.checked)}
                                         disabled={isGenerating}
-                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900
-                             text-blue-600 focus:ring-blue-600 focus:ring-offset-0"
+                                        className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
                                     />
-                                    <span className="text-sm text-slate-700 dark:text-slate-300">啟用音效</span>
+                                    啟用音效
                                 </label>
                             </>
                         ) : (
                             <>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                             長寬比
                                         </label>
                                         <select
                                             value={seedanceAspectRatio}
-                                            onChange={(e) => setSeedanceAspectRatio(e.target.value as '21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16')}
+                                            onChange={(event) => setSeedanceAspectRatio(event.target.value as '21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16')}
                                             disabled={isGenerating}
-                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                                            className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
                                             <option value="21:9">21:9 (電影)</option>
                                             <option value="16:9">16:9 (橫向)</option>
@@ -601,10 +622,9 @@ export function VideoGenerator({
                                         </label>
                                         <select
                                             value={seedanceResolution}
-                                            onChange={(e) => setSeedanceResolution(e.target.value as '480p' | '720p' | '1080p')}
+                                            onChange={(event) => setSeedanceResolution(event.target.value as '480p' | '720p' | '1080p')}
                                             disabled={isGenerating}
-                                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                               text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                                            className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
                                             <option value="480p">480p (快速)</option>
                                             <option value="720p">720p (平衡)</option>
@@ -623,26 +643,25 @@ export function VideoGenerator({
                                             min={4}
                                             max={12}
                                             value={seedanceDuration}
-                                            onChange={(e) => setSeedanceDuration(Number(e.target.value))}
+                                            onChange={(event) => setSeedanceDuration(Number(event.target.value))}
                                             disabled={isGenerating}
                                             className="flex-1"
                                         />
-                                        <span className="text-sm text-slate-700 dark:text-slate-300 w-12 text-right">
+                                        <span className="w-12 text-right text-sm text-slate-700 dark:text-slate-300">
                                             {seedanceDuration} 秒
                                         </span>
                                     </div>
                                 </div>
 
-                                <label className="flex items-center gap-2 cursor-pointer">
+                                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                                     <input
                                         type="checkbox"
                                         checked={seedanceEnableAudio}
-                                        onChange={(e) => setSeedanceEnableAudio(e.target.checked)}
+                                        onChange={(event) => setSeedanceEnableAudio(event.target.checked)}
                                         disabled={isGenerating}
-                                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900
-                             text-blue-600 focus:ring-blue-600 focus:ring-offset-0"
+                                        className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
                                     />
-                                    <span className="text-sm text-slate-700 dark:text-slate-300">啟用音訊</span>
+                                    啟用音訊
                                 </label>
                             </>
                         )}
@@ -650,31 +669,28 @@ export function VideoGenerator({
                 )}
             </div>
 
-            {/* 生成按鈕 */}
-            <button
+            <Button
+                type="button"
                 onClick={handleGenerate}
-                disabled={isGenerating || !scene.generatedImage}
-                className="w-full py-3 px-4 bg-[#143A5A] hover:bg-[#143A5A]/90 
-                 text-white font-medium rounded-lg
-                 disabled:opacity-50 disabled:cursor-not-allowed
-                 transition-all flex items-center justify-center gap-2 shadow-sm"
+                disabled={isGenerating || !canGenerateVideo}
+                className="h-11 w-full rounded-xl"
             >
                 {isGenerating ? (
                     <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white" />
                         生成中...
                     </>
                 ) : (
                     <>
-                        <Film className="w-5 h-5" />
+                        <Film className="mr-2 h-4 w-4" />
                         生成影片
                     </>
                 )}
-            </button>
+            </Button>
 
-            {!scene.generatedImage && (
-                <p className="text-xs text-center text-amber-600 dark:text-amber-400">
-                    ⚠️ 請先在「圖片」頁面生成場景圖片
+            {!canGenerateVideo && (
+                <p className="text-center text-xs text-amber-600 dark:text-amber-400">
+                    {!hasStartFrame ? '請先在「圖片」頁面生成場景圖片' : '請先填寫動作提示詞'}
                 </p>
             )}
         </div>

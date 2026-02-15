@@ -26,36 +26,45 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-950/45 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Dialog */}
-      <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-md mx-4 p-6">
+      <div className="surface-hero relative w-full max-w-xl p-7 sm:p-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold">建立新專案</h2>
+          <div>
+            <p className="text-kicker">New Project</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">建立新專案</h2>
+          </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div>
-            <label className="block text-sm font-medium mb-1.5 text-slate-700 dark:text-slate-300">
+            <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
               專案名稱 *
             </label>
             <input
               type="text"
-              className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-xl border border-border/80 bg-white/75 px-3.5 py-2.5 text-sm text-foreground shadow-[0_12px_24px_-18px_rgba(15,23,42,0.5)] backdrop-blur-lg focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/40 dark:bg-slate-900/65"
               placeholder="例：產品宣傳影片"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && name.trim()) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
               autoFocus
             />
           </div>
@@ -68,7 +77,7 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
             onChange={(e) => setDescription(e.target.value)}
           />
 
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-2">
             <Button
               variant="outline"
               onClick={onClose}

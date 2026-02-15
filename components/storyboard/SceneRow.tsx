@@ -57,7 +57,7 @@ export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerati
 
   if (isEditing) {
     return (
-      <tr className="bg-blue-50/70 dark:bg-blue-900/10">
+      <tr className="bg-slate-100/70 dark:bg-slate-900/55">
         <td className="px-4 py-3">
           <div className="inline-flex rounded-full border border-blue-200 bg-white px-2.5 py-1 text-xs font-bold text-blue-700 dark:border-blue-700 dark:bg-slate-900 dark:text-blue-300">
             #{scene.sceneNumber}
@@ -65,7 +65,7 @@ export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerati
         </td>
         <td className="px-4 py-3">
           <textarea
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
+            className="w-full rounded-lg border border-border/80 bg-white/75 px-3 py-2 text-sm shadow-[0_10px_22px_-16px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
             value={editedScene.description}
             onChange={(e) => setEditedScene({ ...editedScene, description: e.target.value })}
             rows={3}
@@ -74,14 +74,14 @@ export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerati
         <td className="px-4 py-3">
           <input
             type="text"
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
+            className="w-full rounded-lg border border-border/80 bg-white/75 px-3 py-2 text-sm shadow-[0_10px_22px_-16px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
             value={editedScene.cameraMovement}
             onChange={(e) => setEditedScene({ ...editedScene, cameraMovement: e.target.value })}
           />
         </td>
         <td className="px-4 py-3">
           <textarea
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
+            className="w-full rounded-lg border border-border/80 bg-white/75 px-3 py-2 text-sm shadow-[0_10px_22px_-16px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
             value={editedScene.dialogue}
             onChange={(e) => setEditedScene({ ...editedScene, dialogue: e.target.value })}
             rows={2}
@@ -90,7 +90,7 @@ export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerati
         <td className="px-4 py-3">
           <input
             type="number"
-            className="w-24 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
+            className="w-24 rounded-lg border border-border/80 bg-white/75 px-3 py-2 text-sm shadow-[0_10px_22px_-16px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
             value={editedScene.duration}
             onChange={(e) => setEditedScene({ ...editedScene, duration: parseFloat(e.target.value) })}
             step="0.1"
@@ -128,14 +128,14 @@ export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerati
             {editedScene.requiresEndFrame && (
               <div className="space-y-1">
                 <textarea
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
+                  className="w-full rounded-lg border border-border/80 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
                   value={editedScene.endFrameDescription || ''}
                   onChange={(e) => setEditedScene({ ...editedScene, endFrameDescription: e.target.value })}
                   placeholder="尾幀完整描述"
                   rows={2}
                 />
                 <textarea
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
+                  className="w-full rounded-lg border border-border/80 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
                   value={editedScene.endFrameDelta || ''}
                   onChange={(e) => setEditedScene({ ...editedScene, endFrameDelta: e.target.value })}
                   placeholder="尾幀差異（只寫相對首幀改變）"
@@ -147,7 +147,7 @@ export function SceneRow({ scene, onUpdate, onDelete, onRegenerate, isRegenerati
         </td>
         <td className="px-4 py-3">
           <select
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:border-slate-600 dark:bg-slate-900 dark:focus:ring-blue-900"
+            className="w-full rounded-lg border border-border/80 bg-white/75 px-3 py-2 text-sm shadow-[0_10px_22px_-16px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
             value={editedScene.transitionToNext?.type || 'dissolve'}
             onChange={(e) => handleTransitionChange(e.target.value as TransitionType)}
           >

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Clapperboard, Plus, Sparkles, Film, Image as ImageIcon, Wand2, Users } from "lucide-react";
+import { useState, useEffect, type ReactNode } from 'react';
+import { Clapperboard, Plus, Sparkles, Film, Image as ImageIcon, Wand2, Users, ArrowRight } from "lucide-react";
 import { useProjectStore } from '@/stores/project-store';
 import { ProjectCard } from '@/components/project/ProjectCard';
 import { CreateProjectDialog } from '@/components/project/CreateProjectDialog';
@@ -21,30 +21,20 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Background Decor */}
-      <div className="pointer-events-none fixed inset-0 flex justify-center overflow-hidden">
-        <div className="h-[500px] w-[500px] bg-[#5F9EA0]/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 mix-blend-multiply dark:mix-blend-color-dodge animate-pulse duration-1000" />
-        <div className="h-[500px] w-[500px] bg-[#143A5A]/20 rounded-full blur-[100px] -translate-y-1/2 -translate-x-1/2 mix-blend-multiply dark:mix-blend-color-dodge animate-pulse delay-700 duration-1000" />
-      </div>
-
-      <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-white/50 backdrop-blur-xl dark:bg-black/50 supports-[backdrop-filter]:bg-white/20">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-[#143A5A] rounded-lg shadow-lg shadow-[#143A5A]/20">
-              <Clapperboard className="w-5 h-5 text-white" />
+    <div className="relative min-h-screen overflow-hidden">
+      <header className="app-header w-full">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4">
+          <div className="flex items-center gap-3">
+            <div className="surface-soft flex h-10 w-10 items-center justify-center rounded-xl">
+              <Clapperboard className="h-5 w-5 text-primary" />
             </div>
-            <h1 className="text-xl font-bold text-[#143A5A] dark:text-[#5F9EA0]">
+            <h1 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
               Storyboard System
             </h1>
           </div>
           <div className="flex items-center gap-3">
             <Link href="/characters">
-              <Button
-                variant="outline"
-                size="sm"
-                className="shadow-sm hover:shadow-md transition-all"
-              >
+              <Button variant="outline" size="sm">
                 <Users className="w-4 h-4 mr-2" />
                 角色库
               </Button>
@@ -52,7 +42,6 @@ export default function Home() {
             <Button
               onClick={() => setIsCreateDialogOpen(true)}
               size="sm"
-              className="shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all font-medium"
             >
               <Plus className="w-4 h-4 mr-2" />
               新專案
@@ -61,70 +50,69 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-12 relative z-10">
+      <main className="container relative z-10 mx-auto px-4 py-12 sm:py-16">
         <div className="max-w-7xl mx-auto">
           {projects.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="relative mb-12 group">
-                <div className="absolute inset-0 bg-[#5F9EA0] rounded-3xl blur-2xl opacity-20 group-hover:opacity-30 transition-opacity" />
-                <div className="relative p-8 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800">
-                  <Clapperboard className="w-20 h-20 text-slate-900 dark:text-white" />
+            <div className="mx-auto flex max-w-6xl flex-col items-center gap-10 text-center">
+              <section className="surface-hero w-full max-w-4xl">
+                <p className="text-kicker">Creative Engine</p>
+                <h2 className="mt-4 text-balance text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
+                  把一段想法，直接轉成可剪輯的分鏡工作流
+                </h2>
+                <p className="mx-auto mt-5 max-w-2xl text-balance text-base text-muted-foreground sm:text-lg">
+                  極簡介面、清楚節點、連續生成。從腳本、圖像到影片輸出，保持一條流暢創作路徑。
+                </p>
+                <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                  <Button onClick={() => setIsCreateDialogOpen(true)} size="lg">
+                    <Plus className="w-5 h-5 mr-1.5" />
+                    開始創作
+                  </Button>
+                  <Link href="/characters">
+                    <Button variant="outline" size="lg">
+                      探索角色庫
+                      <ArrowRight className="ml-1.5 h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
-              </div>
-
-              <h2 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight">
-                AI 驅動的分鏡圖製作系統
-              </h2>
-              <p className="text-xl text-muted-foreground mb-12 max-w-2xl leading-relaxed">
-                從文字到影片的一站式工作流。體驗 AI 帶來的極速創作快感。
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-5xl mb-16">
+              </section>
+              <div className="grid w-full max-w-5xl grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
                 <FeatureCard
-                  icon={<Wand2 className="w-6 h-6 text-[#143A5A]" />}
+                  icon={<Wand2 className="w-6 h-6 text-primary" />}
                   title="智慧腳本"
                   description="AI 把故事瞬間轉化為專業分鏡表"
                   delay={0}
                 />
                 <FeatureCard
-                  icon={<ImageIcon className="w-6 h-6 text-[#5F9EA0]" />}
+                  icon={<ImageIcon className="w-6 h-6 text-sky-600 dark:text-sky-300" />}
                   title="圖像生成"
                   description="Fal AI 繪製高品質場景圖"
                   delay={100}
                 />
                 <FeatureCard
-                  icon={<Film className="w-6 h-6 text-[#36454A]" />}
+                  icon={<Film className="w-6 h-6 text-slate-700 dark:text-slate-300" />}
                   title="動態影片"
                   description="Kling/Seedance 賦予畫面生命"
                   delay={200}
                 />
                 <FeatureCard
-                  icon={<Sparkles className="w-6 h-6 text-[#CC5500]" />}
+                  icon={<Sparkles className="w-6 h-6 text-cyan-600 dark:text-cyan-300" />}
                   title="自動剪輯"
                   description="Blender 腳本自動生成與合成"
                   delay={300}
                 />
               </div>
-
-              <Button
-                onClick={() => setIsCreateDialogOpen(true)}
-                size="lg"
-                className="h-14 px-8 text-lg rounded-full shadow-xl shadow-primary/25 hover:shadow-primary/40 hover:scale-105 transition-all duration-300 bg-[#143A5A] hover:bg-[#143A5A]/90 border-0"
-              >
-                <Plus className="w-5 h-5 mr-2" />
-                開始創作
-              </Button>
             </div>
           ) : (
             <div className="space-y-8 animate-fade-in">
-              <div className="flex items-end justify-between border-b border-border/40 pb-6">
+              <section className="surface-panel px-6 py-7 sm:px-8">
                 <div>
-                  <h2 className="text-3xl font-bold tracking-tight text-foreground">我的專案</h2>
-                  <p className="text-muted-foreground mt-2">
-                    管理您的分鏡創作 ({projects.length})
+                  <p className="text-kicker">Workspace</p>
+                  <h2 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">我的專案</h2>
+                  <p className="mt-2 text-muted-foreground">
+                    管理你的分鏡製作流程，共 {projects.length} 個專案。
                   </p>
                 </div>
-              </div>
+              </section>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {projects.map((project) => (
@@ -149,17 +137,17 @@ export default function Home() {
   );
 }
 
-function FeatureCard({ icon, title, description, delay }: { icon: React.ReactNode; title: string; description: string; delay: number }) {
+function FeatureCard({ icon, title, description, delay }: { icon: ReactNode; title: string; description: string; delay: number }) {
   return (
     <div
-      className="p-6 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-white/20 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left group"
+      className="surface-panel group p-5 text-left transition-all duration-300 hover:-translate-y-1"
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className="mb-4 bg-white dark:bg-slate-800 w-12 h-12 rounded-xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
+      <div className="surface-inset mb-4 flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110">
         {icon}
       </div>
-      <h3 className="text-lg font-semibold mb-2 text-slate-900 dark:text-slate-100">{title}</h3>
-      <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{description}</p>
+      <h3 className="mb-2 text-base font-semibold text-foreground">{title}</h3>
+      <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
     </div>
   );
 }

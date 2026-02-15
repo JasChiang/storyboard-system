@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Settings2 } from 'lucide-react';
 import { ReferenceUploader } from './ReferenceUploader';
 import { ImagePreview } from './ImagePreview';
+import { Button } from '@/components/ui/button';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/lib/prompts/image-static';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
@@ -608,28 +609,61 @@ export function ImageGenerator({
         throw new Error('Generation timeout');
     };
 
+    const hasStartFrame = Boolean(scene.generatedImage?.url);
+    const hasEndFrame = Boolean(scene.generatedEndFrame?.url);
+    const totalSelectedReferences = selectedProjectRefs.length + selectedStyleReferenceUrls.length + (referenceImage ? 1 : 0);
+
     return (
-        <div className="space-y-4">
-            {/* 場景資訊 */}
-            <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-                <h3 className="text-sm font-medium text-slate-900 dark:text-slate-200 mb-2">
-                    場景 {scene.sceneNumber}
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">{scene.description}</p>
+        <div className="space-y-5">
+            <div className="surface-panel space-y-4 p-5">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <p className="text-kicker">Image Stage</p>
+                        <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+                            場景 {scene.sceneNumber}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{scene.description}</p>
+                    </div>
+                    {scene.requiresEndFrame && (
+                        <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                            首尾幀模式
+                        </span>
+                    )}
+                </div>
+
                 {scene.cameraMovement && scene.cameraMovement !== '無' && (
-                    <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-                        鏡頭運動: {scene.cameraMovement}
-                    </p>
+                    <div className="surface-inset px-3 py-2">
+                        <p className="text-xs text-slate-500">鏡頭運動</p>
+                        <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{scene.cameraMovement}</p>
+                    </div>
                 )}
+
+                <div className="grid gap-3 md:grid-cols-3">
+                    <div className="surface-inset px-3 py-2">
+                        <p className="text-xs text-slate-500">首幀狀態</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            {startGenerationLoading ? '生成中' : hasStartFrame ? '已完成' : '尚未生成'}
+                        </p>
+                    </div>
+                    <div className="surface-inset px-3 py-2">
+                        <p className="text-xs text-slate-500">尾幀狀態</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            {!shouldUseEndFrame ? '不需要' : endGenerationLoading ? '生成中' : hasEndFrame ? '已完成' : '尚未生成'}
+                        </p>
+                    </div>
+                    <div className="surface-inset px-3 py-2">
+                        <p className="text-xs text-slate-500">套用參考數</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{totalSelectedReferences}</p>
+                    </div>
+                </div>
             </div>
 
-            {/* 首幀預覽 */}
-            <div className="space-y-2">
+            <div className="surface-panel space-y-2 p-4">
                 <div className="flex items-center justify-between">
                     <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">首幀 (Start Frame)</h4>
-                    {scene.requiresEndFrame && (
-                        <span className="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
-                            需要尾幀
+                    {hasContinuationStart && (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                            沿用前場景尾幀
                         </span>
                     )}
                 </div>
@@ -641,15 +675,14 @@ export function ImageGenerator({
                 />
             </div>
 
-            {/* 尾幀選項 */}
             {!scene.requiresEndFrame && (
-                <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-200 dark:border-slate-800">
+                <div className="surface-soft space-y-2 p-4">
                     <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                         <input
                             type="checkbox"
                             checked={manualEndFrameEnabled}
-                            onChange={(e) => {
-                                const enabled = e.target.checked;
+                            onChange={(event) => {
+                                const enabled = event.target.checked;
                                 setManualEndFrameEnabled(enabled);
                                 if (!enabled) {
                                     setManualEndFrameDescription('');
@@ -659,38 +692,37 @@ export function ImageGenerator({
                                 }
                             }}
                             disabled={isAnyGenerationLoading}
+                            className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
                         />
                         手動啟用尾幀（適合跨主體運鏡）
                     </label>
                     {manualEndFrameEnabled && (
-                        <div className="space-y-2 mt-2">
-                            <div className="flex items-center justify-between">
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    可先讓 AI 產生尾幀描述，再按「生成尾幀」
+                                    可先讓 AI 草擬尾幀描述，再進行尾幀生成
                                 </p>
-                                <button
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
                                     onClick={handleComposeEndFrameWithAI}
                                     disabled={isAnyGenerationLoading || isComposingEndFramePrompt}
-                                    className="px-2.5 py-1.5 text-xs bg-slate-900 hover:bg-slate-700 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 rounded
-                                    disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
                                     {isComposingEndFramePrompt ? 'AI 生成中...' : 'AI 產生尾幀描述'}
-                                </button>
+                                </Button>
                             </div>
                             <textarea
                                 value={manualEndFrameDescription}
-                                onChange={(e) => setManualEndFrameDescription(e.target.value)}
+                                onChange={(event) => setManualEndFrameDescription(event.target.value)}
                                 onBlur={() => onEndFrameDescriptionChanged?.(manualEndFrameDescription.trim(), true)}
                                 placeholder="尾幀補充描述（選填）。例如：最後畫面停在家人中景，冷氣仍在左上角可見。"
-                                className="w-full px-3 py-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg
-                   text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400
-                   focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600
-                   transition-colors resize-none"
+                                className="w-full resize-none rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground placeholder:text-slate-400 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                 rows={2}
                                 disabled={isAnyGenerationLoading || isComposingEndFramePrompt}
                             />
                             {aiEndFrameNotes && (
-                                <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+                                <p className="text-xs italic text-slate-500 dark:text-slate-400">
                                     AI 備註：{aiEndFrameNotes}
                                 </p>
                             )}
@@ -699,14 +731,13 @@ export function ImageGenerator({
                 </div>
             )}
 
-            {/* 尾幀預覽（如果需要） */}
             {shouldUseEndFrame && (
-                <div className="space-y-2 p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
+                <div className="surface-soft space-y-2 border-purple-200/70 p-4 dark:border-purple-800/70">
                     <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-purple-600 dark:bg-purple-400 rounded-full"></div>
+                        <div className="h-2 w-2 rounded-full bg-purple-600 dark:bg-purple-400"></div>
                         <h4 className="text-sm font-medium text-purple-700 dark:text-purple-300">尾幀 (End Frame)</h4>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400 italic">
+                    <p className="text-xs italic text-slate-600 dark:text-slate-400">
                         {scene.endFrameDescription || manualEndFrameDescription || '未提供尾幀描述，將沿用場景描述'}
                     </p>
                     <ImagePreview
@@ -718,22 +749,15 @@ export function ImageGenerator({
                 </div>
             )}
 
-            {/* 自訂提示詞區塊 */}
-            <div className="space-y-3">
+            <div className="surface-panel space-y-3 p-4">
                 <div className="flex items-center justify-between">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                        自訂提示詞 (選填)
-                    </label>
-
-                    {/* 模式選擇 */}
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">自訂提示詞 (選填)</label>
                     <div className="relative">
                         <select
                             value={promptMode}
-                            onChange={(e) => setPromptMode(e.target.value as 'append' | 'replace' | 'prepend')}
+                            onChange={(event) => setPromptMode(event.target.value as 'append' | 'replace' | 'prepend')}
                             disabled={isAnyGenerationLoading || !customPrompt}
-                            className="appearance-none pl-3 pr-8 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                                     text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-blue-600
-                                     disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                            className="appearance-none rounded-full border border-border/80 bg-white/75 py-1 pl-3 pr-8 text-xs text-slate-700 shadow-sm focus:border-primary/40 focus:outline-none dark:bg-slate-900/70 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             <option value="append">增強模式</option>
                             <option value="replace">覆蓋模式</option>
@@ -747,67 +771,57 @@ export function ImageGenerator({
                     </div>
                 </div>
 
-                {/* 模式說明 */}
                 {customPrompt && (
-                    <div className="p-2 bg-slate-50 dark:bg-slate-900/50 rounded border border-slate-200 dark:border-slate-800">
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {getModeDescription()}
-                        </p>
+                    <div className="surface-inset px-3 py-2">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{getModeDescription()}</p>
                     </div>
                 )}
 
                 <textarea
                     value={customPrompt}
-                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    onChange={(event) => setCustomPrompt(event.target.value)}
                     placeholder={getPlaceholder()}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg
-                   text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400
-                   focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600
-                   transition-colors resize-none"
+                    className="w-full resize-none rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground placeholder:text-slate-400 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                     rows={3}
                     disabled={isAnyGenerationLoading}
                 />
 
-                {/* 即時預覽最終 Prompt */}
                 {customPrompt && (
-                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                        <label className="text-xs text-blue-600 dark:text-blue-300 font-medium block mb-1">
+                    <div className="rounded-xl border border-blue-200 bg-blue-50/85 p-3 dark:border-blue-800 dark:bg-blue-900/20">
+                        <label className="mb-1 block text-xs font-medium text-blue-600 dark:text-blue-300">
                             最終提示詞預覽：
                         </label>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 italic leading-relaxed">
+                        <p className="text-xs italic leading-relaxed text-slate-600 dark:text-slate-300">
                             &quot;{buildImagePrompt()}&quot;
                         </p>
                     </div>
                 )}
             </div>
 
-            {/* 專案參考圖（來自分鏡階段） */}
             {styleProjectReferences.length > 0 && (
-                <div className="space-y-2">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                <div className="surface-panel space-y-2 p-4">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         風格參考圖（自動套用）
                     </label>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-3 gap-2 md:grid-cols-4">
                         {styleProjectReferences.map((ref) => {
                             const isActive = selectedStyleReferenceUrls.includes(ref.url);
                             return (
                                 <div
                                     key={ref.id}
-                                    className={`
-                                        relative rounded-lg overflow-hidden border-2
-                                        ${isActive
+                                    className={`relative overflow-hidden rounded-lg border-2 ${
+                                        isActive
                                             ? 'border-emerald-600'
-                                            : 'border-slate-200 dark:border-slate-700 opacity-60'
-                                        }
-                                    `}
+                                            : 'border-slate-200 opacity-60 dark:border-slate-700'
+                                    }`}
                                 >
                                     <img
                                         src={ref.url}
                                         alt={ref.description}
-                                        className="w-full h-16 object-cover"
+                                        className="h-16 w-full object-cover"
                                     />
-                                    <div className="absolute bottom-0 left-0 right-0 p-1 bg-black/70">
-                                        <p className="text-[10px] text-white truncate">
+                                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 p-1">
+                                        <p className="truncate text-[10px] text-white">
                                             {ref.name ? `<${ref.name}>` : 'style'}
                                         </p>
                                     </div>
@@ -822,84 +836,94 @@ export function ImageGenerator({
             )}
 
             {contentProjectReferences.length > 0 && (
-                <div className="space-y-3">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                        內容參考圖
-                    </label>
+                <div className="surface-panel space-y-3 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">內容參考圖</label>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setSelectedProjectRefs(contentProjectReferences.map((ref) => ref.id))}
+                                disabled={isAnyGenerationLoading}
+                                className="rounded-full border border-border/70 bg-white/70 px-2.5 py-1 text-xs text-slate-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900/60 dark:text-slate-200"
+                            >
+                                全選
+                            </button>
+                            <button
+                                onClick={() => setSelectedProjectRefs([])}
+                                disabled={isAnyGenerationLoading}
+                                className="rounded-full border border-border/70 bg-white/70 px-2.5 py-1 text-xs text-slate-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900/60 dark:text-slate-200"
+                            >
+                                清空
+                            </button>
+                        </div>
+                    </div>
                     <div className="grid grid-cols-3 gap-2">
                         {contentProjectReferences.map((ref) => (
                             <button
                                 key={ref.id}
                                 onClick={() => {
                                     if (selectedProjectRefs.includes(ref.id)) {
-                                        setSelectedProjectRefs(prev => prev.filter(id => id !== ref.id));
+                                        setSelectedProjectRefs((prev) => prev.filter((id) => id !== ref.id));
                                     } else {
-                                        setSelectedProjectRefs(prev => [...prev, ref.id]);
+                                        setSelectedProjectRefs((prev) => [...prev, ref.id]);
                                     }
                                 }}
                                 disabled={isAnyGenerationLoading}
-                                className={`
-                                    relative rounded-lg overflow-hidden border-2 transition-all
-                                    ${selectedProjectRefs.includes(ref.id)
-                                        ? 'border-blue-600 ring-2 ring-blue-600/30'
-                                        : 'border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-80'
-                                    }
-                                    disabled:cursor-not-allowed shadow-sm
-                                `}
+                                className={`relative overflow-hidden rounded-lg border-2 transition-all disabled:cursor-not-allowed ${
+                                    selectedProjectRefs.includes(ref.id)
+                                        ? 'border-primary ring-2 ring-primary/25'
+                                        : 'border-slate-200 opacity-60 hover:opacity-85 dark:border-slate-700'
+                                }`}
                             >
                                 <img
                                     src={ref.url}
                                     alt={ref.description}
-                                    className="w-full h-16 object-cover"
+                                    className="h-16 w-full object-cover"
                                 />
-                                <div className="absolute bottom-0 left-0 right-0 p-1 bg-black/70">
-                                    <p className="text-[10px] text-white truncate">
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/70 p-1">
+                                    <p className="truncate text-[10px] text-white">
                                         {ref.name ? `<${ref.name}>` : ref.type}
                                     </p>
                                 </div>
                                 {selectedProjectRefs.includes(ref.id) && (
-                                    <div className="absolute top-1 right-1 w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center">
-                                        <span className="text-white text-[10px]">✓</span>
+                                    <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                                        ✓
                                     </div>
                                 )}
                             </button>
                         ))}
                     </div>
                     <p className="text-xs text-slate-500">
-                        點擊選擇/取消要使用的參考圖（已選 {selectedProjectRefs.length}/{contentProjectReferences.length}）
+                        已選 {selectedProjectRefs.length}/{contentProjectReferences.length} 張
                     </p>
                 </div>
             )}
 
-            {/* 額外參考圖上傳 */}
-            <ReferenceUploader
-                value={referenceImage}
-                onChange={setReferenceImage}
-                disabled={isAnyGenerationLoading}
-            />
+            <div className="surface-panel p-4">
+                <ReferenceUploader
+                    value={referenceImage}
+                    onChange={setReferenceImage}
+                    disabled={isAnyGenerationLoading}
+                />
+            </div>
 
-            {/* 進階設定 */}
             <div className="space-y-3">
                 <button
                     onClick={() => setShowAdvanced(!showAdvanced)}
-                    className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 transition-colors"
+                    className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
                 >
-                    <Settings2 className="w-4 h-4" />
+                    <Settings2 className="h-4 w-4" />
                     進階設定
                 </button>
 
                 {showAdvanced && (
-                    <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-900/30 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <div className="surface-soft grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
                         <div className="space-y-2">
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                長寬比
-                            </label>
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">長寬比</label>
                             <select
                                 value={aspectRatio}
-                                onChange={(e) => setAspectRatio(e.target.value)}
+                                onChange={(event) => setAspectRatio(event.target.value)}
                                 disabled={isAnyGenerationLoading}
-                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                         text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                                className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                             >
                                 <option value="16:9">16:9 (橫向)</option>
                                 <option value="9:16">9:16 (直向)</option>
@@ -910,15 +934,12 @@ export function ImageGenerator({
                         </div>
 
                         <div className="space-y-2">
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                解析度
-                            </label>
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">解析度</label>
                             <select
                                 value={resolution}
-                                onChange={(e) => setResolution(e.target.value as '1K' | '2K' | '4K')}
+                                onChange={(event) => setResolution(event.target.value as '1K' | '2K' | '4K')}
                                 disabled={isAnyGenerationLoading}
-                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
-                         text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                                className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                             >
                                 <option value="1K">1K (快速)</option>
                                 <option value="2K">2K (推薦)</option>
@@ -929,50 +950,36 @@ export function ImageGenerator({
                 )}
             </div>
 
-            {/* 生成按鈕 */}
-            <div className="grid grid-cols-2 gap-3">
-                <button
+            <div className={`grid gap-3 ${shouldUseEndFrame ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <Button
+                    type="button"
                     onClick={() => handleGenerate(false)}
                     disabled={isAnyGenerationLoading}
-                    className="py-3 px-4 bg-blue-600 hover:bg-blue-700
-                     text-white font-medium rounded-lg
-                     disabled:opacity-50 disabled:cursor-not-allowed
-                     transition-all flex items-center justify-center gap-2 shadow-sm"
+                    className="h-11 w-full rounded-xl"
                 >
-                    {startGenerationLoading ? (
+                    {startGenerationLoading ? '生成首幀中...' : (
                         <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            生成中...
-                        </>
-                    ) : (
-                        <>
-                            <Sparkles className="w-5 h-5" />
+                            <Sparkles className="mr-2 h-4 w-4" />
                             生成首幀
                         </>
                     )}
-                </button>
+                </Button>
 
                 {shouldUseEndFrame && (
-                    <button
+                    <Button
+                        type="button"
+                        variant="outline"
                         onClick={() => handleGenerate(true)}
                         disabled={isAnyGenerationLoading}
-                        className="py-3 px-4 bg-purple-600 hover:bg-purple-700
-                         text-white font-medium rounded-lg
-                         disabled:opacity-50 disabled:cursor-not-allowed
-                         transition-all flex items-center justify-center gap-2 shadow-sm"
+                        className="h-11 w-full rounded-xl border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-900/20"
                     >
-                        {endGenerationLoading ? (
+                        {endGenerationLoading ? '生成尾幀中...' : (
                             <>
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                生成中...
-                            </>
-                        ) : (
-                            <>
-                                <Sparkles className="w-5 h-5" />
+                                <Sparkles className="mr-2 h-4 w-4" />
                                 生成尾幀
                             </>
                         )}
-                    </button>
+                    </Button>
                 )}
             </div>
         </div>

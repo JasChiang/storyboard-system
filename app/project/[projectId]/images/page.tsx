@@ -1,8 +1,8 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Sparkles, Grid3x3, List, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, ArrowRight, Sparkles, Grid3x3, List, Loader2, Search } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useProjectStore } from '@/stores/project-store';
@@ -10,6 +10,7 @@ import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator'
 import { ImageGenerator } from '@/components/image-generation/ImageGenerator';
 import { BatchImageGenerator } from '@/components/image-generation/BatchImageGenerator';
 import { StyleProfileSelector } from '@/components/image-generation/StyleProfileSelector';
+import { Button } from '@/components/ui/button';
 import { DEFAULT_STYLE_PROFILE_ID, findStyleProfileById } from '@/lib/constants/style-profiles';
 import { getWorkflowProgress } from '@/lib/project/workflow';
 import type { StyleProfile } from '@/lib/types/storyboard';
@@ -36,6 +37,7 @@ export default function ImagesPage() {
   const [selectedStyleProfileId, setSelectedStyleProfileId] = useState<string>(DEFAULT_STYLE_PROFILE_ID);
   const [customStyleProfiles, setCustomStyleProfiles] = useState<StyleProfile[]>([]);
   const [generationTasks, setGenerationTasks] = useState<WorkflowTask[]>([]);
+  const [sceneQuery, setSceneQuery] = useState('');
 
   useEffect(() => {
     setCurrentProject(projectId);
@@ -83,10 +85,22 @@ export default function ImagesPage() {
     setCustomStyleProfiles(currentProject.storyboard.customStyleProfiles || []);
   }, [currentProject?.storyboard]);
 
-  const scenes = currentProject?.storyboard?.scenes || [];
+  const scenes = useMemo(
+    () => currentProject?.storyboard?.scenes ?? [],
+    [currentProject?.storyboard?.scenes]
+  );
   const blockedScenes = scenes.filter((s) => s.qaStatus === 'block');
   const processableScenes = scenes.filter((s) => s.qaStatus !== 'block');
   const progress = getWorkflowProgress(currentProject);
+  const filteredScenes = useMemo(() => {
+    const query = sceneQuery.trim().toLowerCase();
+    if (!query) return scenes;
+    return scenes.filter((scene) => {
+      const normalizedSceneNo = String(scene.sceneNumber);
+      const normalizedDesc = scene.description.toLowerCase();
+      return normalizedSceneNo.includes(query) || normalizedDesc.includes(query);
+    });
+  }, [sceneQuery, scenes]);
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
   const latestImageTaskMap = useMemo(() => {
     const map = new Map<string, WorkflowTask>();
@@ -119,6 +133,12 @@ export default function ImagesPage() {
   const selectedSceneGenerationState = selectedScene
     ? getSceneGenerationState(selectedScene.id)
     : { isGeneratingStart: false, isGeneratingEnd: false };
+  const selectedSceneInFilterIndex = filteredScenes.findIndex((scene) => scene.id === selectedSceneId);
+  const generatedSceneCount = scenes.filter((scene) => scene.generatedImage).length;
+  const generatingSceneCount = scenes.filter((scene) => {
+    const state = getSceneGenerationState(scene.id);
+    return state.isGeneratingStart || state.isGeneratingEnd;
+  }).length;
 
   const selectedSceneIndex = scenes.findIndex(s => s.id === selectedSceneId);
   const previousScene = selectedSceneIndex > 0 ? scenes[selectedSceneIndex - 1] : null;
@@ -130,6 +150,59 @@ export default function ImagesPage() {
     : undefined;
   const selectedEffectiveStartFrameUrl = previousEndFrameUrl || selectedScene?.generatedImage?.url;
   const activeStyleProfile = findStyleProfileById(selectedStyleProfileId, customStyleProfiles);
+
+  const moveSelectedScene = useCallback((offset: -1 | 1) => {
+    if (filteredScenes.length === 0 || selectedSceneInFilterIndex === -1) return;
+    const targetIndex = selectedSceneInFilterIndex + offset;
+    if (targetIndex < 0 || targetIndex >= filteredScenes.length) return;
+
+    const targetScene = filteredScenes[targetIndex];
+    if (!targetScene || targetScene.qaStatus === 'block') return;
+    setSelectedSceneId(targetScene.id);
+  }, [filteredScenes, selectedSceneInFilterIndex]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+
+      if (event.key === 'ArrowUp' || event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        moveSelectedScene(-1);
+      }
+
+      if (event.key === 'ArrowDown' || event.key.toLowerCase() === 'j') {
+        event.preventDefault();
+        moveSelectedScene(1);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [moveSelectedScene]);
+
+  useEffect(() => {
+    if (filteredScenes.length === 0) return;
+    if (selectedSceneId && filteredScenes.some((scene) => scene.id === selectedSceneId)) return;
+
+    const firstAvailable = filteredScenes.find((scene) => scene.qaStatus !== 'block');
+    setSelectedSceneId(firstAvailable?.id || filteredScenes[0].id);
+  }, [filteredScenes, selectedSceneId]);
+
+  useEffect(() => {
+    if (scenes.length === 0) {
+      setSelectedSceneId(null);
+      return;
+    }
+
+    if (selectedSceneId && scenes.some((scene) => scene.id === selectedSceneId)) {
+      return;
+    }
+
+    const firstProcessableScene = scenes.find((scene) => scene.qaStatus !== 'block');
+    setSelectedSceneId(firstProcessableScene?.id || scenes[0].id);
+  }, [scenes, selectedSceneId]);
 
   const persistStyleSettings = (nextId: string, nextCustomProfiles: StyleProfile[]) => {
     if (!currentProject?.storyboard) return;
@@ -248,13 +321,12 @@ export default function ImagesPage() {
 
   if (!currentProject?.storyboard) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <p className="text-zinc-400">請先建立分鏡腳本</p>
+          <p className="text-muted-foreground">請先建立分鏡腳本</p>
           <Link
             href={`/project/${projectId}/storyboard`}
-            className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 
-                     text-white rounded-lg transition-colors"
+            className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             前往分鏡編輯
           </Link>
@@ -266,19 +338,20 @@ export default function ImagesPage() {
   return (
     <>
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-white/50 backdrop-blur-xl dark:bg-black/50 supports-[backdrop-filter]:bg-white/20">
+      <header className="app-header">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
                 href={`/project/${projectId}`}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                className="surface-soft rounded-lg p-2 transition-colors hover:border-primary/25"
               >
                 <ArrowLeft className="w-5 h-5 text-slate-500 dark:text-slate-400" />
               </Link>
               <div>
-                <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <p className="text-kicker">Image Generation</p>
+                <h1 className="text-xl font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-primary" />
                   分鏡圖片生成
                 </h1>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
@@ -288,14 +361,14 @@ export default function ImagesPage() {
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
+            <div className="surface-soft flex items-center gap-2 p-1">
               <button
                 onClick={() => setViewMode('individual')}
                 className={`
-                  px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                  rounded-full px-3 py-1.5 text-sm font-medium transition-all
                   flex items-center gap-2
                   ${viewMode === 'individual'
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-primary text-primary-foreground shadow-[0_10px_18px_-12px_hsl(var(--primary)/0.95)]'
                     : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                   }
                 `}
@@ -306,10 +379,10 @@ export default function ImagesPage() {
               <button
                 onClick={() => setViewMode('batch')}
                 className={`
-                  px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                  rounded-full px-3 py-1.5 text-sm font-medium transition-all
                   flex items-center gap-2
                   ${viewMode === 'batch'
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-primary text-primary-foreground shadow-[0_10px_18px_-12px_hsl(var(--primary)/0.95)]'
                     : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
                   }
                 `}
@@ -330,10 +403,27 @@ export default function ImagesPage() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto mb-6 space-y-3">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 p-4 backdrop-blur-sm">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="surface-soft p-4">
+              <p className="text-kicker">Image Progress</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{generatedSceneCount}/{scenes.length}</p>
+              <p className="mt-1 text-xs text-muted-foreground">已生成首幀的場景數</p>
+            </div>
+            <div className="surface-soft p-4">
+              <p className="text-kicker">In Queue</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{generatingSceneCount}</p>
+              <p className="mt-1 text-xs text-muted-foreground">目前正在生成（含尾幀）</p>
+            </div>
+            <div className="surface-soft p-4">
+              <p className="text-kicker">QA Blocked</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{blockedScenes.length}</p>
+              <p className="mt-1 text-xs text-muted-foreground">需先回分鏡修正的場景</p>
+            </div>
+          </div>
+          <div className="surface-soft p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Style Profile</p>
+                <p className="text-kicker">Style Profile</p>
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-1">
                   {activeStyleProfile?.name || '未設定'}
                 </p>
@@ -366,11 +456,33 @@ export default function ImagesPage() {
         {viewMode === 'individual' ? (
           <div className="grid grid-cols-12 gap-6">
             {/* Scene List */}
-            <div className="col-span-4 space-y-3">
-              <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 px-2">選擇場景</h2>
-              <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
-                {scenes.map((scene, idx) => {
-                  const prev = idx > 0 ? scenes[idx - 1] : null;
+            <div className="col-span-12 lg:col-span-4 space-y-3">
+              <div className="surface-soft p-3">
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300 px-1">選擇場景</p>
+                <div className="relative mt-2">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={sceneQuery}
+                    onChange={(e) => setSceneQuery(e.target.value)}
+                    placeholder="搜尋場景編號或描述..."
+                    className="w-full rounded-xl border border-border/70 bg-white/75 py-2 pl-9 pr-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/35 dark:bg-slate-900/65"
+                  />
+                </div>
+                <p className="mt-2 px-1 text-[11px] text-muted-foreground">
+                  快捷鍵：`↑/↓` 或 `j/k` 切換場景
+                </p>
+              </div>
+
+              <div className="space-y-2 max-h-[calc(100vh-230px)] overflow-y-auto pr-2">
+                {filteredScenes.length === 0 && (
+                  <div className="surface-soft p-5 text-center text-sm text-muted-foreground">
+                    沒有符合條件的場景
+                  </div>
+                )}
+                {filteredScenes.map((scene) => {
+                  const sourceIndex = scenes.findIndex((s) => s.id === scene.id);
+                  const prev = sourceIndex > 0 ? scenes[sourceIndex - 1] : null;
                   const inheritedStartUrl = prev?.transitionToNext?.useEndFrameAsNextStart
                     ? prev.generatedEndFrame?.url
                     : undefined;
@@ -378,96 +490,126 @@ export default function ImagesPage() {
                   const sceneGenerationState = getSceneGenerationState(scene.id);
                   const isSceneGenerating = sceneGenerationState.isGeneratingStart || sceneGenerationState.isGeneratingEnd;
                   return (
-                  <button
-                    key={scene.id}
-                    onClick={() => setSelectedSceneId(scene.id)}
-                    disabled={scene.qaStatus === 'block'}
-                    className={`
-                      w-full text-left p-4 rounded-lg border transition-all
-                      ${scene.qaStatus === 'block'
-                        ? 'opacity-60 cursor-not-allowed border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10'
-                        : ''}
-                      ${selectedSceneId === scene.id
-                        ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 ring-1 ring-blue-200 dark:ring-blue-800'
-                        : 'bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                      }
-                    `}
-                  >
-                    <div className="flex items-start gap-3 mb-2">
-                      <div className="w-20 h-14 rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0 bg-slate-100 dark:bg-slate-800">
-                        {sceneStartPreviewUrl ? (
-                          <div className="relative w-full h-full">
-                            <Image
-                              src={sceneStartPreviewUrl}
-                              alt={`場景 ${scene.sceneNumber}`}
-                              fill
-                              sizes="96px"
-                              className="object-cover"
-                              loading={selectedSceneId === scene.id ? 'eager' : 'lazy'}
-                              unoptimized
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Sparkles className="w-4 h-4 text-slate-300 dark:text-slate-600" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                            場景 {scene.sceneNumber}
-                          </span>
-                        {isSceneGenerating ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 rounded">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            生成中
-                          </span>
-                        ) : sceneStartPreviewUrl ? (
-                            <span className="text-[11px] px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 rounded">
-                              已生成
+                    <button
+                      key={scene.id}
+                      onClick={() => setSelectedSceneId(scene.id)}
+                      disabled={scene.qaStatus === 'block'}
+                      className={`
+                        w-full text-left p-4 rounded-lg border transition-all
+                        ${scene.qaStatus === 'block'
+                          ? 'opacity-60 cursor-not-allowed border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10'
+                          : ''}
+                        ${selectedSceneId === scene.id
+                          ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 ring-1 ring-blue-200 dark:ring-blue-800'
+                          : 'bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                        }
+                      `}
+                    >
+                      <div className="mb-2 flex items-start gap-3">
+                        <div className="h-14 w-20 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
+                          {sceneStartPreviewUrl ? (
+                            <div className="relative h-full w-full">
+                              <Image
+                                src={sceneStartPreviewUrl}
+                                alt={`場景 ${scene.sceneNumber}`}
+                                fill
+                                sizes="96px"
+                                className="object-cover"
+                                loading={selectedSceneId === scene.id ? 'eager' : 'lazy'}
+                                unoptimized
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center">
+                              <Sparkles className="h-4 w-4 text-slate-300 dark:text-slate-600" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                              場景 {scene.sceneNumber}
                             </span>
-                        ) : (
-                          <span className="text-[11px] px-2 py-0.5 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 rounded">
-                            未生成
+                            {isSceneGenerating ? (
+                              <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[11px] text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                生成中
+                              </span>
+                            ) : sceneStartPreviewUrl ? (
+                              <span className="rounded bg-green-100 px-2 py-0.5 text-[11px] text-green-700 dark:bg-green-500/20 dark:text-green-400">
+                                已生成
+                              </span>
+                            ) : (
+                              <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                                未生成
+                              </span>
+                            )}
+                            {scene.qaStatus === 'block' && (
+                              <span className="rounded bg-red-100 px-2 py-0.5 text-[11px] text-red-700 dark:bg-red-500/20 dark:text-red-300">
+                                QA 阻擋
+                              </span>
+                            )}
+                          </div>
+                          <p className="line-clamp-2 text-sm text-slate-500 dark:text-slate-400">
+                            {scene.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                          風格：{activeStyleProfile?.name || '預設'}
+                        </span>
+                        {sceneGenerationState.isGeneratingEnd ? (
+                          <span className="inline-flex items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[11px] text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            尾幀生成中
                           </span>
-                        )}
-                        {scene.qaStatus === 'block' && (
-                          <span className="text-[11px] px-2 py-0.5 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 rounded">
-                            QA 阻擋
+                        ) : scene.generatedEndFrame && (
+                          <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[11px] text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                            有尾幀
                           </span>
                         )}
                       </div>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
-                          {scene.description}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                        風格：{activeStyleProfile?.name || '預設'}
-                      </span>
-                      {sceneGenerationState.isGeneratingEnd ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          尾幀生成中
-                        </span>
-                      ) : scene.generatedEndFrame && (
-                        <span className="text-[11px] px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
-                          有尾幀
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
+                    </button>
+                  );
                 })}
               </div>
             </div>
 
             {/* Image Generator */}
-            <div className="col-span-8">
+            <div className="col-span-12 lg:col-span-8">
               {selectedScene ? (
                 <div className="space-y-4">
+                  <div className="surface-soft flex items-center justify-between p-3">
+                    <div>
+                      <p className="text-kicker">Scene Focus</p>
+                      <p className="mt-1 text-sm font-medium text-foreground">
+                        場景 {selectedScene.sceneNumber} · {selectedSceneInFilterIndex + 1}/{Math.max(filteredScenes.length, 1)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={selectedSceneInFilterIndex <= 0}
+                        onClick={() => moveSelectedScene(-1)}
+                      >
+                        <ArrowLeft className="mr-1 h-4 w-4" />
+                        上一個
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={selectedSceneInFilterIndex === -1 || selectedSceneInFilterIndex >= filteredScenes.length - 1}
+                        onClick={() => moveSelectedScene(1)}
+                      >
+                        下一個
+                        <ArrowRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                   {selectedScene.qaStatus === 'block' && (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
                       此場景被 QA 阻擋，請先回「分鏡腳本」修正或使用單場景重生，再生成圖片。

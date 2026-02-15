@@ -12,20 +12,19 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium mb-1.5 text-slate-700 dark:text-slate-300">
+          <label className="mb-1.5 block text-sm font-medium text-muted-foreground">
             {label}
           </label>
         )}
         <select
           ref={ref}
           className={clsx(
-            'w-full px-3 py-2 border rounded-lg',
-            'bg-white dark:bg-slate-800',
-            'border-slate-300 dark:border-slate-600',
-            'text-slate-900 dark:text-slate-100',
-            'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-            'disabled:opacity-50 disabled:cursor-not-allowed',
-            error && 'border-red-500 focus:ring-red-500',
+            'w-full rounded-xl border px-3.5 py-2.5 text-sm',
+            'border-border/80 bg-white/72 text-foreground shadow-[0_10px_20px_-14px_rgba(15,23,42,0.45)] backdrop-blur-lg',
+            'dark:bg-slate-900/65',
+            'focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/40',
+            'disabled:cursor-not-allowed disabled:opacity-55',
+            error && 'border-destructive/70 focus:ring-destructive/35 focus:border-destructive/60',
             className
           )}
           {...props}
@@ -37,7 +36,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ))}
         </select>
         {error && (
-          <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p className="mt-1 text-sm text-destructive">{error}</p>
         )}
       </div>
     );

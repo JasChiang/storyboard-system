@@ -79,8 +79,9 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
   const selectedTemplate = TEMPLATES.find(t => t.id === templateId);
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
-      <h2 className="text-2xl font-bold mb-4">故事需求輸入</h2>
+    <div className="surface-panel p-6">
+      <p className="text-kicker">Story Input</p>
+      <h2 className="mb-4 mt-2 text-2xl font-semibold tracking-tight">故事需求輸入</h2>
 
       <div className="space-y-4">
         <Select
@@ -97,8 +98,8 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
         />
 
         {selectedTemplate && (
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
+          <div className="surface-inset border border-primary/15 p-3">
+            <p className="text-sm text-primary dark:text-sky-200">
               {selectedTemplate.description}
             </p>
           </div>
@@ -141,16 +142,15 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
 
         {/* 參考圖提示 */}
         {references.length > 0 && (
-          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-            <p className="text-sm text-green-800 dark:text-green-200">
+          <div className="surface-inset border border-emerald-200/60 p-3 dark:border-emerald-500/25">
+            <p className="text-sm text-emerald-700 dark:text-emerald-300">
               ✅ 已設定 {references.length} 張參考圖。AI 生成的分鏡描述會使用 &lt;角色名&gt; 或 &lt;商品名&gt; 格式標記，不會重複描述外觀。
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {references.map(ref => (
                 <span
                   key={ref.id}
-                  className="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-slate-800
-                           text-xs rounded border border-green-300 dark:border-green-700"
+                  className="inline-flex items-center gap-1 rounded-full border border-emerald-300/70 bg-white px-2.5 py-1 text-xs dark:border-emerald-500/30 dark:bg-slate-900/60"
                 >
                   {ref.name ? `<${ref.name}>` : ref.type}
                   {ref.descriptionSource === 'ai' && ' 🤖'}

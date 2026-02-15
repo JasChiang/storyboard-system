@@ -14,7 +14,7 @@ interface StoryboardTableProps {
 export function StoryboardTable({ scenes, onUpdateScene, onDeleteScene, onRegenerateScene, isRegeneratingSceneId }: StoryboardTableProps) {
   if (scenes.length === 0) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-12 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div className="surface-panel p-12">
         <div className="text-center text-slate-500 dark:text-slate-400">
           <p className="text-lg font-semibold text-slate-700 dark:text-slate-200">尚未生成分鏡腳本</p>
           <p className="mt-2 text-sm">請在上方輸入故事需求並生成</p>
@@ -24,11 +24,12 @@ export function StoryboardTable({ scenes, onUpdateScene, onDeleteScene, onRegene
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
-      <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-5 dark:border-slate-700 dark:from-slate-900/60 dark:to-slate-800/40">
+    <div className="surface-panel overflow-hidden">
+      <div className="border-b border-border/70 bg-gradient-to-r from-white/80 via-slate-50/70 to-white/70 px-6 py-5 dark:from-slate-900/60 dark:to-slate-800/40">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">分鏡腳本</h2>
+            <p className="text-kicker">Storyboard Table</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">分鏡腳本</h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
               已生成 {scenes.length} 個場景，可逐場編輯內容與轉場設定
             </p>

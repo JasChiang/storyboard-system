@@ -76,12 +76,13 @@ export default function CharacterLibraryPage() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-white/50 backdrop-blur-xl dark:bg-black/50 supports-[backdrop-filter]:bg-white/20">
+      <header className="app-header">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">角色庫</h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
+              <p className="text-kicker">Character Library</p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight">角色庫</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
                 管理可重複使用的 IP 角色、商品與風格參考
               </p>
             </div>
@@ -97,7 +98,7 @@ export default function CharacterLibraryPage() {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
           {/* 工具栏 */}
-          <div className="mb-6 space-y-4">
+          <div className="surface-panel mb-6 space-y-4 p-5">
             <div className="flex items-center gap-3">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -106,9 +107,7 @@ export default function CharacterLibraryPage() {
                   placeholder="搜尋角色名稱或標籤..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-slate-600
-                           rounded-lg bg-white dark:bg-slate-800
-                           focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-xl border border-border/80 bg-white/72 py-2.5 pl-10 pr-4 text-sm text-foreground shadow-[0_10px_24px_-18px_rgba(15,23,42,0.5)] backdrop-blur-lg focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/40 dark:bg-slate-900/65"
                 />
               </div>
               <Button onClick={() => setShowCreateDialog(true)}>
@@ -124,10 +123,10 @@ export default function CharacterLibraryPage() {
                   key={opt.value}
                   onClick={() => setFilterType(opt.value as typeof filterType)}
                   className={`
-                    px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                    rounded-full border px-4 py-2 text-sm font-medium transition-all
                     ${filterType === opt.value
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      ? 'border-primary/20 bg-primary text-primary-foreground shadow-[0_14px_26px_-18px_hsl(var(--primary)/0.95)]'
+                      : 'border-border/70 bg-white/65 text-slate-700 hover:border-primary/25 hover:text-primary dark:bg-slate-900/60 dark:text-slate-300'
                     }
                   `}
                 >
@@ -139,7 +138,7 @@ export default function CharacterLibraryPage() {
 
           {/* 角色列表 */}
           {filteredCharacters.length === 0 ? (
-            <div className="text-center py-16">
+            <div className="surface-panel py-16 text-center">
               <ImageIcon className="w-16 h-16 mx-auto text-slate-300 dark:text-slate-600 mb-4" />
               <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 {searchQuery || filterType !== 'all' ? '沒有找到匹配的角色' : '角色庫為空'}
@@ -202,7 +201,7 @@ function CharacterCard({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-lg transition-shadow">
+    <div className="surface-panel overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-primary/25">
       {/* 主圖 */}
       {frontView && (
         <div className="relative aspect-video bg-slate-100 dark:bg-slate-900">
@@ -214,13 +213,13 @@ function CharacterCard({
           <div className="absolute top-2 right-2 flex gap-1">
             <button
               onClick={() => onEdit(character.id)}
-              className="p-1.5 bg-white/90 hover:bg-white rounded-lg transition-colors"
+              className="rounded-lg bg-white/90 p-1.5 transition-colors hover:bg-white"
             >
               <Edit className="w-4 h-4 text-slate-700" />
             </button>
             <button
               onClick={() => onDelete(character.id)}
-              className="p-1.5 bg-white/90 hover:bg-white rounded-lg transition-colors"
+              className="rounded-lg bg-white/90 p-1.5 transition-colors hover:bg-white"
             >
               <Trash2 className="w-4 h-4 text-red-600" />
             </button>
@@ -245,13 +244,13 @@ function CharacterCard({
 
         {character.ipProfile && (
           <div className="mb-3 flex flex-wrap gap-1.5">
-            <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-700 dark:text-slate-200">
               IP v{character.ipProfile.profileVersion}
             </span>
-            <span className="text-[11px] px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
               {character.ipProfile.strictIdentity ? '強一致' : '彈性一致'}
             </span>
-            <span className="text-[11px] px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
               {character.ipProfile.generationDefaults?.preferredVideoModel === 'seedance' ? 'Seedance' : 'Kling'} 預設
             </span>
           </div>

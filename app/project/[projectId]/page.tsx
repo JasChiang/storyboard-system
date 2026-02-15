@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useProjectStore } from '@/stores/project-store';
-import { Clapperboard, ArrowLeft, Image, Video, FileCode } from 'lucide-react';
+import { Clapperboard, ArrowLeft, ArrowRight, Image, Video, FileCode } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -41,6 +41,7 @@ export default function ProjectPage() {
       description: '生成和編輯分鏡腳本',
       href: `/project/${projectId}/storyboard`,
       available: true,
+      completed: progress.hasStoryboard,
       color: 'text-blue-500',
       bg: 'bg-blue-500/10',
     },
@@ -51,6 +52,7 @@ export default function ProjectPage() {
       description: `為每個場景生成分鏡圖片 (${progress.scenesWithImages}/${progress.totalScenes})`,
       href: `/project/${projectId}/images`,
       available: progress.hasStoryboard,
+      completed: progress.hasImages,
       color: 'text-blue-500',
       bg: 'bg-blue-500/10',
     },
@@ -61,6 +63,7 @@ export default function ProjectPage() {
       description: `將分鏡圖轉換為動態影片 (${progress.scenesWithVideos}/${progress.totalScenes})`,
       href: `/project/${projectId}/videos`,
       available: progress.hasImages,
+      completed: progress.hasVideos,
       color: 'text-orange-500',
       bg: 'bg-orange-500/10',
     },
@@ -71,27 +74,30 @@ export default function ProjectPage() {
       description: 'AI 建議 + OpenReel / FFmpeg / Blender',
       href: `/project/${projectId}/export`,
       available: progress.hasVideos,
+      completed: currentProject.status === 'complete' || Boolean(currentProject.editingSuggestions),
       color: 'text-green-500',
       bg: 'bg-green-500/10',
     },
   ];
+  const nextStep = steps.find((step) => step.available && !step.completed) || steps[steps.length - 1];
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-white/50 backdrop-blur-xl dark:bg-black/50 supports-[backdrop-filter]:bg-white/20">
+      <header className="app-header">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <Link href="/">
-              <Button variant="ghost" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="gap-2">
                 <ArrowLeft className="w-4 h-4" />
                 返回
               </Button>
             </Link>
             <div className="h-6 w-px bg-border/60" />
             <div>
-              <h1 className="text-xl font-bold tracking-tight">{currentProject.name}</h1>
+              <p className="text-kicker">Project</p>
+              <h1 className="text-xl font-semibold tracking-tight">{currentProject.name}</h1>
               {currentProject.description && (
-                <p className="text-sm text-muted-foreground">
+                <p className="mt-0.5 text-sm text-muted-foreground">
                   {currentProject.description}
                 </p>
               )}
@@ -108,11 +114,21 @@ export default function ProjectPage() {
 
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-5xl mx-auto">
-          <div className="mb-10 text-center">
-            <h2 className="text-3xl font-bold tracking-tight mb-4">製作流程</h2>
+          <div className="surface-hero mb-8 text-center">
+            <p className="text-kicker">Production Workflow</p>
+            <h2 className="mb-4 mt-3 text-3xl font-semibold tracking-tight">製作流程</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
               按照以下步驟，完成從分鏡腳本到影片生成的完整創作流程。
             </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <Badge variant="outline">已完成 {steps.filter((step) => step.completed).length}/4 步驟</Badge>
+              <Link href={nextStep.href}>
+                <Button size="sm">
+                  接續流程：{nextStep.title}
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -123,18 +139,18 @@ export default function ProjectPage() {
                   key={step.id}
                   href={step.href}
                   className={cn(
-                    "block group relative overflow-hidden rounded-2xl border border-border/50 bg-card/50 p-1 transition-all hover:bg-muted/50 hover:shadow-lg hover:border-primary/20",
+                    "surface-panel block group relative overflow-hidden p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/25",
                     !step.available && "pointer-events-none opacity-60 grayscale"
                   )}
                 >
-                  <div className="relative h-full rounded-xl bg-background/50 p-6 transition-colors group-hover:bg-background/80">
-                    <div className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-colors">
+                  <div className="relative h-full">
+                    <div className="surface-inset absolute right-0 top-0 flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-muted-foreground transition-colors group-hover:text-primary">
                       {index + 1}
                     </div>
 
                     <div className="flex items-start gap-4">
                       <div className={cn(
-                        "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-110",
+                        "surface-inset flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-110",
                         step.bg,
                         step.color
                       )}>
@@ -146,7 +162,17 @@ export default function ProjectPage() {
                           <h3 className="text-lg font-semibold tracking-tight text-foreground group-hover:text-primary transition-colors">
                             {step.title}
                           </h3>
-                          {!step.available && (
+                          {step.completed && (
+                            <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0 border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-300">
+                              已完成
+                            </Badge>
+                          )}
+                          {!step.completed && step.available && (
+                            <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0 border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-900/20 dark:text-blue-300">
+                              進行中
+                            </Badge>
+                          )}
+                          {!step.available && !step.completed && (
                             <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0 bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-900">
                               待解鎖
                             </Badge>

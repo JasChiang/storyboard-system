@@ -328,17 +328,37 @@ export function CharacterCreateDialog({
     }
   };
 
+  const uploadedAngleSet = new Set(views.map((view) => view.angle));
+  const missingAngles = ANGLE_OPTIONS.filter((angle) => !uploadedAngleSet.has(angle.value));
+  const requiredFieldsReady = name.trim().length > 0 && views.length > 0;
+  const formProgress = Math.min(
+    100,
+    (name.trim() ? 30 : 0)
+    + (description.trim() ? 20 : 0)
+    + (guidelines.trim() ? 10 : 0)
+    + (views.length > 0 ? 25 : 0)
+    + (tags.length > 0 ? 15 : 0)
+  );
+  const selectedTypeOption = TYPE_OPTIONS.find((option) => option.value === type);
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+      <div className="surface-panel flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden border border-white/90 dark:border-white/10">
         {/* 標題列 */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-          <h2 className="text-2xl font-bold">
-            {editingCharacter ? '編輯角色' : '新增角色'}
-          </h2>
+        <div className="flex items-start justify-between border-b border-border/70 p-6">
+          <div>
+            <p className="text-kicker">Character Profile</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+              {editingCharacter ? '編輯角色' : '新增角色'}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {selectedTypeOption?.label} · {selectedTypeOption?.hint}
+            </p>
+          </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            className="rounded-full border border-border/70 bg-white/70 p-2 text-slate-600 transition-colors hover:bg-white hover:text-slate-900 dark:bg-slate-900/65 dark:text-slate-300"
+            aria-label="關閉"
           >
             <X className="w-5 h-5" />
           </button>
@@ -346,8 +366,29 @@ export function CharacterCreateDialog({
 
         {/* 內容區（可捲動） */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="surface-inset px-3 py-2">
+              <p className="text-xs text-slate-500">完成度</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{formProgress}%</p>
+            </div>
+            <div className="surface-inset px-3 py-2">
+              <p className="text-xs text-slate-500">已上傳視角</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+                {views.length}/{ANGLE_OPTIONS.length}
+              </p>
+            </div>
+            <div className="surface-inset px-3 py-2">
+              <p className="text-xs text-slate-500">待補視角</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {missingAngles.length > 0
+                  ? missingAngles.slice(0, 3).map((angle) => angle.label).join(' / ')
+                  : '已完整'}
+              </p>
+            </div>
+          </div>
+
           {/* 基本資訊 */}
-          <div className="space-y-4">
+          <div className="surface-soft space-y-4 p-5">
             <div>
               <label className="block text-sm font-medium mb-2">名稱 *</label>
               <input
@@ -362,7 +403,7 @@ export function CharacterCreateDialog({
 
             <div>
               <label className="block text-sm font-medium mb-2">類型 *</label>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {TYPE_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
@@ -617,9 +658,9 @@ export function CharacterCreateDialog({
           </div>
 
           {/* 視角圖片上傳 */}
-          <div>
+          <div className="surface-soft p-5">
             <label className="block text-sm font-medium mb-3">視角圖片 *</label>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               {ANGLE_OPTIONS.map(angle => {
                 const existingView = views.find(v => v.angle === angle.value);
 
@@ -693,16 +734,21 @@ export function CharacterCreateDialog({
         </div>
 
         {/* 底部按鈕 */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-700">
-          <Button variant="outline" onClick={onClose}>
-            取消
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!name.trim() || views.length === 0 || isUploading || isGeneratingDescription || isGeneratingGuidelines}
-          >
-            {editingCharacter ? '保存修改' : '建立角色'}
-          </Button>
+        <div className="flex items-center justify-between gap-3 border-t border-border/70 p-6">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {requiredFieldsReady ? '可儲存' : '至少需填寫名稱並上傳一張視角圖'}
+          </p>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={onClose}>
+              取消
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={!name.trim() || views.length === 0 || isUploading || isGeneratingDescription || isGeneratingGuidelines}
+            >
+              {editingCharacter ? '保存修改' : '建立角色'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

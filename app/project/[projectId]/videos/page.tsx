@@ -1,14 +1,15 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Film, CheckCircle2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, ArrowRight, Film, CheckCircle2, Search } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useProjectStore } from '@/stores/project-store';
 import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator';
 import { getWorkflowProgress } from '@/lib/project/workflow';
 import { VideoGenerator } from '@/components/video-generation/VideoGenerator';
+import { Button } from '@/components/ui/button';
 
 type VideoModel = 'kling' | 'seedance';
 
@@ -18,19 +19,98 @@ export default function VideosPage() {
 
   const { currentProject, setCurrentProject, updateProject } = useProjectStore();
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
+  const [sceneQuery, setSceneQuery] = useState('');
 
   useEffect(() => {
     setCurrentProject(projectId);
   }, [projectId, setCurrentProject]);
 
-  const scenes = currentProject?.storyboard?.scenes || [];
+  const scenes = useMemo(
+    () => currentProject?.storyboard?.scenes ?? [],
+    [currentProject?.storyboard?.scenes]
+  );
   const blockedScenes = scenes.filter((s) => s.qaStatus === 'block');
   const progress = getWorkflowProgress(currentProject);
+  const filteredScenes = useMemo(() => {
+    const query = sceneQuery.trim().toLowerCase();
+    if (!query) return scenes;
+    return scenes.filter((scene) => {
+      const normalizedSceneNo = String(scene.sceneNumber);
+      const normalizedDesc = scene.description.toLowerCase();
+      return normalizedSceneNo.includes(query) || normalizedDesc.includes(query);
+    });
+  }, [sceneQuery, scenes]);
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
 
   // 統計資訊
   const scenesWithImages = scenes.filter(s => s.generatedImage);
   const scenesWithVideos = scenes.filter(s => s.generatedVideo);
+  const selectedSceneInFilterIndex = filteredScenes.findIndex((scene) => scene.id === selectedSceneId);
+  const hasEffectiveStartFrame = useCallback((sceneId: string) => {
+    const sceneIndex = scenes.findIndex((scene) => scene.id === sceneId);
+    if (sceneIndex === -1) return false;
+    const scene = scenes[sceneIndex];
+    const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
+    const previousEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
+      ? previousScene.generatedEndFrame?.url
+      : undefined;
+
+    return Boolean(previousEndFrameUrl || scene.generatedImage?.url);
+  }, [scenes]);
+
+  useEffect(() => {
+    if (scenes.length === 0) {
+      setSelectedSceneId(null);
+      return;
+    }
+
+    if (selectedSceneId && scenes.some((scene) => scene.id === selectedSceneId)) {
+      return;
+    }
+
+    const firstReadyScene = scenes.find((scene) => scene.qaStatus !== 'block' && hasEffectiveStartFrame(scene.id));
+    setSelectedSceneId(firstReadyScene?.id || null);
+  }, [hasEffectiveStartFrame, scenes, selectedSceneId]);
+
+  const moveSelectedScene = useCallback((offset: -1 | 1) => {
+    if (filteredScenes.length === 0 || selectedSceneInFilterIndex === -1) return;
+    const targetIndex = selectedSceneInFilterIndex + offset;
+    if (targetIndex < 0 || targetIndex >= filteredScenes.length) return;
+
+    const targetScene = filteredScenes[targetIndex];
+    if (!targetScene) return;
+    if (targetScene.qaStatus === 'block' || !hasEffectiveStartFrame(targetScene.id)) return;
+    setSelectedSceneId(targetScene.id);
+  }, [filteredScenes, hasEffectiveStartFrame, selectedSceneInFilterIndex]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+
+      if (event.key === 'ArrowUp' || event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        moveSelectedScene(-1);
+      }
+
+      if (event.key === 'ArrowDown' || event.key.toLowerCase() === 'j') {
+        event.preventDefault();
+        moveSelectedScene(1);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [moveSelectedScene]);
+
+  useEffect(() => {
+    if (filteredScenes.length === 0) return;
+    if (selectedSceneId && filteredScenes.some((scene) => scene.id === selectedSceneId)) return;
+
+    const firstReadyInFilter = filteredScenes.find((scene) => scene.qaStatus !== 'block' && hasEffectiveStartFrame(scene.id));
+    setSelectedSceneId(firstReadyInFilter?.id || null);
+  }, [filteredScenes, hasEffectiveStartFrame, selectedSceneId]);
 
   const handleVideoGenerated = (
     sceneId: string,
@@ -96,13 +176,12 @@ export default function VideosPage() {
 
   if (!currentProject?.storyboard) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <p className="text-zinc-400">請先建立分鏡腳本</p>
+          <p className="text-muted-foreground">請先建立分鏡腳本</p>
           <Link
             href={`/project/${projectId}/storyboard`}
-            className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 
-                     text-white rounded-lg transition-colors"
+            className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             前往分鏡編輯
           </Link>
@@ -114,19 +193,20 @@ export default function VideosPage() {
   return (
     <>
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-white/50 backdrop-blur-xl dark:bg-black/50 supports-[backdrop-filter]:bg-white/20">
+      <header className="app-header">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
                 href={`/project/${projectId}`}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                className="surface-soft rounded-lg p-2 transition-colors hover:border-primary/25"
               >
                 <ArrowLeft className="w-5 h-5 text-slate-500 dark:text-slate-400" />
               </Link>
               <div>
-                <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Film className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <p className="text-kicker">Video Generation</p>
+                <h1 className="text-xl font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Film className="w-5 h-5 text-primary" />
                   影片生成
                 </h1>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
@@ -161,12 +241,49 @@ export default function VideosPage() {
       />
 
       <main className="container mx-auto px-4 py-8">
+        <div className="mb-6 grid gap-3 sm:grid-cols-3">
+          <div className="surface-soft p-4">
+            <p className="text-kicker">Image Ready</p>
+            <p className="mt-2 text-2xl font-semibold text-foreground">{scenesWithImages.length}/{scenes.length}</p>
+            <p className="mt-1 text-xs text-muted-foreground">可用於影片生成的場景</p>
+          </div>
+          <div className="surface-soft p-4">
+            <p className="text-kicker">Video Done</p>
+            <p className="mt-2 text-2xl font-semibold text-foreground">{scenesWithVideos.length}/{scenes.length}</p>
+            <p className="mt-1 text-xs text-muted-foreground">已完成的影片場景</p>
+          </div>
+          <div className="surface-soft p-4">
+            <p className="text-kicker">QA Blocked</p>
+            <p className="mt-2 text-2xl font-semibold text-foreground">{blockedScenes.length}</p>
+            <p className="mt-1 text-xs text-muted-foreground">需先回分鏡處理的場景</p>
+          </div>
+        </div>
         <div className="grid grid-cols-12 gap-6">
           {/* Scene List */}
-          <div className="col-span-4 space-y-3">
-            <h2 className="text-sm font-medium text-slate-500 dark:text-slate-400 px-2">選擇場景</h2>
-            <div className="space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
-              {scenes.map((scene) => {
+          <div className="col-span-12 lg:col-span-4 space-y-3">
+            <div className="surface-soft p-3">
+              <p className="px-1 text-sm font-medium text-slate-600 dark:text-slate-300">選擇場景</p>
+              <div className="relative mt-2">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={sceneQuery}
+                  onChange={(e) => setSceneQuery(e.target.value)}
+                  placeholder="搜尋場景編號或描述..."
+                  className="w-full rounded-xl border border-border/70 bg-white/75 py-2 pl-9 pr-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/35 dark:bg-slate-900/65"
+                />
+              </div>
+              <p className="mt-2 px-1 text-[11px] text-muted-foreground">
+                快捷鍵：`↑/↓` 或 `j/k` 切換場景
+              </p>
+            </div>
+            <div className="space-y-2 max-h-[calc(100vh-230px)] overflow-y-auto pr-2">
+              {filteredScenes.length === 0 && (
+                <div className="surface-soft p-5 text-center text-sm text-muted-foreground">
+                  沒有符合條件的場景
+                </div>
+              )}
+              {filteredScenes.map((scene) => {
                 const sceneIndex = scenes.findIndex((s) => s.id === scene.id);
                 const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
                 const previousEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
@@ -175,15 +292,16 @@ export default function VideosPage() {
                 const effectiveStartFrameUrl = previousEndFrameUrl || scene.generatedImage?.url;
                 const hasImage = !!effectiveStartFrameUrl;
                 const hasVideo = !!scene.generatedVideo;
+                const isLocked = scene.qaStatus === 'block' || !hasImage;
 
                 return (
                   <button
                     key={scene.id}
                     onClick={() => setSelectedSceneId(scene.id)}
-                    disabled={scene.qaStatus === 'block'}
+                    disabled={isLocked}
                     className={`
                       w-full text-left p-4 rounded-lg border transition-all
-                      ${scene.qaStatus === 'block'
+                      ${isLocked
                         ? 'opacity-60 cursor-not-allowed border-red-200 bg-red-50/50 dark:border-red-900/40 dark:bg-red-900/10'
                         : ''}
                       ${selectedSceneId === scene.id
@@ -192,35 +310,38 @@ export default function VideosPage() {
                       }
                     `}
                   >
-                    <div className="flex items-start justify-between mb-2">
+                    <div className="mb-2 flex items-start justify-between">
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                         場景 {scene.sceneNumber}
                       </span>
                       <div className="flex items-center gap-1">
                         {hasImage && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-blue-400"
-                            title="已生成圖片" />
+                          <div className="h-1.5 w-1.5 rounded-full bg-blue-400" title="已生成圖片" />
                         )}
                         {hasVideo && (
                           <div title="已生成影片">
-                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
                           </div>
                         )}
                       </div>
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 mb-2">
+                    <p className="mb-2 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">
                       {scene.description}
                     </p>
                     {scene.qaStatus === 'block' && (
-                      <p className="text-xs text-red-600 dark:text-red-300 mb-2">
+                      <p className="mb-2 text-xs text-red-600 dark:text-red-300">
                         QA 阻擋：請先回分鏡頁修正或重生此場景
                       </p>
                     )}
+                    {!hasImage && scene.qaStatus !== 'block' && (
+                      <p className="mb-2 text-xs text-amber-700 dark:text-amber-300">
+                        尚未有首幀圖片，請先到圖片頁生成
+                      </p>
+                    )}
 
-                    {/* 預覽縮圖 */}
                     {effectiveStartFrameUrl && (
                       <div className="space-y-1.5">
-                        <div className="relative aspect-video rounded overflow-hidden border border-slate-200 dark:border-slate-700">
+                        <div className="relative aspect-video overflow-hidden rounded border border-slate-200 dark:border-slate-700">
                           <Image
                             src={effectiveStartFrameUrl}
                             alt={`Scene ${scene.sceneNumber}`}
@@ -238,11 +359,11 @@ export default function VideosPage() {
                         )}
                         {scene.generatedEndFrame && (
                           <>
-                            <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium flex items-center gap-1">
-                              <span className="inline-block w-1 h-1 bg-purple-600 dark:bg-purple-400 rounded-full"></span>
+                            <p className="flex items-center gap-1 text-[10px] font-medium text-purple-600 dark:text-purple-400">
+                              <span className="inline-block h-1 w-1 rounded-full bg-purple-600 dark:bg-purple-400"></span>
                               尾幀
                             </p>
-                            <div className="relative aspect-video rounded overflow-hidden border border-purple-200 dark:border-purple-700">
+                            <div className="relative aspect-video overflow-hidden rounded border border-purple-200 dark:border-purple-700">
                               <Image
                                 src={scene.generatedEndFrame.url}
                                 alt={`Scene ${scene.sceneNumber} End Frame`}
@@ -264,7 +385,7 @@ export default function VideosPage() {
           </div>
 
           {/* Video Generator */}
-          <div className="col-span-8">
+          <div className="col-span-12 lg:col-span-8">
             {selectedScene ? (() => {
               // 計算 previousEndFrameUrl（用於 continuation 轉場）
               const sceneIndex = scenes.findIndex(s => s.id === selectedSceneId);
@@ -275,6 +396,36 @@ export default function VideosPage() {
 
               return (
                 <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
+                  <div className="surface-soft mb-4 flex items-center justify-between p-3">
+                    <div>
+                      <p className="text-kicker">Scene Focus</p>
+                      <p className="mt-1 text-sm font-medium text-foreground">
+                        場景 {selectedScene.sceneNumber} · {selectedSceneInFilterIndex + 1}/{Math.max(filteredScenes.length, 1)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={selectedSceneInFilterIndex <= 0}
+                        onClick={() => moveSelectedScene(-1)}
+                      >
+                        <ArrowLeft className="mr-1 h-4 w-4" />
+                        上一個
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={selectedSceneInFilterIndex === -1 || selectedSceneInFilterIndex >= filteredScenes.length - 1}
+                        onClick={() => moveSelectedScene(1)}
+                      >
+                        下一個
+                        <ArrowRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                   {selectedScene.qaStatus === 'block' && (
                     <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
                       此場景被 QA 阻擋，請先回「分鏡腳本」修正或單場景重生。

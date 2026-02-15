@@ -3,92 +3,123 @@
 
 @layer base {
   :root {
-    /* New color palette based on user's storyboard colors */
-    --background: 60 20% 96%;
-    /* #F5F5F0 cream white */
-    --foreground: 200 25% 22%;
-    /* #36454A dark teal */
+    --background: 220 20% 97%;
+    --foreground: 225 22% 13%;
 
     --card: 0 0% 100%;
-    --card-foreground: 200 25% 22%;
+    --card-foreground: 225 22% 13%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 200 25% 22%;
+    --popover-foreground: 225 22% 13%;
 
-    --primary: 204 64% 22%;
-    /* #143A5A deep blue */
-    --primary-foreground: 60 20% 96%;
+    --primary: 223 47% 19%;
+    --primary-foreground: 210 20% 98%;
 
-    --secondary: 182 26% 50%;
-    /* #5F9EA0 teal/cadet blue */
-    --secondary-foreground: 60 20% 96%;
+    --secondary: 220 16% 93%;
+    --secondary-foreground: 225 22% 18%;
 
-    --muted: 30 33% 69%;
-    /* #D2B48C tan/beige */
-    --muted-foreground: 207 18% 26%;
-    /* #36454F dark gray */
+    --muted: 220 19% 94%;
+    --muted-foreground: 223 11% 41%;
 
-    --accent: 25 100% 40%;
-    /* #CC5500 orange accent */
-    --accent-foreground: 60 20% 96%;
+    --accent: 205 82% 46%;
+    --accent-foreground: 210 20% 98%;
 
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 359 72% 53%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 182 20% 75%;
-    --input: 182 20% 85%;
-    --ring: 204 64% 22%;
+    --border: 220 15% 84%;
+    --input: 220 19% 91%;
+    --ring: 205 82% 46%;
 
-    --radius: 0.75rem;
+    --radius: 1.1rem;
   }
 
   .dark {
-    --background: 207 18% 26%;
-    /* #36454F dark gray */
-    --foreground: 60 20% 96%;
-    /* #F5F5F0 cream white */
+    --background: 223 24% 9%;
+    --foreground: 216 17% 91%;
 
-    --card: 200 25% 22%;
-    /* #36454A dark teal */
-    --card-foreground: 60 20% 96%;
+    --card: 223 22% 12%;
+    --card-foreground: 216 17% 91%;
 
-    --popover: 200 25% 22%;
-    --popover-foreground: 60 20% 96%;
+    --popover: 223 22% 12%;
+    --popover-foreground: 216 17% 91%;
 
-    --primary: 182 26% 50%;
-    /* #5F9EA0 teal */
-    --primary-foreground: 207 18% 16%;
+    --primary: 204 86% 66%;
+    --primary-foreground: 223 24% 8%;
 
-    --secondary: 204 64% 22%;
-    /* #143A5A deep blue */
-    --secondary-foreground: 60 20% 96%;
+    --secondary: 223 19% 18%;
+    --secondary-foreground: 216 17% 91%;
 
-    --muted: 200 25% 28%;
-    --muted-foreground: 30 33% 69%;
-    /* #D2B48C tan */
+    --muted: 223 15% 18%;
+    --muted-foreground: 217 12% 70%;
 
-    --accent: 25 100% 40%;
-    /* #CC5500 orange accent */
-    --accent-foreground: 60 20% 96%;
+    --accent: 198 88% 62%;
+    --accent-foreground: 223 24% 8%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 60 20% 96%;
+    --destructive: 0 74% 58%;
+    --destructive-foreground: 216 17% 91%;
 
-    --border: 200 25% 30%;
-    --input: 200 25% 30%;
-    --ring: 182 26% 50%;
+    --border: 223 15% 24%;
+    --input: 223 14% 20%;
+    --ring: 198 88% 62%;
   }
-}
 
-@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/10 selection:text-primary;
+    @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-foreground;
+    min-height: 100dvh;
+    font-feature-settings: "ss01" on, "ss02" on, "cv03" on, "cv04" on;
+    background-image:
+      radial-gradient(900px 560px at -8% -14%, rgba(118, 173, 233, 0.14), transparent 70%),
+      radial-gradient(700px 420px at 112% -8%, rgba(22, 76, 147, 0.1), transparent 70%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(245, 248, 252, 0.85));
+    background-attachment: fixed;
+  }
+
+  .dark body {
+    background-image:
+      radial-gradient(880px 520px at -8% -14%, rgba(59, 131, 246, 0.18), transparent 70%),
+      radial-gradient(640px 420px at 112% -12%, rgba(56, 189, 248, 0.12), transparent 70%),
+      linear-gradient(180deg, rgba(9, 14, 29, 0.98), rgba(8, 12, 24, 0.98));
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
   }
 }
 
 @layer utilities {
-  .glass-panel {
-    @apply bg-white/70 dark:bg-black/70 backdrop-blur-xl border border-white/20 shadow-xl;
+  .app-header {
+    @apply sticky top-0 z-50 border-b border-white/60 bg-white/70 backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/60;
+  }
+
+  .surface-hero {
+    @apply rounded-[2rem] border border-white/75 bg-white/80 p-8 shadow-[0_26px_70px_-42px_rgba(15,23,42,0.5)] backdrop-blur-2xl dark:border-white/10 dark:bg-slate-950/55;
+  }
+
+  .surface-panel {
+    @apply rounded-[1.3rem] border border-white/70 bg-white/78 shadow-[0_18px_46px_-34px_rgba(15,23,42,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/52;
+  }
+
+  .surface-soft {
+    @apply rounded-[1rem] border border-white/65 bg-white/62 shadow-[0_14px_30px_-26px_rgba(15,23,42,0.58)] backdrop-blur-lg dark:border-white/10 dark:bg-slate-950/42;
+  }
+
+  .surface-inset {
+    @apply rounded-[0.9rem] border border-black/5 bg-white/82 dark:border-white/10 dark:bg-slate-900/65;
+  }
+
+  .pill-nav {
+    @apply inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-3.5 py-2 text-sm font-medium text-slate-700 shadow-[0_10px_22px_-18px_rgba(15,23,42,0.55)] transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:text-primary dark:border-white/10 dark:bg-slate-900/60 dark:text-slate-200 dark:hover:border-primary/45;
+  }
+
+  .text-kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400;
   }
 
   .text-balance {
@@ -97,6 +128,21 @@
 }
 
 @layer utilities {
+  .ambient-orb {
+    filter: blur(80px);
+    animation: float-slow 16s ease-in-out infinite;
+  }
+
+  .hairline {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(148, 163, 184, 0.35) 15%,
+      rgba(148, 163, 184, 0.35) 85%,
+      transparent
+    );
+  }
+
   .timeline-editor {
     border-radius: 1rem;
   }
@@ -124,5 +170,16 @@
 
   .timeline-editor .action-effect-subtitle {
     background: linear-gradient(135deg, rgba(96, 165, 250, 0.9), rgba(148, 163, 184, 0.8));
+  }
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, 18px, 0);
   }
 }

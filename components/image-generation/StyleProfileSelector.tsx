@@ -62,7 +62,7 @@ export function StyleProfileSelector({
   };
 
   return (
-    <div className="space-y-3 p-4 bg-white dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
+    <div className="surface-soft space-y-3 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Style Profile</h3>
@@ -78,7 +78,7 @@ export function StyleProfileSelector({
           value={activeProfileId}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600 disabled:opacity-60"
+          className="w-full rounded-xl border border-border/80 bg-white/75 px-3 py-2 text-sm text-slate-900 shadow-[0_10px_20px_-14px_rgba(15,23,42,0.45)] backdrop-blur-lg focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/40 disabled:opacity-60 dark:bg-slate-900/70 dark:text-slate-200"
         >
           {PRESET_STYLE_PROFILES.map((profile) => (
             <option key={profile.id} value={profile.id}>
@@ -93,7 +93,7 @@ export function StyleProfileSelector({
         </select>
       </div>
 
-      <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800 space-y-2">
+      <div className="surface-inset space-y-2 p-3">
         <p className="text-xs font-medium text-slate-700 dark:text-slate-300">目前模板：{activeProfile.name}</p>
         <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{activeProfile.stylePrompt}</p>
         {activeProfile.negativePrompt && (
@@ -106,20 +106,20 @@ export function StyleProfileSelector({
       <button
         onClick={() => setIsExpanded((prev) => !prev)}
         disabled={disabled}
-        className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-60"
+        className="text-xs text-primary hover:underline disabled:opacity-60"
       >
         {isExpanded ? '收合自訂模板' : '新增自訂模板'}
       </button>
 
       {isExpanded && (
-        <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800">
+        <div className="surface-inset space-y-2 p-3">
           <input
             type="text"
             placeholder="Profile 名稱（例如：Brand Clay Promo）"
             value={newProfileName}
             onChange={(e) => setNewProfileName(e.target.value)}
             disabled={disabled}
-            className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-sm"
+            className="w-full rounded-lg border border-border/80 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/40 dark:bg-slate-900/70"
           />
           <textarea
             placeholder="Style Prompt（必填）"
@@ -127,7 +127,7 @@ export function StyleProfileSelector({
             onChange={(e) => setNewStylePrompt(e.target.value)}
             disabled={disabled}
             rows={3}
-            className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-sm resize-none"
+            className="w-full resize-none rounded-lg border border-border/80 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/40 dark:bg-slate-900/70"
           />
           <textarea
             placeholder="Negative Prompt（選填）"
@@ -135,12 +135,12 @@ export function StyleProfileSelector({
             onChange={(e) => setNewNegativePrompt(e.target.value)}
             disabled={disabled}
             rows={2}
-            className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-sm resize-none"
+            className="w-full resize-none rounded-lg border border-border/80 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/40 dark:bg-slate-900/70"
           />
           <button
             onClick={handleCreateCustomProfile}
             disabled={disabled}
-            className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-60"
+            className="rounded-full bg-primary px-3 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
           >
             儲存自訂模板
           </button>
