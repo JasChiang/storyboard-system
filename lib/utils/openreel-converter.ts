@@ -351,6 +351,7 @@ export function convertToOpenReelProjectFile(
     aspectRatio?: '16:9' | '9:16' | '1:1';
     fps?: number;
     editingSuggestion?: EditingSuggestion | null;
+    sourceProjectId?: string;
   }
 ): OpenReelProjectFile {
   const now = Date.now();
@@ -611,8 +612,12 @@ export function convertToOpenReelProjectFile(
     markers,
   };
 
+  const stableProjectId = options?.sourceProjectId?.trim()
+    ? `project-${options.sourceProjectId.trim()}`
+    : generateId('project');
+
   const project: OpenReelProject = {
-    id: generateId('project'),
+    id: stableProjectId,
     name: projectName,
     createdAt: now,
     modifiedAt: now,

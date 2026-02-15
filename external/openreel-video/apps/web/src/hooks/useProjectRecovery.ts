@@ -21,7 +21,16 @@ export function useProjectRecovery() {
     const checkForRecovery = async () => {
       try {
         await autoSaveManager.initialize();
-        const saves = await autoSaveManager.checkForRecovery();
+        const currentProjectId = useProjectStore.getState().project.id;
+        if (!currentProjectId) {
+          setState({
+            isChecking: false,
+            availableSaves: [],
+            showDialog: false,
+          });
+          return;
+        }
+        const saves = await autoSaveManager.checkForRecovery(currentProjectId);
 
         if (saves.length > 0) {
           setState({
