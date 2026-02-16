@@ -10,6 +10,10 @@ interface ImagePreviewProps {
     onRegenerate?: () => void;
 }
 
+// Keep a lightweight module-level cache so remounted previews do not flash loading
+// for URLs that have already been loaded once in this session.
+const loadedImageUrlCache = new Set<string>();
+
 export function ImagePreview({
     imageUrl,
     prompt,
@@ -19,6 +23,26 @@ export function ImagePreview({
     const [imageLoaded, setImageLoaded] = useState(false);
 
     useEffect(() => {
+        if (!imageUrl) {
+            setImageLoaded(false);
+            return;
+        }
+
+        // Fast path for previously loaded URLs in this session.
+        if (loadedImageUrlCache.has(imageUrl)) {
+            setImageLoaded(true);
+            return;
+        }
+
+        // Probe browser cache first to avoid unnecessary spinner flashes.
+        const probe = new window.Image();
+        probe.src = imageUrl;
+        if (probe.complete) {
+            loadedImageUrlCache.add(imageUrl);
+            setImageLoaded(true);
+            return;
+        }
+
         setImageLoaded(false);
     }, [imageUrl]);
 
@@ -52,12 +76,16 @@ export function ImagePreview({
                 <img
                     src={imageUrl}
                     alt={prompt || 'Generated image'}
+                    loading="eager"
                     className={`
             w-full aspect-video object-contain rounded-lg border border-slate-200 dark:border-slate-700 
             bg-slate-100 dark:bg-slate-900/50 transition-opacity duration-300
             ${imageLoaded ? 'opacity-100' : 'opacity-0'}
           `}
-                    onLoad={() => setImageLoaded(true)}
+                    onLoad={() => {
+                        loadedImageUrlCache.add(imageUrl);
+                        setImageLoaded(true);
+                    }}
                 />
 
                 {!imageLoaded && (

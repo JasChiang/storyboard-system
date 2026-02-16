@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const DEFAULT_APP_ORIGIN = 'http://localhost:3000';
+
+function getServerAppOrigin() {
+    return process.env.APP_ORIGIN || process.env.NEXT_PUBLIC_APP_ORIGIN || DEFAULT_APP_ORIGIN;
+}
 
 const PROMPTS_BY_TYPE: Record<string, string> = {
     character: `Analyze this character reference image and describe:
@@ -66,7 +71,7 @@ export async function POST(request: NextRequest) {
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
-                'HTTP-Referer': 'http://localhost:3000',
+                'HTTP-Referer': getServerAppOrigin(),
                 'X-Title': 'Storyboard System',
             },
             body: JSON.stringify({

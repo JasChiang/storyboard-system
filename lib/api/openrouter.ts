@@ -5,6 +5,14 @@ import { buildConsolidatedReferenceRules } from '../references/consistency-rules
 import { sanitizeStaticFrameDescription } from '../prompts/image-static';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const DEFAULT_APP_ORIGIN = 'http://localhost:3000';
+
+function getAppOrigin() {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return process.env.APP_ORIGIN || process.env.NEXT_PUBLIC_APP_ORIGIN || DEFAULT_APP_ORIGIN;
+}
 
 export interface OpenRouterConfig {
   apiKey: string;
@@ -378,7 +386,7 @@ export async function generateStoryboardScript(
       headers: {
         'Authorization': `Bearer ${config.apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+        'HTTP-Referer': getAppOrigin(),
         'X-Title': 'Storyboard System',
       },
       body: JSON.stringify({
@@ -550,7 +558,7 @@ export async function regenerateStoryboardScene(
     headers: {
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'http://localhost:3000',
+      'HTTP-Referer': getAppOrigin(),
       'X-Title': 'Storyboard System',
     },
     body: JSON.stringify({
@@ -624,7 +632,7 @@ export async function analyzeReferenceImage(
     headers: {
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+      'HTTP-Referer': getAppOrigin(),
       'X-Title': 'Storyboard System',
     },
     body: JSON.stringify({
@@ -709,7 +717,7 @@ export async function generateCharacterProfile(
     headers: {
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+      'HTTP-Referer': getAppOrigin(),
       'X-Title': 'Storyboard System',
     },
     body: JSON.stringify({
@@ -795,7 +803,7 @@ export async function reviewStoryboardCreativity(
     headers: {
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'http://localhost:3000',
+      'HTTP-Referer': getAppOrigin(),
       'X-Title': 'Storyboard System',
     },
     body: JSON.stringify({
@@ -887,7 +895,7 @@ export async function generateHookVariants(
     headers: {
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'http://localhost:3000',
+      'HTTP-Referer': getAppOrigin(),
       'X-Title': 'Storyboard System',
     },
     body: JSON.stringify({
