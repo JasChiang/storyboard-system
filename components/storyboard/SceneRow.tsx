@@ -322,11 +322,10 @@ export function SceneRow({
         )}
         {/* 一致性警告保留（inline 但 line-clamp-1） */}
         {scene.consistencyWarnings && scene.consistencyWarnings.length > 0 && (
-          <div
-            className="mt-1.5 line-clamp-1 text-xs text-rose-600 dark:text-rose-400 cursor-help"
-            title={scene.consistencyWarnings.join('\n')}
-          >
-            ⚠ {scene.consistencyWarnings[0]}
+          <div className="mt-1.5 space-y-0.5">
+            {scene.consistencyWarnings.map((w, i) => (
+              <div key={i} className="text-xs text-rose-600 dark:text-rose-400">⚠ {w}</div>
+            ))}
           </div>
         )}
       </td>
@@ -353,12 +352,12 @@ export function SceneRow({
               ✓ 首尾幀
             </span>
             {scene.endFrameDescription && (
-              <div className="max-w-xs line-clamp-2 text-xs text-slate-500 dark:text-slate-400" title={scene.endFrameDescription}>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 尾幀: {scene.endFrameDescription}
               </div>
             )}
             {scene.endFrameDelta && (
-              <div className="max-w-xs line-clamp-2 text-xs text-violet-600 dark:text-violet-300" title={scene.endFrameDelta}>
+              <div className="text-xs text-violet-600 dark:text-violet-300">
                 差異: {scene.endFrameDelta}
               </div>
             )}
@@ -368,15 +367,19 @@ export function SceneRow({
         )}
       </td>
 
-      {/* 轉場欄：badge + reason 收進 tooltip */}
+      {/* 轉場欄：badge + reason inline */}
       <td className="px-4 py-3 align-top">
         <div className="space-y-1">
           <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium cursor-help ${transitionInfo.color}`}
-            title={scene.transitionToNext?.reason || transitionInfo.label}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium whitespace-nowrap ${transitionInfo.color}`}
           >
             {transitionInfo.icon} {transitionInfo.label}
           </span>
+          {scene.transitionToNext?.reason && (
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              {scene.transitionToNext.reason}
+            </div>
+          )}
           {scene.transitionToNext?.useEndFrameAsNextStart && (
             <div className="text-xs font-medium text-green-600 dark:text-green-400">
               → 延續至下一幕
@@ -386,7 +389,7 @@ export function SceneRow({
       </td>
 
       {/* 操作欄：3 主要按鈕 + ... more */}
-      <td className="px-4 py-3 align-top">
+      <td className="px-4 py-3 align-top whitespace-nowrap">
         <div className="flex items-center gap-1">
           {/* 主要：編輯 */}
           <button

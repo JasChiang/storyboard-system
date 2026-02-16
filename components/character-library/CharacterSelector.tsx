@@ -60,16 +60,20 @@ export function CharacterSelector({
   const [selectedCharacters, setSelectedCharacters] = useState<Map<string, CharacterAngle>>(new Map());
   const [includeAllViews, setIncludeAllViews] = useState(true);
 
+  const selectedIdsKey = selectedIds.join(',');
+
   useEffect(() => {
     if (!isOpen) return;
+
+    const ids = selectedIdsKey ? selectedIdsKey.split(',') : [];
 
     void (async () => {
       const items = await characterLibraryStorage.getAll();
       setCharacters(items);
 
-      if (selectedIds.length > 0) {
+      if (ids.length > 0) {
         const preselected = new Map<string, CharacterAngle>();
-        selectedIds.forEach((id) => {
+        ids.forEach((id) => {
           if (items.some((item) => item.id === id)) {
             preselected.set(id, 'front');
           }
@@ -79,7 +83,7 @@ export function CharacterSelector({
         setSelectedCharacters(new Map());
       }
     })();
-  }, [isOpen, selectedIds]);
+  }, [isOpen, selectedIdsKey]);
 
   const filteredCharacters = characters.filter((character) => {
     const query = searchQuery.trim().toLowerCase();
