@@ -105,8 +105,9 @@ export function ImageGenerator({
         if (options?.includePreviousSceneEnd && previousEndFrameUrl) {
             urls.push(previousEndFrameUrl);
         }
-        if (options?.includeStartFrameForEnd && scene.generatedImage?.url) {
-            urls.push(scene.generatedImage.url);
+        if (options?.includeStartFrameForEnd) {
+            const effectiveStart = previousEndFrameUrl || scene.generatedImage?.url;
+            if (effectiveStart) urls.push(effectiveStart);
         }
         urls.push(...selectedStyleReferenceUrls);
         sceneScopedContentRefs.forEach(ref => urls.push(ref.url));
