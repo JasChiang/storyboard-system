@@ -28,6 +28,11 @@
   - 處理影片生成請求（Kling / Seedance）
   - 使用伺服器端 `FAL_API_KEY`
 
+- **`/api/fal/generate-audio`** - 音訊生成
+  - 處理旁白與音樂生成（Index TTS 2 / ElevenLabs Music / MiniMax Music v2）
+  - Index TTS 2 使用 `input` payload，`audio_url + prompt` 為核心欄位
+  - 使用伺服器端 `FAL_API_KEY`
+
 - **`/api/fal/check-status`** - 狀態檢查
   - 檢查異步任務的執行狀態
 

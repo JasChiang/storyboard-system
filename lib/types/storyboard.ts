@@ -1,3 +1,5 @@
+import type { IndexTtsRequestInput } from './audio';
+
 // 轉場類型
 export type TransitionType =
   | 'cut'           // 硬切 (直接接合，無轉場效果)
@@ -82,6 +84,16 @@ export interface Scene {
     durationSeconds?: number;
     timestamp: string;
   };
+  generatedVoiceover?: {
+    url: string;
+    model: 'index-tts-2';
+    script: string;
+    prompt?: string;
+    requestPayload?: IndexTtsRequestInput;
+    reasoning?: string;
+    durationSeconds?: number;
+    timestamp: string;
+  };
 }
 
 // 分鏡表格
@@ -95,6 +107,18 @@ export interface Storyboard {
   projectReferences?: ProjectReference[];  // 專案級參考圖
   selectedStyleProfileId?: string;
   customStyleProfiles?: StyleProfile[];
+  generatedMusic?: {
+    url: string;
+    model: 'elevenlabs-music' | 'minimax-music-v2';
+    prompt: string;
+    durationSeconds?: number;
+    timestamp: string;
+  };
+  audioMixSettings?: {
+    voiceoverVolume?: number; // 0-1.5
+    musicVolume?: number;     // 0-1.5
+    ducking?: boolean;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -190,11 +214,11 @@ export interface CreativeReview {
 export interface HookVariant {
   variantType: 'shock' | 'question' | 'story';
   variantLabel: string;
-  scene: Omit<Scene, 'id' | 'referenceImage' | 'generatedImage' | 'motionPrompt' | 'generatedVideo'>;
+  scene: Omit<Scene, 'id' | 'referenceImage' | 'generatedImage' | 'motionPrompt' | 'generatedVideo' | 'generatedVoiceover'>;
 }
 
 // API 回應類型
 export interface StoryboardGenerationResponse {
   title: string;
-  scenes: Omit<Scene, 'id' | 'referenceImage' | 'generatedImage' | 'motionPrompt' | 'generatedVideo'>[];
+  scenes: Omit<Scene, 'id' | 'referenceImage' | 'generatedImage' | 'motionPrompt' | 'generatedVideo' | 'generatedVoiceover'>[];
 }

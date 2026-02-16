@@ -3,6 +3,7 @@ import { OpenRouterResponse } from '../types/api-responses';
 import { buildSystemPrompt } from '../prompts/prompt-builder';
 import { buildConsolidatedReferenceRules } from '../references/consistency-rules';
 import { sanitizeStaticFrameDescription } from '../prompts/image-static';
+import type { IndexTtsEmotionalStrengths, IndexTtsRequestInput, IndexTtsScenePlan, IndexTtsScenePlanningInput } from '../types/audio';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_APP_ORIGIN = 'http://localhost:3000';
@@ -933,4 +934,235 @@ export async function generateHookVariants(
   } catch {
     throw new Error('Hook 變體生成回傳格式錯誤，無法解析 JSON');
   }
+}
+
+export interface IndexTtsPlanningInput {
+  storyboardTitle?: string;
+  originalPrompt?: string;
+  voiceDirection?: string;
+  audioUrl: string;
+  emotionalAudioUrl?: string;
+  scenes: IndexTtsScenePlanningInput[];
+}
+
+function clampNumber(value: unknown, min: number, max: number): number | undefined {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return undefined;
+  return Math.max(min, Math.min(max, n));
+}
+
+const EMOTION_ALIASES: Record<
+  keyof Pick<IndexTtsEmotionalStrengths, 'happy' | 'angry' | 'sad' | 'afraid' | 'disgusted' | 'melancholic' | 'surprised' | 'calm'>,
+  string[]
+> = {
+  happy: ['happy', 'happiness'],
+  angry: ['angry', 'anger'],
+  sad: ['sad', 'sadness'],
+  afraid: ['afraid', 'fear'],
+  disgusted: ['disgusted', 'disgust'],
+  melancholic: ['melancholic'],
+  surprised: ['surprised', 'surprise'],
+  calm: ['calm', 'neutral'],
+};
+
+function normalizeEmotionStrengths(value: unknown): IndexTtsEmotionalStrengths | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const normalized: IndexTtsEmotionalStrengths = {};
+
+  for (const [canonicalKey, aliases] of Object.entries(EMOTION_ALIASES) as Array<[keyof typeof EMOTION_ALIASES, string[]]>) {
+    const num = aliases
+      .map((alias) => clampNumber(raw[alias], 0, 1))
+      .find((value): value is number => typeof value === 'number');
+    if (typeof num === 'number') normalized[canonicalKey] = num;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function cleanJsonText(content: string): string {
+  return content
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+}
+
+export async function planIndexTtsVoiceovers(
+  input: IndexTtsPlanningInput,
+  config: OpenRouterConfig
+): Promise<IndexTtsScenePlan[]> {
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+  const audioUrl = input.audioUrl.trim();
+  const emotionalAudioUrl = input.emotionalAudioUrl?.trim() || '';
+  const scenes = input.scenes
+    .map((scene) => ({
+      ...scene,
+      sourceText: scene.sourceText.trim(),
+    }))
+    .filter((scene) => Boolean(scene.sourceText));
+
+  if (!audioUrl) {
+    throw new Error('audioUrl is required for Index TTS planning');
+  }
+  if (scenes.length === 0) return [];
+
+  const systemPrompt = `你是專業語音導演，負責把分鏡文字轉為 fal-ai/index-tts-2 旁白參數。
+
+目標：
+1) 每個場景輸出可直接送出 TTS 的 payload。
+2) 旁白語氣需貼合場景情緒與鏡頭節奏。
+3) 文案長度要能大致對齊場景秒數，不要冗長。
+
+輸出限制：
+- 只輸出 JSON，不要額外文字。
+- JSON 格式：
+{
+  "plans": [
+    {
+      "sceneId": "string",
+      "sceneNumber": 1,
+      "prompt": "旁白內容",
+      "strength": 0.9,
+      "should_use_prompt_for_emotion": true,
+      "emotion_prompt": "語氣指令",
+      "emotional_strengths": {
+        "happy": 0.2,
+        "angry": 0.0,
+        "sad": 0.0,
+        "afraid": 0.0,
+        "disgusted": 0.0,
+        "melancholic": 0.0,
+        "surprised": 0.1,
+        "calm": 0.7
+      },
+      "reasoning": "一句話說明"
+    }
+  ]
+}
+
+欄位規則：
+- prompt：必填，輸出最終要朗讀的文字（自然語句，不要標題、不要項目符號）。
+- strength：0.0~1.0，可省略。
+- emotion_prompt 與 should_use_prompt_for_emotion 可一起使用。
+- emotional_strengths 各值 0.0~1.0，可省略。
+- 可同時提供 emotion_prompt 與 emotional_strengths；若衝突，以 emotion_prompt 為主。`;
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': getAppOrigin(),
+      'X-Title': 'Storyboard System',
+    },
+    body: JSON.stringify({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            storyboardTitle: input.storyboardTitle || '',
+            originalPrompt: input.originalPrompt || '',
+            voiceDirection: input.voiceDirection || '',
+            audioRequirements: {
+              provider: 'fal-ai/index-tts-2',
+              audio_url: audioUrl,
+              emotional_audio_url: emotionalAudioUrl || undefined,
+            },
+            scenes: scenes.map((scene) => ({
+              sceneId: scene.sceneId,
+              sceneNumber: scene.sceneNumber,
+              duration: scene.duration,
+              sourceLabel: scene.sourceLabel,
+              sourceText: scene.sourceText,
+              description: scene.description || '',
+              dialogue: scene.dialogue || '',
+              notes: scene.notes || '',
+            })),
+          }),
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    let errorDetails = '';
+    try {
+      const errorData = await response.json();
+      errorDetails = errorData.error?.message || JSON.stringify(errorData);
+    } catch {
+      errorDetails = await response.text();
+    }
+    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
+  }
+
+  const data: OpenRouterResponse = await response.json();
+  const content = data.choices[0]?.message?.content;
+  if (!content) throw new Error('OpenRouter 沒有回傳任何內容');
+
+  const cleaned = cleanJsonText(content);
+  let parsed: { plans?: Array<Record<string, unknown>> };
+  try {
+    parsed = JSON.parse(cleaned) as { plans?: Array<Record<string, unknown>> };
+  } catch {
+    throw new Error('TTS 參數生成回傳格式錯誤，無法解析 JSON');
+  }
+
+  const rawPlans = Array.isArray(parsed.plans) ? parsed.plans : [];
+  const bySceneId = new Map<string, Record<string, unknown>>();
+  const bySceneNumber = new Map<number, Record<string, unknown>>();
+  for (const rawPlan of rawPlans) {
+    const sceneId = typeof rawPlan.sceneId === 'string' ? rawPlan.sceneId.trim() : '';
+    const sceneNumber = Number(rawPlan.sceneNumber);
+    if (sceneId) bySceneId.set(sceneId, rawPlan);
+    if (Number.isFinite(sceneNumber)) bySceneNumber.set(sceneNumber, rawPlan);
+  }
+
+  const normalizedPlans: IndexTtsScenePlan[] = scenes.map((scene) => {
+    const rawPlan = bySceneId.get(scene.sceneId) || bySceneNumber.get(scene.sceneNumber) || {};
+    const prompt = typeof rawPlan.prompt === 'string' && rawPlan.prompt.trim()
+      ? rawPlan.prompt.trim()
+      : scene.sourceText;
+
+    const strength = clampNumber(rawPlan.strength, 0, 1);
+    const emotionalStrengths = normalizeEmotionStrengths(rawPlan.emotional_strengths);
+    const rawEmotionPrompt = typeof rawPlan.emotion_prompt === 'string' ? rawPlan.emotion_prompt.trim() : '';
+    let shouldUsePromptForEmotion = typeof rawPlan.should_use_prompt_for_emotion === 'boolean'
+      ? rawPlan.should_use_prompt_for_emotion
+      : undefined;
+
+    if (rawEmotionPrompt && shouldUsePromptForEmotion !== true) {
+      shouldUsePromptForEmotion = true;
+    }
+
+    const payload: IndexTtsRequestInput = {
+      audio_url: audioUrl,
+      prompt,
+    };
+    if (emotionalAudioUrl) payload.emotional_audio_url = emotionalAudioUrl;
+    if (typeof strength === 'number') payload.strength = strength;
+    if (emotionalStrengths) payload.emotional_strengths = emotionalStrengths;
+    if (typeof shouldUsePromptForEmotion === 'boolean') {
+      payload.should_use_prompt_for_emotion = shouldUsePromptForEmotion;
+    }
+    if (rawEmotionPrompt) payload.emotion_prompt = rawEmotionPrompt;
+
+    return {
+      sceneId: scene.sceneId,
+      sceneNumber: scene.sceneNumber,
+      sourceLabel: scene.sourceLabel,
+      sourceText: scene.sourceText,
+      payload,
+      reasoning: typeof rawPlan.reasoning === 'string' ? rawPlan.reasoning.trim() : undefined,
+    };
+  });
+
+  return normalizedPlans;
 }

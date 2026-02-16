@@ -70,6 +70,7 @@ function mergeRegeneratedScene(base: Scene, regenerated: Partial<Scene>): Scene 
     generatedImage: undefined,
     generatedEndFrame: undefined,
     generatedVideo: undefined,
+    generatedVoiceover: undefined,
     motionPrompt: undefined,
     videoPromptDraft: undefined,
     videoPromptDraftNotes: undefined,

@@ -375,6 +375,8 @@ export function convertToOpenReelProjectFile(
 
   const mediaItems: OpenReelMediaItem[] = [];
   const clips: OpenReelClip[] = [];
+  const voiceoverClips: OpenReelClip[] = [];
+  const musicClips: OpenReelClip[] = [];
   const transitions: OpenReelTransition[] = [];
   const subtitles: OpenReelSubtitle[] = [];
   const textClips: OpenReelTextClip[] = [];
@@ -385,6 +387,8 @@ export function convertToOpenReelProjectFile(
 
   const tracks: OpenReelTrack[] = [];
   const videoTrackId = generateId('track');
+  const voiceoverTrackId = generateId('track');
+  const musicTrackId = generateId('track');
   let captionsTrackId: string | null = null;
 
   let currentTime = 0;
@@ -475,6 +479,59 @@ export function convertToOpenReelProjectFile(
       keyframes: [],
       speed: speed !== 1 ? speed : undefined,
     });
+
+    if (scene.generatedVoiceover?.url) {
+      const voiceMediaId = `media-${scene.id}-voice`;
+      const knownVoiceDuration = Number(scene.generatedVoiceover.durationSeconds);
+      const voiceDuration = Number.isFinite(knownVoiceDuration) && knownVoiceDuration > 0
+        ? Math.min(duration, knownVoiceDuration)
+        : duration;
+      const voiceSrc = buildProxyUrl(scene.generatedVoiceover.url);
+
+      mediaItems.push({
+        id: voiceMediaId,
+        name: `Scene ${scene.sceneNumber} Voice`,
+        type: 'audio',
+        fileHandle: null,
+        blob: null,
+        metadata: {
+          duration: voiceDuration,
+          width: 0,
+          height: 0,
+          frameRate: 0,
+          codec: '',
+          sampleRate: DEFAULT_SETTINGS.sampleRate,
+          channels: DEFAULT_SETTINGS.channels,
+          fileSize: 0,
+        },
+        thumbnailUrl: null,
+        waveformData: null,
+        isPlaceholder: false,
+        originalUrl: voiceSrc,
+      });
+
+      voiceoverClips.push({
+        id: `clip-${scene.id}-voice`,
+        mediaId: voiceMediaId,
+        trackId: voiceoverTrackId,
+        startTime: currentTime,
+        duration: voiceDuration,
+        inPoint: 0,
+        outPoint: voiceDuration,
+        effects: [],
+        audioEffects: [],
+        transform: {
+          position: { x: 0.5, y: 0.5 },
+          scale: { x: 1, y: 1 },
+          rotation: 0,
+          anchor: { x: 0.5, y: 0.5 },
+          opacity: 1,
+          fitMode: 'cover',
+        },
+        volume: clampRange(Number(storyboard.audioMixSettings?.voiceoverVolume), 0, 1.5, 1),
+        keyframes: [],
+      });
+    }
 
     const subtitleText = scene.dialogue || scene.description;
     if (subtitleText) {
@@ -571,6 +628,59 @@ export function convertToOpenReelProjectFile(
     currentTime += duration;
   });
 
+  if (storyboard.generatedMusic?.url) {
+    const musicMediaId = 'media-project-music';
+    const knownMusicDuration = Number(storyboard.generatedMusic.durationSeconds);
+    const musicDuration = Number.isFinite(knownMusicDuration) && knownMusicDuration > 0
+      ? knownMusicDuration
+      : currentTime;
+    const musicSrc = buildProxyUrl(storyboard.generatedMusic.url);
+
+    mediaItems.push({
+      id: musicMediaId,
+      name: 'Project BGM',
+      type: 'audio',
+      fileHandle: null,
+      blob: null,
+      metadata: {
+        duration: musicDuration,
+        width: 0,
+        height: 0,
+        frameRate: 0,
+        codec: '',
+        sampleRate: DEFAULT_SETTINGS.sampleRate,
+        channels: DEFAULT_SETTINGS.channels,
+        fileSize: 0,
+      },
+      thumbnailUrl: null,
+      waveformData: null,
+      isPlaceholder: false,
+      originalUrl: musicSrc,
+    });
+
+    musicClips.push({
+      id: 'clip-project-music',
+      mediaId: musicMediaId,
+      trackId: musicTrackId,
+      startTime: 0,
+      duration: musicDuration,
+      inPoint: 0,
+      outPoint: musicDuration,
+      effects: [],
+      audioEffects: [],
+      transform: {
+        position: { x: 0.5, y: 0.5 },
+        scale: { x: 1, y: 1 },
+        rotation: 0,
+        anchor: { x: 0.5, y: 0.5 },
+        opacity: 1,
+        fitMode: 'cover',
+      },
+      volume: clampRange(Number(storyboard.audioMixSettings?.musicVolume), 0, 1.5, 0.32),
+      keyframes: [],
+    });
+  }
+
   if (options?.editingSuggestion?.timeline) {
     options.editingSuggestion.timeline.forEach((marker, index) => {
       markers.push({
@@ -610,10 +720,44 @@ export function convertToOpenReelProjectFile(
     solo: false,
   });
 
+  if (voiceoverClips.length > 0) {
+    tracks.push({
+      id: voiceoverTrackId,
+      type: 'audio',
+      name: 'Voice Over',
+      clips: voiceoverClips,
+      transitions: [],
+      locked: false,
+      hidden: false,
+      muted: false,
+      solo: false,
+    });
+  }
+
+  if (musicClips.length > 0) {
+    tracks.push({
+      id: musicTrackId,
+      type: 'audio',
+      name: 'Background Music',
+      clips: musicClips,
+      transitions: [],
+      locked: false,
+      hidden: false,
+      muted: false,
+      solo: false,
+    });
+  }
+
+  const timelineDuration = Math.max(
+    currentTime,
+    ...musicClips.map((clip) => clip.startTime + clip.duration),
+    ...voiceoverClips.map((clip) => clip.startTime + clip.duration)
+  );
+
   const timeline: OpenReelTimeline = {
     tracks,
     subtitles: [],
-    duration: currentTime,
+    duration: timelineDuration,
     markers,
   };
 

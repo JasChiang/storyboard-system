@@ -1,15 +1,10 @@
 export const runtime = "nodejs";
 
-const ALLOWED_HOSTS = new Set([
-  "fal.media",
-  "v3b.fal.media",
-  "v3.fal.media",
-]);
-
 function isAllowedUrl(target: string) {
   try {
     const url = new URL(target);
-    return ALLOWED_HOSTS.has(url.hostname);
+    const host = url.hostname.toLowerCase();
+    return host === 'fal.media' || host.endsWith('.fal.media');
   } catch {
     return false;
   }

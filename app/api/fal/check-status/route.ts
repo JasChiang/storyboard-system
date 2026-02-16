@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkQueueStatus, getImageResult, getVideoResult } from '@/lib/api/fal';
+import { checkQueueStatus, getAudioResult, getImageResult, getVideoResult } from '@/lib/api/fal';
 
 function extractFalErrorMessage(error: unknown): string {
     if (error instanceof Error && error.message) {
-        return error.message;
+        const message = error.message;
+        const maybeError = error as { body?: unknown };
+        if (maybeError?.body && typeof maybeError.body === 'object') {
+            const body = maybeError.body as { detail?: unknown; error?: unknown; message?: unknown };
+            if (typeof body.error === 'string' && body.error.trim()) {
+                return `${message}: ${body.error.trim()}`;
+            }
+            if (typeof body.message === 'string' && body.message.trim()) {
+                return `${message}: ${body.message.trim()}`;
+            }
+        }
+        return message;
     }
 
     const maybeError = error as { body?: unknown };
@@ -13,8 +24,13 @@ function extractFalErrorMessage(error: unknown): string {
             const msgs = body.detail
                 .map((item) => {
                     if (!item || typeof item !== 'object') return '';
-                    const msg = (item as { msg?: string }).msg;
-                    return typeof msg === 'string' ? msg : '';
+                    const entry = item as { msg?: string; loc?: unknown };
+                    const msg = typeof entry.msg === 'string' ? entry.msg : '';
+                    const loc = Array.isArray(entry.loc)
+                        ? entry.loc.map((v) => String(v)).join('.')
+                        : '';
+                    if (msg && loc) return `${loc}: ${msg}`;
+                    return msg;
                 })
                 .filter(Boolean);
             if (msgs.length) return msgs.join('; ');
@@ -95,7 +111,9 @@ export async function POST(request: NextRequest) {
             try {
                 const result = type === 'image'
                     ? await getImageResult(requestId, endpoint, { apiKey })
-                    : await getVideoResult(requestId, endpoint, { apiKey });
+                    : type === 'audio'
+                        ? await getAudioResult(requestId, endpoint, { apiKey })
+                        : await getVideoResult(requestId, endpoint, { apiKey });
 
                 return NextResponse.json({
                     status: 'COMPLETED',
@@ -116,7 +134,9 @@ export async function POST(request: NextRequest) {
                     try {
                         const fallbackResult = type === 'image'
                             ? await getImageResult(requestId, fallbackEndpoint, { apiKey })
-                            : await getVideoResult(requestId, fallbackEndpoint, { apiKey });
+                            : type === 'audio'
+                                ? await getAudioResult(requestId, fallbackEndpoint, { apiKey })
+                                : await getVideoResult(requestId, fallbackEndpoint, { apiKey });
 
                         return NextResponse.json({
                             status: 'COMPLETED',
@@ -140,8 +160,11 @@ export async function POST(request: NextRequest) {
                             data?: unknown;
                             video?: unknown;
                             images?: unknown;
+                            audio?: unknown;
+                            audios?: unknown;
+                            url?: unknown;
                         };
-                        const result = payload.data ?? (payload.video || payload.images ? payload : null);
+                        const result = payload.data ?? (payload.video || payload.images || payload.audio || payload.audios || payload.url ? payload : null);
                         if (result) {
                             return NextResponse.json({
                                 status: 'COMPLETED',

@@ -3,8 +3,10 @@ import {
   FalQueueResponse,
   FalStatusResponse,
   FalImageResult,
-  FalVideoResult
+  FalVideoResult,
+  FalAudioResult,
 } from '../types/api-responses';
+import type { IndexTtsEmotionalStrengths, IndexTtsRequestInput } from '../types/audio';
 
 export interface FalConfig {
   apiKey: string;
@@ -27,6 +29,58 @@ function configureFal(apiKey: string) {
   fal.config({
     credentials: apiKey,
   });
+}
+
+async function submitWithInputVariants(
+  endpoint: string,
+  inputVariants: Array<Record<string, unknown>>
+) {
+  let lastError: unknown;
+  for (const input of inputVariants) {
+    try {
+      const result = await fal.queue.submit(endpoint, { input });
+      return result;
+    } catch (error) {
+      lastError = error;
+      console.warn('[fal] submit variant failed, trying next variant', {
+        endpoint,
+        keys: Object.keys(input),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Fal submit failed for all input variants');
+}
+
+const INDEX_TTS_EMOTION_ALIASES: Record<
+  keyof Pick<IndexTtsEmotionalStrengths, 'happy' | 'angry' | 'sad' | 'afraid' | 'disgusted' | 'melancholic' | 'surprised' | 'calm'>,
+  string[]
+> = {
+  happy: ['happy', 'happiness'],
+  angry: ['angry', 'anger'],
+  sad: ['sad', 'sadness'],
+  afraid: ['afraid', 'fear'],
+  disgusted: ['disgusted', 'disgust'],
+  melancholic: ['melancholic'],
+  surprised: ['surprised', 'surprise'],
+  calm: ['calm', 'neutral'],
+};
+
+function normalizeIndexTtsEmotionalStrengths(value: unknown): IndexTtsEmotionalStrengths | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const normalized: IndexTtsEmotionalStrengths = {};
+
+  for (const [canonicalKey, aliases] of Object.entries(INDEX_TTS_EMOTION_ALIASES) as Array<[keyof typeof INDEX_TTS_EMOTION_ALIASES, string[]]>) {
+    const n = aliases
+      .map((alias) => Number(raw[alias]))
+      .find((num) => Number.isFinite(num));
+    if (typeof n === 'number') {
+      normalized[canonicalKey] = Math.max(0, Math.min(1, n));
+    }
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
 // 上傳文件到 Fal Storage（SDK 會自動處理）
@@ -238,6 +292,126 @@ export async function generateVideoSeedance(
   };
 }
 
+export async function generateMusicElevenLabs(
+  prompt: string,
+  options: {
+    durationMs?: number;
+  },
+  config: FalConfig
+): Promise<FalQueueResponse> {
+  configureFal(config.apiKey);
+
+  const endpoint = process.env.FAL_MUSIC_ELEVENLABS_MODEL || 'fal-ai/elevenlabs/music';
+  const normalizedDurationMs = Number.isFinite(Number(options.durationMs))
+    ? Math.max(3000, Math.min(600000, Math.round(Number(options.durationMs))))
+    : undefined;
+
+  const input: Record<string, unknown> = { prompt };
+  if (typeof normalizedDurationMs === 'number') {
+    input.music_length_ms = normalizedDurationMs;
+  }
+
+  console.log('[generateMusicElevenLabs] submit:', {
+    endpoint,
+    promptLength: prompt.length,
+    durationMs: normalizedDurationMs,
+  });
+
+  const result = await fal.queue.submit(endpoint, { input });
+  return {
+    request_id: result.request_id,
+    status: 'IN_QUEUE',
+    endpoint,
+  };
+}
+
+export async function generateMusicMiniMax(
+  prompt: string,
+  options: {
+    lyricsPrompt?: string;
+  },
+  config: FalConfig
+): Promise<FalQueueResponse> {
+  configureFal(config.apiKey);
+
+  const endpoint = process.env.FAL_MUSIC_MINIMAX_MODEL || 'fal-ai/minimax-music/v2';
+  const lyricsPrompt = options.lyricsPrompt?.trim();
+  const primaryInput: Record<string, unknown> = {
+    prompt,
+  };
+  if (lyricsPrompt) {
+    primaryInput.lyrics_prompt = lyricsPrompt;
+  }
+  const fallbackInput: Record<string, unknown> = {
+    prompt,
+  };
+  if (lyricsPrompt) {
+    fallbackInput.lyrics = lyricsPrompt;
+  }
+
+  console.log('[generateMusicMiniMax] submit:', {
+    endpoint,
+    promptLength: prompt.length,
+    hasLyricsPrompt: Boolean(lyricsPrompt),
+  });
+
+  const result = await submitWithInputVariants(endpoint, [primaryInput, fallbackInput]);
+  return {
+    request_id: result.request_id,
+    status: 'IN_QUEUE',
+    endpoint,
+  };
+}
+
+export async function generateVoiceoverIndexTts(
+  input: IndexTtsRequestInput,
+  config: FalConfig
+): Promise<FalQueueResponse> {
+  configureFal(config.apiKey);
+
+  const endpoint = process.env.FAL_TTS_INDEX_MODEL || 'fal-ai/index-tts-2/text-to-speech';
+  const normalizedInput: IndexTtsRequestInput = {
+    audio_url: input.audio_url.trim(),
+    prompt: input.prompt.trim(),
+    emotional_audio_url: input.emotional_audio_url?.trim() || undefined,
+    strength: typeof input.strength === 'number'
+      ? Math.max(0, Math.min(1, input.strength))
+      : undefined,
+    emotional_strengths: normalizeIndexTtsEmotionalStrengths(input.emotional_strengths),
+    should_use_prompt_for_emotion: input.should_use_prompt_for_emotion,
+    emotion_prompt: input.emotion_prompt?.trim() || undefined,
+  };
+
+  if (!normalizedInput.audio_url) {
+    throw new Error('Index TTS requires audio_url');
+  }
+  if (!normalizedInput.prompt) {
+    throw new Error('Index TTS requires prompt');
+  }
+  if (normalizedInput.emotion_prompt && normalizedInput.should_use_prompt_for_emotion !== true) {
+    normalizedInput.should_use_prompt_for_emotion = true;
+  }
+
+  console.log('[generateVoiceoverIndexTts] submit:', {
+    endpoint,
+    promptLength: normalizedInput.prompt.length,
+    hasAudioUrl: Boolean(normalizedInput.audio_url),
+    hasEmotionalAudioUrl: Boolean(normalizedInput.emotional_audio_url),
+    hasEmotionalStrengths: Boolean(normalizedInput.emotional_strengths),
+    strength: normalizedInput.strength,
+    useEmotionPrompt: normalizedInput.should_use_prompt_for_emotion,
+    hasEmotionPrompt: Boolean(normalizedInput.emotion_prompt),
+  });
+
+  const submitInput: Record<string, unknown> = { ...normalizedInput };
+  const result = await submitWithInputVariants(endpoint, [submitInput]);
+  return {
+    request_id: result.request_id,
+    status: 'IN_QUEUE',
+    endpoint,
+  };
+}
+
 // 檢查任務狀態
 export async function checkQueueStatus(
   requestId: string,
@@ -306,4 +480,19 @@ export async function getVideoResult(
   });
 
   return result.data as FalVideoResult;
+}
+
+// 取得音訊結果
+export async function getAudioResult(
+  requestId: string,
+  endpoint: string,
+  config: FalConfig
+): Promise<FalAudioResult> {
+  configureFal(config.apiKey);
+
+  const result = await fal.queue.result(endpoint, {
+    requestId,
+  });
+
+  return result.data as FalAudioResult;
 }

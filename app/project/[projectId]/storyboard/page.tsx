@@ -220,6 +220,7 @@ export default function StoryboardPage() {
             generatedImage: undefined,
             generatedEndFrame: undefined,
             generatedVideo: undefined,
+            generatedVoiceover: undefined,
             motionPrompt: undefined,
             videoPromptDraft: undefined,
             videoPromptDraftNotes: undefined,
@@ -408,6 +409,7 @@ export default function StoryboardPage() {
           generatedImage: undefined,
           generatedEndFrame: undefined,
           generatedVideo: undefined,
+          generatedVoiceover: undefined,
           motionPrompt: undefined,
         }
         : s
@@ -462,6 +464,7 @@ export default function StoryboardPage() {
           generatedImage: undefined,
           generatedEndFrame: undefined,
           generatedVideo: undefined,
+          generatedVoiceover: undefined,
           motionPrompt: undefined,
           videoPromptDraft: undefined,
           videoPromptDraftNotes: undefined,

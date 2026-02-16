@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
-import { mkdir, writeFile, unlink, rm } from 'fs/promises';
+import { copyFile, mkdir, writeFile, unlink, rm } from 'fs/promises';
 import { createWriteStream, existsSync } from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
@@ -23,10 +23,21 @@ interface RenderRequest {
   scenes: Scene[];
   projectTitle: string;
   includeSubtitles?: boolean;
+  includeAudio?: boolean;
+  generatedMusic?: {
+    url: string;
+    durationSeconds?: number;
+  };
+  audioMixSettings?: {
+    voiceoverVolume?: number;
+    musicVolume?: number;
+    ducking?: boolean;
+  };
   editingSuggestion?: EditingSuggestion | null;
 }
 
 interface ProcessedScene {
+  sceneId: string;
   path: string;
   duration: number;
   subtitle: string;
@@ -34,6 +45,78 @@ interface ProcessedScene {
   transitionType: string;
   transitionDuration: number;
   applyTransition: boolean;
+  voiceoverUrl?: string;
+  voiceoverDurationSeconds?: number;
+}
+
+interface TimelineLayout {
+  startTimes: number[];
+  totalDuration: number;
+  transitionDurations: number[];
+}
+
+interface PreparedAudioClip {
+  path: string;
+  role: 'voice' | 'music';
+  startSec: number;
+  durationSec?: number;
+  volume: number;
+}
+
+const FALLBACK_TRANSITION_DURATION = 0.5;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeVolume(value: unknown, fallback: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return clamp(n, 0, 1.5);
+}
+
+function safeDuration(value: unknown, fallback: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return n;
+}
+
+function resolveTransitionOverlap(prevScene: ProcessedScene, nextScene: ProcessedScene): number {
+  const baseDuration = prevScene.applyTransition ? prevScene.transitionDuration : 0.01;
+  return Math.max(
+    0.01,
+    Math.min(
+      safeDuration(baseDuration, FALLBACK_TRANSITION_DURATION),
+      prevScene.duration * 0.45,
+      nextScene.duration * 0.45
+    )
+  );
+}
+
+function buildTimelineLayout(scenes: ProcessedScene[]): TimelineLayout {
+  if (scenes.length === 0) {
+    return { startTimes: [], totalDuration: 0, transitionDurations: [] };
+  }
+
+  const startTimes = new Array<number>(scenes.length).fill(0);
+  const transitionDurations = new Array<number>(Math.max(0, scenes.length - 1)).fill(0);
+  let timelineCursor = scenes[0].duration;
+
+  for (let i = 1; i < scenes.length; i++) {
+    const prevScene = scenes[i - 1];
+    const nextScene = scenes[i];
+    const transitionDuration = resolveTransitionOverlap(prevScene, nextScene);
+    transitionDurations[i - 1] = transitionDuration;
+    const nextStart = Math.max(0.01, timelineCursor - transitionDuration);
+    startTimes[i] = nextStart;
+    timelineCursor = nextStart + nextScene.duration;
+  }
+
+  return {
+    startTimes,
+    totalDuration: timelineCursor,
+    transitionDurations,
+  };
 }
 
 /**
@@ -171,7 +254,7 @@ async function concatenateVideos(
   scenes: ProcessedScene[],
   outputPath: string,
   subtitlePath: string | null
-): Promise<void> {
+): Promise<TimelineLayout> {
   return new Promise((resolve, reject) => {
     const command = ffmpeg();
 
@@ -182,7 +265,7 @@ async function concatenateVideos(
 
     // 建構複雜過濾器（場景拼接 + 淡入淡出轉場）
     const filterComplex: string[] = [];
-    const fallbackTransitionDuration = 0.5;
+    const timeline = buildTimelineLayout(scenes);
 
     scenes.forEach((scene, index) => {
       // 為每個場景加入 scale 確保尺寸一致
@@ -191,25 +274,16 @@ async function concatenateVideos(
 
     // 建構轉場鏈
     let currentLabel = 'v0';
-    let cumulativeDuration = scenes[0]?.duration || 0;
     for (let i = 1; i < scenes.length; i++) {
       const nextLabel = i === scenes.length - 1 ? 'outv' : `v${i}tmp`;
       const prevScene = scenes[i - 1];
-      const nextScene = scenes[i];
-      const baseDuration = prevScene.applyTransition
-        ? prevScene.transitionDuration
-        : 0.01;
-      const transitionDuration = Math.max(
-        0.01,
-        Math.min(baseDuration || fallbackTransitionDuration, prevScene.duration * 0.45, nextScene.duration * 0.45)
-      );
-      const offset = Math.max(0.01, cumulativeDuration - transitionDuration);
+      const transitionDuration = timeline.transitionDurations[i - 1] || 0.01;
+      const offset = timeline.startTimes[i];
 
       filterComplex.push(
         `[${currentLabel}][v${i}]xfade=transition=${prevScene.transitionType}:duration=${transitionDuration.toFixed(3)}:offset=${offset.toFixed(3)}[${nextLabel}]`
       );
 
-      cumulativeDuration = cumulativeDuration + nextScene.duration - transitionDuration;
       currentLabel = nextLabel;
     }
 
@@ -244,11 +318,107 @@ async function concatenateVideos(
       })
       .on('end', () => {
         console.log('[FFmpeg] 渲染完成');
-        resolve();
+        resolve(timeline);
       })
       .on('error', (err) => {
         console.error('[FFmpeg] 錯誤:', err);
         reject(err);
+      })
+      .run();
+  });
+}
+
+async function mixAudioIntoVideo(
+  videoPath: string,
+  outputPath: string,
+  clips: PreparedAudioClip[],
+  videoDurationSec: number,
+  ducking: boolean
+): Promise<void> {
+  if (clips.length === 0) {
+    await copyFile(videoPath, outputPath);
+    return;
+  }
+
+  return new Promise((resolve, reject) => {
+    const command = ffmpeg();
+    command.input(videoPath);
+    clips.forEach((clip) => command.input(clip.path));
+
+    const filterComplex: string[] = [];
+    const voiceLabels: string[] = [];
+    const musicLabels: string[] = [];
+
+    clips.forEach((clip, index) => {
+      const inputIndex = index + 1;
+      const baseLabel = `a${inputIndex}`;
+      const parts: string[] = [`[${inputIndex}:a]aresample=48000`];
+      if (clip.durationSec && clip.durationSec > 0) {
+        parts.push(`atrim=0:${clip.durationSec.toFixed(3)}`);
+      }
+      parts.push('asetpts=PTS-STARTPTS');
+      if (clip.startSec > 0.001) {
+        const delayMs = Math.max(0, Math.round(clip.startSec * 1000));
+        parts.push(`adelay=${delayMs}|${delayMs}`);
+      }
+      parts.push(`volume=${clip.volume.toFixed(3)}`);
+      filterComplex.push(`${parts.join(',')}[${baseLabel}]`);
+      if (clip.role === 'voice') {
+        voiceLabels.push(`[${baseLabel}]`);
+      } else {
+        musicLabels.push(`[${baseLabel}]`);
+      }
+    });
+
+    const buildMixBus = (labels: string[], outLabel: string) => {
+      if (labels.length === 0) return;
+      if (labels.length === 1) {
+        filterComplex.push(`${labels[0]}anull[${outLabel}]`);
+      } else {
+        filterComplex.push(
+          `${labels.join('')}amix=inputs=${labels.length}:normalize=0:dropout_transition=0[${outLabel}]`
+        );
+      }
+    };
+
+    buildMixBus(voiceLabels, 'voiceBus');
+    buildMixBus(musicLabels, 'musicBus');
+
+    if (voiceLabels.length > 0 && musicLabels.length > 0) {
+      if (ducking) {
+        filterComplex.push('[musicBus][voiceBus]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=260[duckedMusic]');
+        filterComplex.push('[duckedMusic][voiceBus]amix=inputs=2:normalize=0:dropout_transition=0[mixedAudio]');
+      } else {
+        filterComplex.push('[musicBus][voiceBus]amix=inputs=2:normalize=0:dropout_transition=0[mixedAudio]');
+      }
+    } else if (voiceLabels.length > 0) {
+      filterComplex.push('[voiceBus]anull[mixedAudio]');
+    } else {
+      filterComplex.push('[musicBus]anull[mixedAudio]');
+    }
+
+    filterComplex.push(`[mixedAudio]alimiter=limit=0.95,atrim=0:${videoDurationSec.toFixed(3)}[aout]`);
+
+    command
+      .complexFilter(filterComplex)
+      .outputOptions([
+        '-map 0:v:0',
+        '-map [aout]',
+        '-c:v copy',
+        '-c:a aac',
+        '-b:a 192k',
+        '-movflags +faststart',
+        '-shortest',
+      ])
+      .output(outputPath)
+      .on('start', (commandLine) => {
+        console.log('[FFmpeg] 音訊混音命令:', commandLine);
+      })
+      .on('error', (error) => {
+        reject(error);
+      })
+      .on('end', () => {
+        resolve();
       })
       .run();
   });
@@ -259,7 +429,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body: RenderRequest = await request.json();
-    const { projectId, scenes, includeSubtitles = true, editingSuggestion } = body;
+    const {
+      projectId,
+      scenes,
+      includeSubtitles = true,
+      includeAudio = true,
+      generatedMusic,
+      audioMixSettings,
+      editingSuggestion,
+    } = body;
 
     if (!scenes || scenes.length === 0) {
       return NextResponse.json(
@@ -325,6 +503,7 @@ export async function POST(request: NextRequest) {
         await unlink(sourceVideoPath).catch(() => undefined);
 
         processedScenes.push({
+          sceneId: scene.id,
           path: videoPath,
           duration: effectiveDuration,
           subtitle: scene.dialogue || scene.description || '',
@@ -332,6 +511,8 @@ export async function POST(request: NextRequest) {
           transitionType: transitionConfig.type,
           transitionDuration,
           applyTransition: transitionConfig.applyTransition,
+          voiceoverUrl: scene.generatedVoiceover?.url,
+          voiceoverDurationSeconds: scene.generatedVoiceover?.durationSeconds,
         });
       } else if (scene.generatedImage?.url) {
         const transitionConfig = normalizeTransitionType(scene.transitionToNext?.type || 'dissolve');
@@ -348,6 +529,7 @@ export async function POST(request: NextRequest) {
         await imageToVideo(imagePath, scene.duration, videoPath);
 
         processedScenes.push({
+          sceneId: scene.id,
           path: videoPath,
           duration: scene.duration,
           subtitle: scene.dialogue || scene.description || '',
@@ -355,6 +537,8 @@ export async function POST(request: NextRequest) {
           transitionType: transitionConfig.type,
           transitionDuration,
           applyTransition: transitionConfig.applyTransition,
+          voiceoverUrl: scene.generatedVoiceover?.url,
+          voiceoverDurationSeconds: scene.generatedVoiceover?.durationSeconds,
         });
       }
     }
@@ -372,18 +556,77 @@ export async function POST(request: NextRequest) {
     // 步驟 3: 合並影片
     console.log('[FFmpeg] 步驟 3: 合並影片');
     const outputPath = path.join(outputDir, `${projectId}.mp4`);
-    await concatenateVideos(processedScenes, outputPath, subtitlePath);
+    const videoOnlyPath = includeAudio
+      ? path.join(tempDir, 'video-only.mp4')
+      : outputPath;
+    const timeline = await concatenateVideos(processedScenes, videoOnlyPath, subtitlePath);
+
+    // 步驟 3.5: 音訊混音（可選）
+    if (includeAudio) {
+      const preparedAudioClips: PreparedAudioClip[] = [];
+      const voiceoverVolume = normalizeVolume(audioMixSettings?.voiceoverVolume, 1.0);
+      const musicVolume = normalizeVolume(audioMixSettings?.musicVolume, 0.32);
+      const ducking = audioMixSettings?.ducking !== false;
+
+      for (let i = 0; i < processedScenes.length; i++) {
+        const scene = processedScenes[i];
+        if (!scene.voiceoverUrl) continue;
+
+        const voicePath = path.join(tempDir, `voice-${i + 1}.mp3`);
+        await downloadFile(scene.voiceoverUrl, voicePath);
+        preparedAudioClips.push({
+          path: voicePath,
+          role: 'voice',
+          startSec: timeline.startTimes[i] ?? 0,
+          durationSec: Math.max(
+            0.2,
+            Math.min(
+              scene.duration,
+              safeDuration(scene.voiceoverDurationSeconds, scene.duration)
+            )
+          ),
+          volume: voiceoverVolume,
+        });
+      }
+
+      if (generatedMusic?.url) {
+        const bgmPath = path.join(tempDir, 'bgm.mp3');
+        await downloadFile(generatedMusic.url, bgmPath);
+        preparedAudioClips.push({
+          path: bgmPath,
+          role: 'music',
+          startSec: 0,
+          durationSec: Math.max(
+            timeline.totalDuration,
+            safeDuration(generatedMusic.durationSeconds, 0)
+          ),
+          volume: musicVolume,
+        });
+      }
+
+      if (preparedAudioClips.length > 0) {
+        console.log(`[FFmpeg] 步驟 3.5: 音訊混音 (${preparedAudioClips.length} 軌)`);
+        await mixAudioIntoVideo(
+          videoOnlyPath,
+          outputPath,
+          preparedAudioClips,
+          timeline.totalDuration,
+          ducking
+        );
+      } else {
+        console.log('[FFmpeg] 步驟 3.5: 無可用音訊，輸出靜音影片');
+        await copyFile(videoOnlyPath, outputPath);
+      }
+    }
 
     // 步驟 4: 清理暫時文件
     console.log('[FFmpeg] 步驟 4: 清理暫時文件');
     await rm(tempDir, { recursive: true, force: true });
 
-    const totalDuration = processedScenes.reduce((sum, s) => sum + s.duration, 0);
-
     return NextResponse.json({
       success: true,
       videoUrl: `/renders/${projectId}.mp4`,
-      duration: totalDuration,
+      duration: timeline.totalDuration,
       scenes: processedScenes.length,
     });
 

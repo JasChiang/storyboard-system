@@ -10,7 +10,9 @@ import { VideoAnalyzer } from '@/components/export/VideoAnalyzer';
 import { BlenderScriptViewer } from '@/components/export/BlenderScriptViewer';
 import { FFmpegRenderer } from '@/components/export/FFmpegRenderer';
 import { OpenReelEditor } from '@/components/export/OpenReelEditor';
+import { AudioGeneratorPanel } from '@/components/export/AudioGeneratorPanel';
 import type { EditingSuggestion } from '@/lib/types/project';
+import type { Scene, Storyboard } from '@/lib/types/storyboard';
 
 export default function ExportPage() {
   const params = useParams();
@@ -51,6 +53,45 @@ export default function ExportPage() {
         status: 'complete',
       });
     }
+  };
+
+  const handleVoiceoversGenerated = (
+    updates: Array<{
+      sceneId: string;
+      generatedVoiceover: Scene['generatedVoiceover'];
+    }>
+  ) => {
+    if (!currentProject?.storyboard || updates.length === 0) return;
+
+    const updateMap = new Map(updates.map((item) => [item.sceneId, item.generatedVoiceover]));
+    const updatedScenes = currentProject.storyboard.scenes.map((scene) => {
+      const generatedVoiceover = updateMap.get(scene.id);
+      if (!generatedVoiceover) return scene;
+      return {
+        ...scene,
+        generatedVoiceover,
+      };
+    });
+
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        scenes: updatedScenes,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  };
+
+  const handleMusicGenerated = (generatedMusic: Storyboard['generatedMusic']) => {
+    if (!currentProject?.storyboard || !generatedMusic) return;
+
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        generatedMusic,
+        updatedAt: new Date().toISOString(),
+      },
+    });
   };
 
   if (!currentProject?.storyboard) {
@@ -102,6 +143,13 @@ export default function ExportPage() {
       />
 
       <main className="container mx-auto px-4 py-8">
+        <AudioGeneratorPanel
+          projectId={projectId}
+          storyboard={currentProject.storyboard}
+          onVoiceoversGenerated={handleVoiceoversGenerated}
+          onMusicGenerated={handleMusicGenerated}
+        />
+
         {/* 渲染模式選擇 */}
         <div className="max-w-4xl mx-auto mb-8">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">

@@ -15,7 +15,7 @@ export interface FalStatusResponse {
     inference_time?: number;
   };
   // 當狀態是 COMPLETED 時，結果會直接在這裡
-  data?: FalImageResult | FalVideoResult;
+  data?: FalImageResult | FalVideoResult | FalAudioResult;
 }
 
 // Fal AI 圖片生成結果
@@ -41,6 +41,28 @@ export interface FalVideoResult {
   };
   seed: number;
   prompt: string;
+}
+
+// Fal AI 音訊生成結果（不同模型欄位可能略有差異）
+export interface FalAudioResult {
+  audio?: {
+    url: string;
+    content_type?: string;
+    file_name?: string;
+    file_size?: number;
+    duration?: number;
+  } | string;
+  audios?: Array<{
+    url: string;
+    content_type?: string;
+    file_name?: string;
+    file_size?: number;
+    duration?: number;
+  }>;
+  url?: string;
+  duration?: number;
+  prompt?: string;
+  text?: string;
 }
 
 // OpenRouter 回應

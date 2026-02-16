@@ -24,9 +24,12 @@ export function FFmpegRenderer({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [includeSubtitles, setIncludeSubtitles] = useState(true);
+  const [includeAudio, setIncludeAudio] = useState(true);
 
   const scenes = storyboard.scenes;
   const scenesWithMedia = scenes.filter(s => Boolean(s.generatedImage?.url || s.generatedVideo?.url));
+  const scenesWithVoiceover = scenes.filter(s => Boolean(s.generatedVoiceover?.url));
+  const hasMusic = Boolean(storyboard.generatedMusic?.url);
   const totalDuration = scenes.reduce((sum, scene) => sum + scene.duration, 0);
 
   const handleRender = async () => {
@@ -57,6 +60,9 @@ export function FFmpegRenderer({
           scenes,
           projectTitle: projectName,
           includeSubtitles,
+          includeAudio,
+          generatedMusic: storyboard.generatedMusic,
+          audioMixSettings: storyboard.audioMixSettings,
           editingSuggestion,
         }),
       });
@@ -117,17 +123,34 @@ export function FFmpegRenderer({
       </div>
 
       {/* 渲染選項 */}
-      <div className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-800 rounded-lg">
-        <label htmlFor="include-subtitles" className="text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-          燒入字幕
-        </label>
-        <input
-          id="include-subtitles"
-          type="checkbox"
-          checked={includeSubtitles}
-          onChange={e => setIncludeSubtitles(e.target.checked)}
-          className="w-4 h-4 accent-orange-600 cursor-pointer"
-        />
+      <div className="space-y-2 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg">
+        <div className="flex items-center justify-between">
+          <label htmlFor="include-subtitles" className="text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+            燒入字幕
+          </label>
+          <input
+            id="include-subtitles"
+            type="checkbox"
+            checked={includeSubtitles}
+            onChange={e => setIncludeSubtitles(e.target.checked)}
+            className="w-4 h-4 accent-orange-600 cursor-pointer"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <label htmlFor="include-audio" className="text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+            混入音訊（旁白/BGM）
+          </label>
+          <input
+            id="include-audio"
+            type="checkbox"
+            checked={includeAudio}
+            onChange={e => setIncludeAudio(e.target.checked)}
+            className="w-4 h-4 accent-orange-600 cursor-pointer"
+          />
+        </div>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          目前可用：旁白 {scenesWithVoiceover.length} 段 / BGM {hasMusic ? '1 段' : '0 段'}
+        </p>
       </div>
 
       {/* 功能說明 */}
@@ -139,6 +162,7 @@ export function FFmpegRenderer({
           <li>✅ 場景自動拼接</li>
           <li>✅ 轉場效果（Fade/Dissolve）</li>
           <li>{includeSubtitles ? '✅' : '☐'} 字幕自動叠加</li>
+          <li>{includeAudio ? '✅' : '☐'} 音訊混音（場景旁白 + 專案 BGM）</li>
           <li>✅ H.264 编码，1080p 輸出</li>
         </ul>
       </div>
