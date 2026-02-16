@@ -417,7 +417,7 @@ export function ImageGenerator({
                     status: 'running',
                     model: 'nano-banana',
                     prompt,
-                    inputUrl: referenceImage || scene.generatedImage?.url || previousEndFrameUrl,
+                    inputUrl: referenceImage || previousEndFrameUrl || scene.generatedImage?.url,
                     metadata: {
                         aspectRatio,
                         resolution,
