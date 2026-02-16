@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -18,18 +18,61 @@ interface StoryPromptInputProps {
     prompt: string,
     templateId: string,
     references: ProjectReference[],
-    targetDurationSec: number
+    targetDurationSec: number,
+    targetSceneCount?: number
   ) => Promise<void>;
   isLoading: boolean;
+  initialTargetDurationSec?: number;
+  initialPrompt?: string;
 }
 
-export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProps) {
-  const [prompt, setPrompt] = useState('');
+const DURATION_OPTIONS = [
+  { value: '15', label: '15 秒（約 3 場）' },
+  { value: '20', label: '20 秒（約 4 場）' },
+  { value: '25', label: '25 秒（約 5 場）' },
+  { value: '30', label: '30 秒（約 6 場）' },
+  { value: '60', label: '其他' },
+];
+
+const VALID_DURATION_VALUES = new Set(DURATION_OPTIONS.map((option) => option.value));
+
+function normalizeDurationValue(value?: number): string {
+  if (value && VALID_DURATION_VALUES.has(String(value))) return String(value);
+  return '30';
+}
+
+function normalizePromptValue(value?: string): string {
+  return typeof value === 'string' ? value : '';
+}
+
+export function StoryPromptInput({
+  onGenerate,
+  isLoading,
+  initialTargetDurationSec,
+  initialPrompt,
+}: StoryPromptInputProps) {
+  const [prompt, setPrompt] = useState(() => normalizePromptValue(initialPrompt));
   const [templateId, setTemplateId] = useState(TEMPLATES[0].id);
-  const [targetDurationSec, setTargetDurationSec] = useState('30');
+  const [targetDurationSec, setTargetDurationSec] = useState(() => normalizeDurationValue(initialTargetDurationSec));
+  const [manualSceneCount, setManualSceneCount] = useState('');
   const [references, setReferences] = useState<ProjectReference[]>([]);
   const [showCharacterSelector, setShowCharacterSelector] = useState(false);
   const [showCreateCharacterDialog, setShowCreateCharacterDialog] = useState(false);
+
+  useEffect(() => {
+    setTargetDurationSec(normalizeDurationValue(initialTargetDurationSec));
+  }, [initialTargetDurationSec]);
+
+  useEffect(() => {
+    if (!initialPrompt) return;
+    setPrompt((prev) => (prev.trim() ? prev : initialPrompt));
+  }, [initialPrompt]);
+
+  useEffect(() => {
+    if (targetDurationSec !== '60') {
+      setManualSceneCount('');
+    }
+  }, [targetDurationSec]);
 
   const mergeUniqueReferences = (base: ProjectReference[], incoming: ProjectReference[]) => {
     const merged = [...base];
@@ -49,7 +92,20 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
 
   const handleSubmit = async () => {
     if (!prompt.trim()) return;
-    await onGenerate(prompt, templateId, references, Number(targetDurationSec));
+    const parsedSceneCount = Number(manualSceneCount);
+    const hasManualSceneCount = manualSceneCount.trim().length > 0;
+    if (hasManualSceneCount && (!Number.isInteger(parsedSceneCount) || parsedSceneCount < 7)) {
+      alert('若要指定超過 6 場，請輸入 7 以上整數；否則留空即可。');
+      return;
+    }
+
+    await onGenerate(
+      prompt,
+      templateId,
+      references,
+      Number(targetDurationSec),
+      hasManualSceneCount ? parsedSceneCount : undefined
+    );
   };
 
   const handleSelectFromLibrary = (newReferences: ProjectReference[]) => {
@@ -69,14 +125,8 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
     value: t.id,
     label: t.name
   }));
-  const durationOptions = [
-    { value: '15', label: '15 秒（約 3 場）' },
-    { value: '20', label: '20 秒（約 4 場）' },
-    { value: '25', label: '25 秒（約 5 場）' },
-    { value: '30', label: '30 秒（約 6 場）' },
-  ];
-
   const selectedTemplate = TEMPLATES.find(t => t.id === templateId);
+  const useManualSceneCount = targetDurationSec === '60';
 
   return (
     <div className="surface-panel p-6">
@@ -92,10 +142,29 @@ export function StoryPromptInput({ onGenerate, isLoading }: StoryPromptInputProp
         />
         <Select
           label="目標影片長度"
-          options={durationOptions}
+          options={DURATION_OPTIONS}
           value={targetDurationSec}
           onChange={(e) => setTargetDurationSec(e.target.value)}
         />
+        {useManualSceneCount && (
+          <div className="space-y-1.5 rounded-xl border border-border/60 bg-white/55 p-3 dark:bg-slate-900/45">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              目標場景數（選填）
+            </label>
+            <input
+              type="number"
+              min={7}
+              step={1}
+              value={manualSceneCount}
+              onChange={(e) => setManualSceneCount(e.target.value)}
+              placeholder="留空使用預設（<= 6 場）"
+              className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
+            />
+            <p className="text-xs text-muted-foreground">
+              超過 6 場請手動輸入（7 以上整數）；留空則由系統按時長用 3-6 場規劃。
+            </p>
+          </div>
+        )}
 
         {selectedTemplate && (
           <div className="surface-inset border border-primary/15 p-3">

@@ -26,7 +26,7 @@ export function FFmpegRenderer({
   const [includeSubtitles, setIncludeSubtitles] = useState(true);
 
   const scenes = storyboard.scenes;
-  const scenesWithMedia = scenes.filter(s => s.generatedImage || s.generatedVideo);
+  const scenesWithMedia = scenes.filter(s => Boolean(s.generatedImage?.url || s.generatedVideo?.url));
   const totalDuration = scenes.reduce((sum, scene) => sum + scene.duration, 0);
 
   const handleRender = async () => {

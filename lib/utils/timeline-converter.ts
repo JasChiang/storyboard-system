@@ -35,7 +35,7 @@ export function scenesToTimeline(scenes: Scene[]): TimelineData {
   const videoActions: TimelineAction[] = [];
   const subtitleActions: TimelineAction[] = [];
 
-  scenes.forEach((scene, index) => {
+  scenes.forEach((scene) => {
     const start = currentTime;
     const end = currentTime + scene.duration;
 
@@ -44,7 +44,7 @@ export function scenesToTimeline(scenes: Scene[]): TimelineData {
       id: `scene-${scene.id}`,
       start,
       end,
-      effectId: scene.generatedVideo ? 'video' : 'image',
+      effectId: scene.generatedVideo?.url ? 'video' : 'image',
       data: {
         src: scene.generatedVideo?.url || scene.generatedImage?.url,
         poster: scene.generatedImage?.url,

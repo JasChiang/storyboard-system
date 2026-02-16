@@ -410,13 +410,13 @@ Rules:
 }
 function buildEditingAnalysisPrompt(storyboard: Storyboard, uploadedFiles: UploadedFile[]): string {
   // 建立影片與場景的對應關係
-  const scenesWithVideos = storyboard.scenes.filter(s => s.generatedVideo);
+  const scenesWithVideos = storyboard.scenes.filter(s => Boolean(s.generatedVideo?.url));
   const videoSceneMapping = uploadedFiles.map((file, index) => {
     const scene = scenesWithVideos[index];
     return scene ? `Video ${index + 1} → 場景 ID: ${scene.id} (Scene ${scene.sceneNumber})` : null;
   }).filter(Boolean).join('\n');
 
-  const scenesWithoutVideos = storyboard.scenes.filter(s => !s.generatedVideo);
+  const scenesWithoutVideos = storyboard.scenes.filter(s => !s.generatedVideo?.url);
   const noVideoSceneIds = scenesWithoutVideos.map(s => s.id).join(', ');
 
   return `# Role

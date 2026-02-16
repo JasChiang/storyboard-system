@@ -95,6 +95,7 @@ export function ImageGenerator({
 
     const shouldUseEndFrame = scene.requiresEndFrame || manualEndFrameEnabled;
     const hasContinuationStart = Boolean(previousEndFrameUrl);
+    const effectiveStartFrameUrl = previousEndFrameUrl || scene.generatedImage?.url;
     const startGenerationLoading = isGeneratingStart || externalGeneratingStart;
     const endGenerationLoading = isGeneratingEnd || externalGeneratingEnd;
     const isAnyGenerationLoading = startGenerationLoading || endGenerationLoading;
@@ -385,6 +386,11 @@ export function ImageGenerator({
             return;
         }
 
+        if (isEndFrame && !effectiveStartFrameUrl) {
+            alert('請先生成首幀，再生成尾幀');
+            return;
+        }
+
         if (!isEndFrame && hasContinuationStart && previousEndFrameUrl) {
             const reusedPrompt = `${buildImagePrompt(false)}. Start frame reused from previous scene end frame due to continuation transition.`;
             onImageGenerated(
@@ -562,7 +568,7 @@ export function ImageGenerator({
             const data = await response.json();
 
             if (data.status === 'COMPLETED') {
-                const imageUrl = data.result.images[0]?.url;
+                const imageUrl = data.result?.images?.[0]?.url;
                 if (imageUrl) {
                     await updateTaskStatus(taskId, {
                         status: 'completed',
@@ -570,9 +576,14 @@ export function ImageGenerator({
                     });
                     // 如果是尾幀，保留現有的首幀資訊
                     if (isEndFrame) {
+                        const startFrameUrlForSave = scene.generatedImage?.url || previousEndFrameUrl || '';
+                        const startFramePromptForSave = scene.generatedImage?.prompt
+                            || (previousEndFrameUrl
+                                ? `${buildImagePrompt(false)}. Start frame reused from previous scene end frame due to continuation transition.`
+                                : '');
                         onImageGenerated(
-                            scene.generatedImage?.url || '',
-                            scene.generatedImage?.prompt || '',
+                            startFrameUrlForSave,
+                            startFramePromptForSave,
                             imageUrl,
                             prompt
                         );
@@ -585,6 +596,13 @@ export function ImageGenerator({
                             scene.generatedEndFrame?.prompt
                         );
                     }
+                } else {
+                    await updateTaskStatus(taskId, {
+                        status: 'failed',
+                        error: 'Generation completed but no image URL returned',
+                        attempts: attempts + 1,
+                    });
+                    throw new Error('Generation completed but no image URL returned');
                 }
                 return;
             } else if (data.status === 'FAILED') {
@@ -610,7 +628,7 @@ export function ImageGenerator({
         throw new Error('Generation timeout');
     };
 
-    const hasStartFrame = Boolean(scene.generatedImage?.url);
+    const hasStartFrame = Boolean(effectiveStartFrameUrl);
     const hasEndFrame = Boolean(scene.generatedEndFrame?.url);
     const totalSelectedReferences = selectedProjectRefs.length + selectedStyleReferenceUrls.length + (referenceImage ? 1 : 0);
 
@@ -971,7 +989,7 @@ export function ImageGenerator({
                         type="button"
                         variant="outline"
                         onClick={() => handleGenerate(true)}
-                        disabled={isAnyGenerationLoading}
+                        disabled={isAnyGenerationLoading || !effectiveStartFrameUrl}
                         className="h-11 w-full rounded-xl border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-900/20"
                     >
                         {endGenerationLoading ? '生成尾幀中...' : (

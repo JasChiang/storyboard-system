@@ -45,9 +45,9 @@ export function BatchImageGenerator({
     const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('2K');
 
     const scenesToProcess = scenes.filter((scene) => {
-        const needsStartFrame = !scene.generatedImage;
+        const needsStartFrame = !scene.generatedImage?.url;
         const wantsEndFrame = scene.requiresEndFrame || !!scene.endFrameDescription;
-        const needsEndFrame = wantsEndFrame && !scene.generatedEndFrame;
+        const needsEndFrame = wantsEndFrame && !scene.generatedEndFrame?.url;
         return needsStartFrame || needsEndFrame;
     });
     const totalScenes = scenesToProcess.length;
@@ -232,8 +232,8 @@ export function BatchImageGenerator({
     const generateSceneImages = async (scene: Scene, previousContinuationEndFrameUrl?: string) => {
         const wantsEndFrame = scene.requiresEndFrame || !!scene.endFrameDescription;
         // Continuation scenes always need their start frame refreshed with the latest previous end frame
-        const needsStartFrame = !scene.generatedImage || Boolean(previousContinuationEndFrameUrl);
-        const needsEndFrame = wantsEndFrame && !scene.generatedEndFrame;
+        const needsStartFrame = !scene.generatedImage?.url || Boolean(previousContinuationEndFrameUrl);
+        const needsEndFrame = wantsEndFrame && !scene.generatedEndFrame?.url;
 
         updateStatus(scene.id, { status: needsStartFrame ? 'generating' : 'generating_end_frame' });
 

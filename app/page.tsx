@@ -16,8 +16,8 @@ export default function Home() {
     loadProjects();
   }, [loadProjects]);
 
-  const handleCreateProject = (name: string, description?: string, videoType?: string, targetDurationSec?: number) => {
-    createProject(name, description, videoType, targetDurationSec);
+  const handleCreateProject = (name: string, description?: string, targetDurationSec?: number) => {
+    createProject(name, description, targetDurationSec);
   };
 
   return (

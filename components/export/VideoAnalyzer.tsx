@@ -18,7 +18,7 @@ export function VideoAnalyzer({ storyboard, onAnalysisComplete, autoStart = fals
     const [autoTriggered, setAutoTriggered] = useState(false);
 
     const scenesWithVideos = useMemo(
-        () => storyboard.scenes.filter(s => s.generatedVideo),
+        () => storyboard.scenes.filter(s => Boolean(s.generatedVideo?.url)),
         [storyboard.scenes]
     );
 

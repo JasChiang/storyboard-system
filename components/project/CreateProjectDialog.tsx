@@ -8,35 +8,25 @@ import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react';
 interface CreateProjectDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, description?: string, videoType?: string, targetDurationSec?: number) => void;
+  onCreate: (name: string, description?: string, targetDurationSec?: number) => void;
 }
-
-const VIDEO_TYPES = [
-  { id: 'commercial', label: '商業廣告', desc: '產品宣傳、品牌形象', emoji: '📺' },
-  { id: 'unboxing', label: '產品開箱', desc: '開箱評測、功能展示', emoji: '📦' },
-  { id: 'brand_story', label: '品牌故事', desc: '企業文化、創始故事', emoji: '🎬' },
-  { id: 'shorts_hook', label: 'Shorts Viral', desc: '病毒式短影片', emoji: '⚡' },
-  { id: 'documentary', label: '紀錄片', desc: '深度記錄、真實故事', emoji: '🎥' },
-];
 
 const DURATION_OPTIONS = [
   { sec: 15, label: '15 秒', sceneEst: '3-4 場景' },
   { sec: 20, label: '20 秒', sceneEst: '4-5 場景' },
   { sec: 25, label: '25 秒', sceneEst: '5 場景' },
   { sec: 30, label: '30 秒', sceneEst: '5-6 場景' },
-  { sec: 60, label: '60 秒', sceneEst: '7 場景' },
+  { sec: 60, label: '60 秒', sceneEst: '場景數於分鏡生成時自訂' },
 ];
 
 export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProjectDialogProps) {
   const [step, setStep] = useState(1);
-  const [videoType, setVideoType] = useState('');
   const [targetDurationSec, setTargetDurationSec] = useState(30);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
 
   const reset = () => {
     setStep(1);
-    setVideoType('');
     setTargetDurationSec(30);
     setName('');
     setDescription('');
@@ -49,14 +39,14 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
 
   const handleSubmit = () => {
     if (!name.trim()) return;
-    onCreate(name.trim(), description.trim() || undefined, videoType || undefined, targetDurationSec);
+    onCreate(name.trim(), description.trim() || undefined, targetDurationSec);
     reset();
     onClose();
   };
 
   if (!isOpen) return null;
 
-  const stepLabels = ['影片類型', '目標時長', '核心資訊', '確認建立'];
+  const stepLabels = ['目標時長', '核心資訊', '確認建立'];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -105,45 +95,10 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
           })}
         </div>
 
-        {/* Step 1: Video Type */}
+        {/* Step 1: Duration */}
         {step === 1 && (
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground mb-4">選擇影片類型，系統會自動選用最適合的模板。</p>
-            <div className="grid grid-cols-1 gap-2">
-              {VIDEO_TYPES.map((type) => (
-                <button
-                  key={type.id}
-                  onClick={() => setVideoType(type.id)}
-                  className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
-                    videoType === type.id
-                      ? 'border-primary/40 bg-primary/10'
-                      : 'border-border/60 hover:border-border bg-white/50 dark:bg-slate-900/50'
-                  }`}
-                >
-                  <span className="text-xl">{type.emoji}</span>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{type.label}</p>
-                    <p className="text-xs text-muted-foreground">{type.desc}</p>
-                  </div>
-                  {videoType === type.id && (
-                    <Check className="ml-auto h-4 w-4 text-primary" />
-                  )}
-                </button>
-              ))}
-            </div>
-            <div className="flex justify-end pt-2">
-              <Button onClick={() => setStep(2)} disabled={!videoType}>
-                下一步
-                <ChevronRight className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Duration */}
-        {step === 2 && (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground mb-4">選擇目標影片時長，系統會按此規劃場景數量。</p>
+            <p className="text-sm text-muted-foreground mb-4">選擇目標影片時長，分鏡場景數可於後續生成時調整。</p>
             <div className="grid grid-cols-1 gap-2">
               {DURATION_OPTIONS.map((opt) => (
                 <button
@@ -165,12 +120,8 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
                 </button>
               ))}
             </div>
-            <div className="flex gap-3 pt-2">
-              <Button variant="outline" onClick={() => setStep(1)}>
-                <ChevronLeft className="mr-1 h-4 w-4" />
-                上一步
-              </Button>
-              <Button onClick={() => setStep(3)} className="flex-1">
+            <div className="flex justify-end pt-2">
+              <Button onClick={() => setStep(2)}>
                 下一步
                 <ChevronRight className="ml-1 h-4 w-4" />
               </Button>
@@ -178,8 +129,8 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
           </div>
         )}
 
-        {/* Step 3: Core Info */}
-        {step === 3 && (
+        {/* Step 2: Core Info */}
+        {step === 2 && (
           <div className="space-y-5">
             <p className="text-sm text-muted-foreground">填寫專案基本資訊。</p>
             <div>
@@ -195,7 +146,7 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && name.trim()) {
                     e.preventDefault();
-                    setStep(4);
+                    setStep(3);
                   }
                 }}
                 autoFocus
@@ -209,11 +160,11 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
               onChange={(e) => setDescription(e.target.value)}
             />
             <div className="flex gap-3 pt-2">
-              <Button variant="outline" onClick={() => setStep(2)}>
+              <Button variant="outline" onClick={() => setStep(1)}>
                 <ChevronLeft className="mr-1 h-4 w-4" />
                 上一步
               </Button>
-              <Button onClick={() => setStep(4)} disabled={!name.trim()} className="flex-1">
+              <Button onClick={() => setStep(3)} disabled={!name.trim()} className="flex-1">
                 下一步
                 <ChevronRight className="ml-1 h-4 w-4" />
               </Button>
@@ -221,15 +172,11 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
           </div>
         )}
 
-        {/* Step 4: Confirm */}
-        {step === 4 && (
+        {/* Step 3: Confirm */}
+        {step === 3 && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">確認以下資訊後建立專案。</p>
             <div className="rounded-xl border border-border/60 bg-slate-50/50 dark:bg-slate-900/50 p-4 space-y-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">影片類型</span>
-                <span className="font-medium">{VIDEO_TYPES.find(t => t.id === videoType)?.label || '—'}</span>
-              </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">目標時長</span>
                 <span className="font-medium">{targetDurationSec} 秒</span>
@@ -246,7 +193,7 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
               )}
             </div>
             <div className="flex gap-3 pt-2">
-              <Button variant="outline" onClick={() => setStep(3)}>
+              <Button variant="outline" onClick={() => setStep(2)}>
                 <ChevronLeft className="mr-1 h-4 w-4" />
                 上一步
               </Button>

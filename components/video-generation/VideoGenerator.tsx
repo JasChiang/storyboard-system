@@ -307,7 +307,7 @@ export function VideoGenerator({
             }
 
             if (data.status === 'COMPLETED') {
-                const videoUrl = data.result.video?.url;
+                const videoUrl = data.result?.video?.url;
                 if (videoUrl) {
                     await fetch(`/api/workflow/tasks/${taskId}`, {
                         method: 'PATCH',
@@ -318,6 +318,17 @@ export function VideoGenerator({
                         }),
                     });
                     onVideoGenerated(videoUrl, motionPrompt, composedPrompt, model, durationSeconds);
+                } else {
+                    await fetch(`/api/workflow/tasks/${taskId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            status: 'failed',
+                            error: 'Generation completed but no video URL returned',
+                            attempts: attempts + 1,
+                        }),
+                    });
+                    throw new Error('Generation completed but no video URL returned');
                 }
                 return;
             } else if (data.status === 'FAILED') {

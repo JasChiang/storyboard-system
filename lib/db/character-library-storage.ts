@@ -32,11 +32,14 @@ class CharacterLibraryStorage {
     const localItems = this.getLocalLibrary().items;
     if (!localItems.length) return;
 
-    await fetch('/api/data/character-library/import', {
+    const response = await fetch('/api/data/character-library/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items: localItems }),
     });
+    if (!response.ok) {
+      throw new Error('Failed to import character library');
+    }
   }
 
   async getAll(): Promise<CharacterLibraryItem[]> {
@@ -52,8 +55,18 @@ class CharacterLibraryStorage {
         if (retry.ok) {
           const retryJson = await retry.json();
           const retryItems = (retryJson.data || []) as CharacterLibraryItem[];
+          if (retryItems.length === 0) {
+            const localItems = this.getLocalLibrary().items;
+            if (localItems.length > 0) {
+              return localItems;
+            }
+          }
           this.saveLocalLibrary({ items: retryItems, version: 1 });
           return retryItems;
+        }
+        const localItems = this.getLocalLibrary().items;
+        if (localItems.length > 0) {
+          return localItems;
         }
       }
 

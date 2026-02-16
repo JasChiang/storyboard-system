@@ -13,6 +13,7 @@ export interface OpenRouterConfig {
 
 export interface StoryboardGenerationOptions {
   targetDurationSec?: number;
+  targetSceneCount?: number;
 }
 
 export async function generateStoryboardScript(
@@ -123,10 +124,34 @@ export async function generateStoryboardScript(
   const consolidatedRules = buildConsolidatedReferenceRules(references);
   const targetDurationSec = Number(options?.targetDurationSec);
   const hasTargetDuration = Number.isFinite(targetDurationSec) && targetDurationSec > 0;
-  const targetSceneCount = hasTargetDuration
-    ? Math.max(3, Math.min(7, Math.round(targetDurationSec / 5)))
+  const rawManualSceneCount = Number(options?.targetSceneCount);
+  const manualSceneCount = Number.isFinite(rawManualSceneCount)
+    ? Math.floor(rawManualSceneCount)
     : undefined;
-  const normalizedSceneLimit = targetSceneCount ?? 7;
+  const hasManualSceneCount = typeof manualSceneCount === 'number' && manualSceneCount > 6;
+  const durationSceneMapping: Record<number, number> = {
+    15: 3,
+    20: 4,
+    25: 5,
+    30: 6,
+    60: 6,
+  };
+  const inferredSceneCount = hasTargetDuration
+    ? (durationSceneMapping[targetDurationSec] ?? Math.max(3, Math.min(6, Math.round(targetDurationSec / 5))))
+    : undefined;
+  const targetSceneCount = hasManualSceneCount
+    ? Math.min(20, manualSceneCount)
+    : inferredSceneCount;
+  const avgSceneDurationSec = hasTargetDuration && targetSceneCount
+    ? Number((targetDurationSec / targetSceneCount).toFixed(1))
+    : undefined;
+  const targetDurationGuideline = hasTargetDuration && targetSceneCount
+    ? `目標影片長度 ${targetDurationSec} 秒，優先產出 ${targetSceneCount} 場；平均每場約 ${avgSceneDurationSec} 秒。`
+    : '以 4-6 場景為目標，優先可製作性。';
+  const targetDurationSecondPassRule = hasTargetDuration && targetSceneCount
+    ? `保持約 ${targetSceneCount} 場（總長約 ${targetDurationSec} 秒，平均每場約 ${avgSceneDurationSec} 秒），除非原本不足，否則不要大幅增減。`
+    : '保持 4-6 場景，除非原本不足，否則不要大幅增減。';
+  const normalizedSceneLimit = targetSceneCount ?? 6;
 
   interface ConsistencyViolation {
     sceneNumber: number;
@@ -393,7 +418,8 @@ export async function generateStoryboardScript(
       content: `${userPrompt}
 
 補充要求：
-- ${hasTargetDuration ? `目標影片長度 ${targetDurationSec} 秒，按每場約 5 秒規劃，優先產出 ${targetSceneCount} 場。` : '以 5-7 場景為目標，優先可製作性。'}
+- ${targetDurationGuideline}
+- ${hasManualSceneCount ? `使用者指定目標場景數為 ${targetSceneCount} 場；請優先遵守。` : '若需超過 6 場，必須由使用者明確指定；否則維持 6 場內。'}
 - 角色與商品外觀一致性高於創意發散。
 - requiresEndFrame 採保守判斷，非必要不要設 true。
 - 只輸出 JSON，不要包含其他文字。`,
@@ -418,7 +444,8 @@ export async function generateStoryboardScript(
 3) 角色與商品一致性（不可改變核心外觀）
 
 規則：
-- ${hasTargetDuration ? `保持約 ${targetSceneCount} 場（每場約 5 秒，總長約 ${targetDurationSec} 秒），除非原本不足，否則不要大幅增減。` : '保持 5-7 場景，除非原本不足，否則不要大幅增減。'}
+- ${targetDurationSecondPassRule}
+- ${hasManualSceneCount ? `場景數需維持在 ${targetSceneCount} 場（使用者指定）。` : '未收到使用者指定時，不得自動擴張到超過 6 場。'}
 - 若 transitionToNext.type = "continuation"，requiresEndFrame 必須為 true。
 - 若 requiresEndFrame = false，endFrameDescription 必須是空字串 ""。
 - 若 requiresEndFrame = false，endFrameDelta 也必須是空字串 ""。

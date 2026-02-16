@@ -136,7 +136,7 @@ export default function ImagesPage() {
     ? getSceneGenerationState(selectedScene.id)
     : { isGeneratingStart: false, isGeneratingEnd: false };
   const selectedSceneInFilterIndex = filteredScenes.findIndex((scene) => scene.id === selectedSceneId);
-  const generatedSceneCount = scenes.filter((scene) => scene.generatedImage).length;
+  const generatedSceneCount = scenes.filter((scene) => Boolean(scene.generatedImage?.url)).length;
   const generatingSceneCount = scenes.filter((scene) => {
     const state = getSceneGenerationState(scene.id);
     return state.isGeneratingStart || state.isGeneratingEnd;
@@ -236,11 +236,11 @@ export default function ImagesPage() {
       scene.id === sceneId
         ? {
           ...scene,
-          generatedImage: {
+          generatedImage: imageUrl ? {
             url: imageUrl,
             prompt,
             timestamp: new Date().toISOString(),
-          },
+          } : scene.generatedImage,
           generatedEndFrame: endFrameUrl ? {
             url: endFrameUrl,
             prompt: endFramePrompt || '',
@@ -295,11 +295,11 @@ export default function ImagesPage() {
       if (result) {
         return {
           ...scene,
-          generatedImage: {
+          generatedImage: result.url ? {
             url: result.url,
             prompt: result.prompt,
             timestamp: new Date().toISOString(),
-          },
+          } : scene.generatedImage,
           // 如果有尾幀，也儲存尾幀資訊（不再依賴 requiresEndFrame）
           generatedEndFrame: result.endFrameUrl ? {
             url: result.endFrameUrl,
@@ -363,7 +363,7 @@ export default function ImagesPage() {
             </div>
 
             {/* Preview Flow Button */}
-            {scenes.some(s => s.generatedImage) && (
+            {scenes.some(s => Boolean(s.generatedImage?.url)) && (
               <button
                 onClick={() => setShowPreview(true)}
                 className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/20"
@@ -736,7 +736,7 @@ export default function ImagesPage() {
                   >
                     {/* 首幀 */}
                     <div className="aspect-video bg-slate-100 dark:bg-slate-800 rounded overflow-hidden">
-                      {scene.generatedImage ? (
+                      {scene.generatedImage?.url ? (
                         <div className="relative w-full h-full">
                           <Image
                             src={scene.generatedImage.url}
@@ -756,7 +756,7 @@ export default function ImagesPage() {
                     </div>
 
                     {/* 尾幀（如果存在） */}
-                    {scene.generatedEndFrame && (
+                    {scene.generatedEndFrame?.url && (
                       <div className="space-y-1">
                         <p className="text-xs font-medium text-purple-600 dark:text-purple-400 flex items-center gap-1">
                           <span className="inline-block w-1.5 h-1.5 bg-purple-600 dark:bg-purple-400 rounded-full"></span>

@@ -14,8 +14,12 @@ export async function POST(request: NextRequest) {
 
     const { userPrompt, templateId, references } = body;
     const rawTargetDuration = Number(body.targetDurationSec);
-    const allowedDurations = new Set([15, 20, 25, 30]);
+    const allowedDurations = new Set([15, 20, 25, 30, 60]);
     const targetDurationSec = allowedDurations.has(rawTargetDuration) ? rawTargetDuration : undefined;
+    const rawTargetSceneCount = Number(body?.targetSceneCount);
+    const targetSceneCount = Number.isFinite(rawTargetSceneCount) && rawTargetSceneCount > 6
+      ? Math.min(20, Math.floor(rawTargetSceneCount))
+      : undefined;
     const apiKey = process.env.OPENROUTER_API_KEY;
 
     // 驗證必要參數
@@ -35,7 +39,7 @@ export async function POST(request: NextRequest) {
       template,
       { apiKey },
       references,
-      { targetDurationSec }
+      { targetDurationSec, targetSceneCount }
     );
 
     return NextResponse.json({

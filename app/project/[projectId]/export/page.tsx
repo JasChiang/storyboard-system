@@ -29,7 +29,7 @@ export default function ExportPage() {
   }, [currentProject?.editingSuggestions, currentProject?.id]);
 
   const scenes = currentProject?.storyboard?.scenes || [];
-  const scenesWithVideos = scenes.filter(s => s.generatedVideo);
+  const scenesWithVideos = scenes.filter(s => Boolean(s.generatedVideo?.url));
   const hasEditingSuggestionCoverage = useMemo(() => {
     if (!editingSuggestion?.scenes?.length || scenesWithVideos.length === 0) return false;
     const suggestedSceneIds = new Set(editingSuggestion.scenes.map(scene => scene.sceneId));
@@ -38,8 +38,8 @@ export default function ExportPage() {
 
   // 檢查完成度
   const hasStoryboard = !!currentProject?.storyboard;
-  const hasImages = scenes.some(s => s.generatedImage);
-  const hasVideos = scenesWithVideos.length > 0;
+  const hasImages = scenes.length > 0 && scenes.every(s => Boolean(s.generatedImage?.url));
+  const hasVideos = scenes.length > 0 && scenesWithVideos.length === scenes.length;
 
   const handleAnalysisComplete = (suggestion: EditingSuggestion) => {
     setEditingSuggestion(suggestion);

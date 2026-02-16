@@ -8,11 +8,13 @@ interface ProjectStore {
   isLoading: boolean;
   loadProjects: () => void;
   setCurrentProject: (projectId: string | null) => void;
-  createProject: (name: string, description?: string, videoType?: string, targetDurationSec?: number) => void;
+  createProject: (name: string, description?: string, targetDurationSec?: number) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
   refreshCurrentProject: () => void;
 }
+
+let currentProjectRequestSeq = 0;
 
 async function apiGetProjects(): Promise<Project[]> {
   const response = await fetch('/api/data/projects');
@@ -29,11 +31,11 @@ async function apiGetProjectById(id: string): Promise<Project | null> {
   return json.data as Project;
 }
 
-async function apiCreateProject(name: string, description?: string, videoType?: string, targetDurationSec?: number): Promise<Project> {
+async function apiCreateProject(name: string, description?: string, targetDurationSec?: number): Promise<Project> {
   const response = await fetch('/api/data/projects', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, description, videoType, targetDurationSec }),
+    body: JSON.stringify({ name, description, targetDurationSec }),
   });
   if (!response.ok) throw new Error('Failed to create project');
   const json = await response.json();
@@ -60,11 +62,12 @@ async function apiDeleteProject(id: string): Promise<boolean> {
 }
 
 async function apiImportProjects(projects: Project[]): Promise<void> {
-  await fetch('/api/data/projects/import', {
+  const response = await fetch('/api/data/projects/import', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ projects }),
   });
+  if (!response.ok) throw new Error('Failed to import projects');
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -94,29 +97,33 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   setCurrentProject: (projectId: string | null) => {
     if (!projectId) {
+      currentProjectRequestSeq += 1;
       set({ currentProject: null });
       return;
     }
 
+    const requestSeq = ++currentProjectRequestSeq;
     void (async () => {
       try {
         const project = await apiGetProjectById(projectId);
+        if (requestSeq !== currentProjectRequestSeq) return;
         set({ currentProject: project });
       } catch {
         const fallback = projectStorage.getById(projectId);
+        if (requestSeq !== currentProjectRequestSeq) return;
         set({ currentProject: fallback });
       }
     })();
   },
 
-  createProject: (name: string, description?: string, videoType?: string, targetDurationSec?: number) => {
+  createProject: (name: string, description?: string, targetDurationSec?: number) => {
     void (async () => {
       try {
-        const created = await apiCreateProject(name, description, videoType, targetDurationSec);
+        const created = await apiCreateProject(name, description, targetDurationSec);
         const projects = await apiGetProjects();
         set({ projects, currentProject: created });
       } catch {
-        const local = projectStorage.create({ name, description, status: 'draft', videoType, targetDurationSec });
+        const local = projectStorage.create({ name, description, status: 'draft', targetDurationSec });
         const projects = projectStorage.getAll();
         set({ projects, currentProject: local });
       }

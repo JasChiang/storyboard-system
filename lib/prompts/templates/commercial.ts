@@ -9,7 +9,7 @@ export const COMMERCIAL_TEMPLATE: PromptTemplate = {
 產出策略（固定遵循）：
 - 目標平台：YouTube Shorts / Instagram Reels / TikTok
 - 創意強度：中（維持可用性與亮點，不做過度發散）
-- 預設場景數：5-7 場（兼顧節奏與製作成本）
+- 預設場景數：4-6 場（兼顧節奏與製作成本）
 - 一致性優先級：品牌與商品識別一致性 > 故事花樣
 - 首尾幀策略：保守。若無明確必要，優先 requiresEndFrame = false
 

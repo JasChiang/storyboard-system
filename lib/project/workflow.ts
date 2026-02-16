@@ -11,16 +11,18 @@ export interface WorkflowProgress {
 
 export function getWorkflowProgress(project?: Project | null): WorkflowProgress {
   const scenes = project?.storyboard?.scenes || [];
-  const scenesWithImages = scenes.filter(scene => scene.generatedImage).length;
-  const scenesWithVideos = scenes.filter(scene => scene.generatedVideo).length;
+  const scenesWithImages = scenes.filter(scene => Boolean(scene.generatedImage?.url)).length;
+  const scenesWithVideos = scenes.filter(scene => Boolean(scene.generatedVideo?.url)).length;
+  const totalScenes = scenes.length;
+  const allImagesReady = totalScenes > 0 && scenesWithImages === totalScenes;
+  const allVideosReady = totalScenes > 0 && scenesWithVideos === totalScenes;
 
   return {
     hasStoryboard: !!project?.storyboard,
-    totalScenes: scenes.length,
+    totalScenes,
     scenesWithImages,
     scenesWithVideos,
-    hasImages: scenesWithImages > 0,
-    hasVideos: scenesWithVideos > 0,
+    hasImages: allImagesReady,
+    hasVideos: allVideosReady,
   };
 }
-

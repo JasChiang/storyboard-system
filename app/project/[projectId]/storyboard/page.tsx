@@ -52,7 +52,8 @@ export default function StoryboardPage() {
     prompt: string,
     templateId: string,
     references: ProjectReference[],
-    targetDurationSec: number
+    targetDurationSec: number,
+    targetSceneCount?: number
   ) => {
     setIsGenerating(true);
     setGenerationNotice(null);
@@ -63,13 +64,20 @@ export default function StoryboardPage() {
         prompt: prompt.substring(0, 50) + '...',
         templateId,
         refsCount: references.length,
-        targetDurationSec
+        targetDurationSec,
+        targetSceneCount,
       });
 
       const response = await fetch('/api/openrouter/generate-storyboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userPrompt: prompt, templateId, references, targetDurationSec }),
+        body: JSON.stringify({
+          userPrompt: prompt,
+          templateId,
+          references,
+          targetDurationSec,
+          targetSceneCount,
+        }),
       });
 
       if (!response.ok) {
@@ -125,6 +133,7 @@ export default function StoryboardPage() {
       // 更新專案
       updateProject(projectId, {
         storyboard,
+        targetDurationSec,
         status: 'storyboard',
       });
 
@@ -709,6 +718,8 @@ export default function StoryboardPage() {
                     setIsPromptCollapsed(true);
                   }}
                   isLoading={isGenerating}
+                  initialTargetDurationSec={currentProject?.targetDurationSec}
+                  initialPrompt={currentProject?.storyboard?.originalPrompt}
                 />
               </div>
             )}

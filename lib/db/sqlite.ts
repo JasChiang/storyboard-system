@@ -27,6 +27,7 @@ function ensureDb() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       description TEXT,
+      target_duration_sec INTEGER,
       storyboard_json TEXT,
       blender_script TEXT,
       editing_suggestions_json TEXT,
@@ -83,6 +84,12 @@ function ensureDb() {
       ON character_library_items(name, type, updated_at DESC);
   `);
 
+  const projectColumns = (db.prepare('PRAGMA table_info(projects)').all() as Array<{ name: string }>)
+    .map((column) => column.name);
+  if (!projectColumns.includes('target_duration_sec')) {
+    db.exec('ALTER TABLE projects ADD COLUMN target_duration_sec INTEGER');
+  }
+
   return db;
 }
 
@@ -91,6 +98,11 @@ function rowToProject(row: DbRow): Project {
     id: String(row.id),
     name: String(row.name),
     description: row.description ? String(row.description) : undefined,
+    targetDurationSec: row.target_duration_sec !== null
+      && row.target_duration_sec !== undefined
+      && Number.isFinite(Number(row.target_duration_sec))
+      ? Number(row.target_duration_sec)
+      : undefined,
     storyboard: row.storyboard_json ? JSON.parse(String(row.storyboard_json)) : undefined,
     blenderScript: row.blender_script ? String(row.blender_script) : undefined,
     editingSuggestions: row.editing_suggestions_json ? JSON.parse(String(row.editing_suggestions_json)) : undefined,
@@ -118,14 +130,15 @@ export const sqliteProjectRepo = {
     const conn = ensureDb();
     conn.prepare(`
       INSERT INTO projects (
-        id, name, description, storyboard_json, blender_script,
+        id, name, description, target_duration_sec, storyboard_json, blender_script,
         editing_suggestions_json, openreel_project_json, status,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       project.id,
       project.name,
       project.description ?? null,
+      Number.isFinite(Number(project.targetDurationSec)) ? Number(project.targetDurationSec) : null,
       project.storyboard ? JSON.stringify(project.storyboard) : null,
       project.blenderScript ?? null,
       project.editingSuggestions ? JSON.stringify(project.editingSuggestions) : null,
@@ -153,6 +166,7 @@ export const sqliteProjectRepo = {
       UPDATE projects
       SET name = ?,
           description = ?,
+          target_duration_sec = ?,
           storyboard_json = ?,
           blender_script = ?,
           editing_suggestions_json = ?,
@@ -163,6 +177,7 @@ export const sqliteProjectRepo = {
     `).run(
       merged.name,
       merged.description ?? null,
+      Number.isFinite(Number(merged.targetDurationSec)) ? Number(merged.targetDurationSec) : null,
       merged.storyboard ? JSON.stringify(merged.storyboard) : null,
       merged.blenderScript ?? null,
       merged.editingSuggestions ? JSON.stringify(merged.editingSuggestions) : null,

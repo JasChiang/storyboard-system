@@ -40,7 +40,7 @@ export function BlenderScriptViewer({
         downloadBlenderScript(script, filename);
     };
 
-    const scenesWithVideos = scenes.filter(s => s.generatedVideo);
+    const scenesWithVideos = scenes.filter(s => Boolean(s.generatedVideo?.url));
 
     if (scenesWithVideos.length === 0) {
         return (

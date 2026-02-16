@@ -45,7 +45,7 @@ export function generateBlenderScript(options: BlenderScriptOptions): string {
     const videoMappings: VideoMapping[] = [];
     let videoIndex = 0;
     scenes.forEach((scene, sceneIndex) => {
-        if (scene.generatedVideo) {
+        if (scene.generatedVideo?.url) {
             videoMappings.push({ sceneIndex, videoIndex, scene });
             videoIndex++;
         }

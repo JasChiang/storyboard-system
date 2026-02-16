@@ -215,14 +215,14 @@ async function concatenateVideos(
 
     // 如果只有一個場景，直接使用
     if (scenes.length === 1) {
-      filterComplex.push('[v0]copy[outv]');
+      filterComplex.push('[v0]null[outv]');
     }
 
     // 有字幕則燒入，否則直接輸出
     if (subtitlePath) {
       filterComplex.push(`[outv]subtitles=${subtitlePath}:force_style='FontName=Arial,FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2,Shadow=1'[outfinal]`);
     } else {
-      filterComplex.push('[outv]copy[outfinal]');
+      filterComplex.push('[outv]null[outfinal]');
     }
 
     command

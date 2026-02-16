@@ -43,8 +43,8 @@ export default function VideosPage() {
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
 
   // 統計資訊
-  const scenesWithImages = scenes.filter(s => s.generatedImage);
-  const scenesWithVideos = scenes.filter(s => s.generatedVideo);
+  const scenesWithImages = scenes.filter(s => Boolean(s.generatedImage?.url));
+  const scenesWithVideos = scenes.filter(s => Boolean(s.generatedVideo?.url));
   const selectedSceneInFilterIndex = filteredScenes.findIndex((scene) => scene.id === selectedSceneId);
   const hasEffectiveStartFrame = useCallback((sceneId: string) => {
     const sceneIndex = scenes.findIndex((scene) => scene.id === sceneId);
@@ -291,7 +291,7 @@ export default function VideosPage() {
                   : undefined;
                 const effectiveStartFrameUrl = previousEndFrameUrl || scene.generatedImage?.url;
                 const hasImage = !!effectiveStartFrameUrl;
-                const hasVideo = !!scene.generatedVideo;
+                const hasVideo = Boolean(scene.generatedVideo?.url);
                 const isLocked = scene.qaStatus === 'block' || !hasImage;
 
                 return (

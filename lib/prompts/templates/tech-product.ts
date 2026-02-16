@@ -9,7 +9,7 @@ export const TECH_PRODUCT_TEMPLATE: PromptTemplate = {
 產出策略（固定遵循）：
 - 目標平台：YouTube / Instagram / TikTok 產品廣告
 - 創意強度：中高（強調產品差異化，保持可製作性）
-- 預設場景數：5-7 場
+- 預設場景數：4-6 場
 - 一致性優先級：產品識別一致性 > 故事花樣
 
 Shot Hierarchy（鏡頭層次，按此順序規劃）：
