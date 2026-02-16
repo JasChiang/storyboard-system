@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Scissors, CheckCircle2, XCircle, Zap, Wand2 } from 'lucide-react';
 import Link from 'next/link';
 import { useProjectStore } from '@/stores/project-store';
@@ -94,6 +94,18 @@ export default function ExportPage() {
     });
   };
 
+  const handleAudioDraftChange = useCallback((audioPlanningDraft: Storyboard['audioPlanningDraft']) => {
+    if (!currentProject?.storyboard || !audioPlanningDraft) return;
+
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        audioPlanningDraft,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  }, [currentProject?.storyboard, projectId, updateProject]);
+
   if (!currentProject?.storyboard) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -148,6 +160,7 @@ export default function ExportPage() {
           storyboard={currentProject.storyboard}
           onVoiceoversGenerated={handleVoiceoversGenerated}
           onMusicGenerated={handleMusicGenerated}
+          onAudioDraftChange={handleAudioDraftChange}
         />
 
         {/* 渲染模式選擇 */}

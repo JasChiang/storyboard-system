@@ -1,4 +1,4 @@
-import type { IndexTtsRequestInput } from './audio';
+import type { ElevenLabsMusicPromptIdea, IndexTtsRequestInput, IndexTtsScenePlan } from './audio';
 
 // 轉場類型
 export type TransitionType =
@@ -113,6 +113,18 @@ export interface Storyboard {
     prompt: string;
     durationSeconds?: number;
     timestamp: string;
+  };
+  audioPlanningDraft?: {
+    voiceRefUrl?: string;
+    emotionalVoiceRefUrl?: string;
+    voiceDirection?: string;
+    voiceoverPlans?: IndexTtsScenePlan[];
+    musicProvider?: 'elevenlabs' | 'minimax';
+    musicPrompt?: string;
+    minimaxLyricsPrompt?: string;
+    musicDurationSec?: number;
+    musicPromptIdeas?: ElevenLabsMusicPromptIdea[];
+    updatedAt: string;
   };
   audioMixSettings?: {
     voiceoverVolume?: number; // 0-1.5

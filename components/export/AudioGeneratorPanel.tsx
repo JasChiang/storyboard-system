@@ -21,9 +21,15 @@ interface AudioGeneratorPanelProps {
     }>
   ) => void;
   onMusicGenerated: (music: Storyboard['generatedMusic']) => void;
+  onAudioDraftChange?: (draft: Storyboard['audioPlanningDraft']) => void;
 }
 
 type MusicProvider = 'elevenlabs' | 'minimax';
+
+const DEFAULT_MUSIC_PROMPT =
+  'Cinematic commercial background music, warm modern tone, no vocals, clean mix, suitable for product storytelling.';
+const DEFAULT_VOICE_DIRECTION =
+  '以自然口語旁白呈現，語速穩定，貼合商業影片節奏，避免過度誇張。';
 
 interface PollAudioResult {
   url: string;
@@ -160,32 +166,48 @@ export function AudioGeneratorPanel({
   storyboard,
   onVoiceoversGenerated,
   onMusicGenerated,
+  onAudioDraftChange,
 }: AudioGeneratorPanelProps) {
+  const initialAudioDraft = storyboard.audioPlanningDraft;
+  const initialTotalDuration = Math.max(8, Math.round(storyboard.scenes.reduce((sum, scene) => sum + (scene.duration || 0), 0)));
   const [isPlanningVoiceovers, setIsPlanningVoiceovers] = useState(false);
   const [isPlanningMusicPrompts, setIsPlanningMusicPrompts] = useState(false);
   const [isGeneratingVoiceovers, setIsGeneratingVoiceovers] = useState(false);
   const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
-  const [musicProvider, setMusicProvider] = useState<MusicProvider>('elevenlabs');
+  const [musicProvider, setMusicProvider] = useState<MusicProvider>(
+    initialAudioDraft?.musicProvider === 'minimax' ? 'minimax' : 'elevenlabs'
+  );
   const [musicPrompt, setMusicPrompt] = useState(
-    'Cinematic commercial background music, warm modern tone, no vocals, clean mix, suitable for product storytelling.'
+    initialAudioDraft?.musicPrompt?.trim() || DEFAULT_MUSIC_PROMPT
   );
-  const [minimaxLyricsPrompt, setMinimaxLyricsPrompt] = useState('');
-  const [musicDurationSec, setMusicDurationSec] = useState<number>(
-    Math.max(8, Math.round(storyboard.scenes.reduce((sum, scene) => sum + (scene.duration || 0), 0)))
+  const [minimaxLyricsPrompt, setMinimaxLyricsPrompt] = useState(
+    initialAudioDraft?.minimaxLyricsPrompt || ''
   );
-  const [voiceRefUrl, setVoiceRefUrl] = useState('');
-  const [emotionalVoiceRefUrl, setEmotionalVoiceRefUrl] = useState('');
+  const [musicDurationSec, setMusicDurationSec] = useState<number>(() => {
+    const raw = Number(initialAudioDraft?.musicDurationSec);
+    return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : initialTotalDuration;
+  });
+  const [voiceRefUrl, setVoiceRefUrl] = useState(initialAudioDraft?.voiceRefUrl?.trim() || '');
+  const [emotionalVoiceRefUrl, setEmotionalVoiceRefUrl] = useState(initialAudioDraft?.emotionalVoiceRefUrl?.trim() || '');
   const [isUploadingVoiceRef, setIsUploadingVoiceRef] = useState(false);
   const [isUploadingEmotionalVoiceRef, setIsUploadingEmotionalVoiceRef] = useState(false);
   const [voiceDirection, setVoiceDirection] = useState(
-    '以自然口語旁白呈現，語速穩定，貼合商業影片節奏，避免過度誇張。'
+    initialAudioDraft?.voiceDirection || DEFAULT_VOICE_DIRECTION
   );
-  const [voiceoverPlans, setVoiceoverPlans] = useState<IndexTtsScenePlan[]>([]);
-  const [musicPromptIdeas, setMusicPromptIdeas] = useState<ElevenLabsMusicPromptIdea[]>([]);
+  const [voiceoverPlans, setVoiceoverPlans] = useState<IndexTtsScenePlan[]>(
+    normalizeVoiceoverPlans(initialAudioDraft?.voiceoverPlans)
+  );
+  const [musicPromptIdeas, setMusicPromptIdeas] = useState<ElevenLabsMusicPromptIdea[]>(
+    normalizeMusicPromptIdeas(initialAudioDraft?.musicPromptIdeas).slice(0, 3)
+  );
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const voiceRefInputRef = useRef<HTMLInputElement>(null);
   const emotionalVoiceRefInputRef = useRef<HTMLInputElement>(null);
+  const audioDraftCacheKey = `storyboard:audioDraft:${projectId}`;
+  const hasInitializedDraftSyncRef = useRef(false);
+  const lastDraftSyncSignatureRef = useRef('');
+  const restoredDraftKeyRef = useRef('');
 
   const scenesWithVideo = useMemo(
     () => storyboard.scenes.filter((scene) => Boolean(scene.generatedVideo?.url)),
@@ -273,24 +295,134 @@ export function AudioGeneratorPanel({
       .slice(0, 12);
   }, [storyboard.scenes]);
 
-  const voiceoverInputsSignature = useMemo(
-    () => JSON.stringify(voiceoverPlanInputs.map((item) => ({
-      sceneId: item.sceneId,
-      sceneNumber: item.sceneNumber,
-      duration: item.duration,
-      sourceLabel: item.sourceLabel,
-      sourceText: item.sourceText,
-    }))),
-    [voiceoverPlanInputs]
+  const audioPlanningDraft = useMemo<NonNullable<Storyboard['audioPlanningDraft']>>(() => ({
+    voiceRefUrl: voiceRefUrl.trim() || undefined,
+    emotionalVoiceRefUrl: emotionalVoiceRefUrl.trim() || undefined,
+    voiceDirection: voiceDirection.trim() || undefined,
+    voiceoverPlans,
+    musicProvider,
+    musicPrompt: musicPrompt.trim() || undefined,
+    minimaxLyricsPrompt: minimaxLyricsPrompt.trim() || undefined,
+    musicDurationSec: Number.isFinite(Number(musicDurationSec)) ? Math.max(3, Math.round(musicDurationSec)) : undefined,
+    musicPromptIdeas,
+    updatedAt: new Date().toISOString(),
+  }), [
+    voiceRefUrl,
+    emotionalVoiceRefUrl,
+    voiceDirection,
+    voiceoverPlans,
+    musicProvider,
+    musicPrompt,
+    minimaxLyricsPrompt,
+    musicDurationSec,
+    musicPromptIdeas,
+  ]);
+  const audioPlanningDraftSignature = useMemo(
+    () => JSON.stringify({
+      voiceRefUrl: audioPlanningDraft.voiceRefUrl || '',
+      emotionalVoiceRefUrl: audioPlanningDraft.emotionalVoiceRefUrl || '',
+      voiceDirection: audioPlanningDraft.voiceDirection || '',
+      voiceoverPlans: audioPlanningDraft.voiceoverPlans || [],
+      musicProvider: audioPlanningDraft.musicProvider || 'elevenlabs',
+      musicPrompt: audioPlanningDraft.musicPrompt || '',
+      minimaxLyricsPrompt: audioPlanningDraft.minimaxLyricsPrompt || '',
+      musicDurationSec: audioPlanningDraft.musicDurationSec || 0,
+      musicPromptIdeas: audioPlanningDraft.musicPromptIdeas || [],
+    }),
+    [audioPlanningDraft]
   );
 
-  useEffect(() => {
-    setVoiceoverPlans([]);
-  }, [voiceRefUrl, emotionalVoiceRefUrl, voiceDirection, voiceoverInputsSignature]);
+  const persistAudioDraftNow = (
+    overrides: Partial<NonNullable<Storyboard['audioPlanningDraft']>>
+  ) => {
+    if (!onAudioDraftChange) return;
+    onAudioDraftChange({
+      ...audioPlanningDraft,
+      ...overrides,
+      updatedAt: new Date().toISOString(),
+    });
+  };
 
   useEffect(() => {
-    setMusicPromptIdeas([]);
-  }, [musicPrompt, musicProvider, musicIdeaSceneInputs.length]);
+    const validSceneIds = new Set(voiceoverPlanInputs.map((item) => item.sceneId));
+    setVoiceoverPlans((prev) => prev.filter((plan) => validSceneIds.has(plan.sceneId)));
+  }, [voiceoverPlanInputs]);
+
+  useEffect(() => {
+    const restoreKey = `${projectId}:${storyboard.id}`;
+    if (restoredDraftKeyRef.current === restoreKey) return;
+    restoredDraftKeyRef.current = restoreKey;
+
+    let draft = storyboard.audioPlanningDraft;
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedRaw = window.localStorage.getItem(audioDraftCacheKey);
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw) as Storyboard['audioPlanningDraft'];
+          const cachedUpdatedAt = Date.parse(cached?.updatedAt || '');
+          const serverUpdatedAt = Date.parse(draft?.updatedAt || '');
+          const cachedIsNewer = Number.isFinite(cachedUpdatedAt)
+            && (!Number.isFinite(serverUpdatedAt) || cachedUpdatedAt > serverUpdatedAt);
+          if (!draft || cachedIsNewer) {
+            draft = cached;
+          }
+        }
+      } catch {
+        // Ignore malformed local cache
+      }
+    }
+    if (!draft) return;
+
+    const nextVoiceRefUrl = draft.voiceRefUrl?.trim() || '';
+    const nextEmotionalVoiceRefUrl = draft.emotionalVoiceRefUrl?.trim() || '';
+    const nextVoiceDirection = draft.voiceDirection || DEFAULT_VOICE_DIRECTION;
+    const nextMusicProvider: MusicProvider = draft.musicProvider === 'minimax' ? 'minimax' : 'elevenlabs';
+    const nextMusicPrompt = draft.musicPrompt?.trim() || DEFAULT_MUSIC_PROMPT;
+    const nextMinimaxLyricsPrompt = draft.minimaxLyricsPrompt || '';
+    const draftDuration = Number(draft.musicDurationSec);
+    const fallbackDuration = Math.max(8, Math.round(storyboard.scenes.reduce((sum, scene) => sum + (scene.duration || 0), 0)));
+    const nextMusicDurationSec = Number.isFinite(draftDuration) && draftDuration > 0
+      ? Math.round(draftDuration)
+      : fallbackDuration;
+
+    setVoiceRefUrl(nextVoiceRefUrl);
+    setEmotionalVoiceRefUrl(nextEmotionalVoiceRefUrl);
+    setVoiceDirection(nextVoiceDirection);
+    setVoiceoverPlans(normalizeVoiceoverPlans(draft.voiceoverPlans));
+    setMusicProvider(nextMusicProvider);
+    setMusicPrompt(nextMusicPrompt);
+    setMinimaxLyricsPrompt(nextMinimaxLyricsPrompt);
+    setMusicDurationSec(nextMusicDurationSec);
+    setMusicPromptIdeas(normalizeMusicPromptIdeas(draft.musicPromptIdeas).slice(0, 3));
+    hasInitializedDraftSyncRef.current = false;
+    lastDraftSyncSignatureRef.current = '';
+  }, [projectId, storyboard.id, storyboard.audioPlanningDraft, storyboard.scenes, audioDraftCacheKey]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(audioDraftCacheKey, JSON.stringify(audioPlanningDraft));
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [audioDraftCacheKey, audioPlanningDraft, audioPlanningDraftSignature]);
+
+  useEffect(() => {
+    if (!onAudioDraftChange) return;
+    if (!hasInitializedDraftSyncRef.current) {
+      hasInitializedDraftSyncRef.current = true;
+      lastDraftSyncSignatureRef.current = audioPlanningDraftSignature;
+      return;
+    }
+    if (audioPlanningDraftSignature === lastDraftSyncSignatureRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      lastDraftSyncSignatureRef.current = audioPlanningDraftSignature;
+      onAudioDraftChange(audioPlanningDraft);
+    }, 650);
+
+    return () => window.clearTimeout(timer);
+  }, [audioPlanningDraft, audioPlanningDraftSignature, onAudioDraftChange]);
 
   const uploadAudioReference = async (
     file: File,
@@ -316,8 +448,10 @@ export function AudioGeneratorPanel({
       const uploadedUrl = await fal.storage.upload(file);
       if (mode === 'voice') {
         setVoiceRefUrl(uploadedUrl);
+        setVoiceoverPlans([]);
       } else {
         setEmotionalVoiceRefUrl(uploadedUrl);
+        setVoiceoverPlans([]);
       }
       setStatusMessage('音訊上傳完成。');
     } finally {
@@ -442,6 +576,12 @@ export function AudioGeneratorPanel({
       }
 
       setVoiceoverPlans(plans);
+      persistAudioDraftNow({
+        voiceRefUrl: normalizedAudioUrl,
+        emotionalVoiceRefUrl: emotionalVoiceRefUrl.trim() || undefined,
+        voiceDirection: voiceDirection.trim() || undefined,
+        voiceoverPlans: plans,
+      });
       setStatusMessage(`AI 旁白參數已更新：${plans.length} 個場景。`);
       return plans;
     } finally {
@@ -482,6 +622,15 @@ export function AudioGeneratorPanel({
       }
 
       setMusicPromptIdeas(ideas);
+      persistAudioDraftNow({
+        musicProvider,
+        musicPrompt: musicPrompt.trim() || undefined,
+        minimaxLyricsPrompt: minimaxLyricsPrompt.trim() || undefined,
+        musicDurationSec: Number.isFinite(Number(musicDurationSec))
+          ? Math.max(3, Math.round(musicDurationSec))
+          : undefined,
+        musicPromptIdeas: ideas,
+      });
       return ideas;
     } finally {
       setIsPlanningMusicPrompts(false);
@@ -719,7 +868,7 @@ export function AudioGeneratorPanel({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-2">
         <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-3 bg-white/70 dark:bg-slate-900/70">
           <div className="flex items-center gap-2">
             <Mic2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -758,7 +907,10 @@ export function AudioGeneratorPanel({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setVoiceRefUrl('')}
+                  onClick={() => {
+                    setVoiceRefUrl('');
+                    setVoiceoverPlans([]);
+                  }}
                   disabled={isBusy}
                   className="text-slate-600 dark:text-slate-300"
                 >
@@ -814,7 +966,10 @@ export function AudioGeneratorPanel({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setEmotionalVoiceRefUrl('')}
+                  onClick={() => {
+                    setEmotionalVoiceRefUrl('');
+                    setVoiceoverPlans([]);
+                  }}
                   disabled={isBusy}
                   className="text-slate-600 dark:text-slate-300"
                 >
@@ -890,127 +1045,143 @@ export function AudioGeneratorPanel({
 
               {voiceoverPlanInputs.map((item) => {
                 const plan = voiceoverPlanMap.get(item.sceneId);
+                const promptPreview = (plan?.payload.prompt || item.sourceText || '').replace(/\s+/g, ' ').trim();
                 return (
-                  <div
+                  <details
                     key={item.sceneId}
                     className="rounded-md border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-2"
                   >
-                    <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      場景 {item.sceneNumber} · source: {item.sourceLabel} · {item.duration}s
-                    </p>
-                    {!plan ? (
-                      <>
-                        <p className="text-[11px] text-slate-600 dark:text-slate-300 whitespace-pre-wrap break-words">
-                          {item.sourceText}
+                    <summary className="cursor-pointer">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                          場景 {item.sceneNumber} · {item.sourceLabel} · {item.duration}s
                         </p>
-                        <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1">
-                          尚未產生 AI payload
-                        </p>
-                      </>
-                    ) : (
-                      <div className="space-y-2">
-                        <div>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-1">來源文字</p>
-                          <p className="text-[11px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">
+                        <span className={`text-[10px] ${plan ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                          {plan ? '可編輯' : '待 AI'}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                        {promptPreview || '（目前沒有可用文字）'}
+                      </p>
+                    </summary>
+
+                    <div className="mt-2 border-t border-slate-200/80 dark:border-slate-800/80 pt-2">
+                      {!plan ? (
+                        <>
+                          <p className="text-[11px] text-slate-600 dark:text-slate-300 whitespace-pre-wrap break-words">
                             {item.sourceText}
                           </p>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="block text-[10px] text-slate-500 dark:text-slate-400">
-                            旁白文字（prompt，可編輯）
-                          </label>
-                          <textarea
-                            value={plan.payload.prompt}
-                            onChange={(event) => {
-                              const value = event.target.value;
-                              updateVoiceoverPlanPayload(item.sceneId, (payload) => ({
-                                ...payload,
-                                prompt: value,
-                              }));
-                            }}
-                            disabled={isBusy}
-                            rows={2}
-                            className="w-full rounded-md border border-border/70 bg-white/85 dark:bg-slate-900/70 px-2 py-1.5 text-[11px] leading-snug focus:outline-none focus:ring-2 focus:ring-ring/30 resize-y"
-                          />
-                        </div>
-
-                        <div className="grid gap-2 sm:grid-cols-2">
+                          <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1">
+                            尚未產生 AI payload
+                          </p>
+                        </>
+                      ) : (
+                        <div className="space-y-2">
                           <div className="space-y-1">
                             <label className="block text-[10px] text-slate-500 dark:text-slate-400">
-                              語氣提示（emotion_prompt，可選）
+                              旁白文字（prompt）
                             </label>
                             <textarea
-                              value={plan.payload.emotion_prompt || ''}
+                              value={plan.payload.prompt}
                               onChange={(event) => {
                                 const value = event.target.value;
-                                updateVoiceoverPlanPayload(item.sceneId, (payload) => {
-                                  if (!value.trim()) {
-                                    const nextPayload = { ...payload };
-                                    delete nextPayload.emotion_prompt;
-                                    return nextPayload;
-                                  }
-                                  return {
-                                    ...payload,
-                                    emotion_prompt: value,
-                                    should_use_prompt_for_emotion: true,
-                                  };
-                                });
+                                updateVoiceoverPlanPayload(item.sceneId, (payload) => ({
+                                  ...payload,
+                                  prompt: value,
+                                }));
                               }}
                               disabled={isBusy}
                               rows={2}
                               className="w-full rounded-md border border-border/70 bg-white/85 dark:bg-slate-900/70 px-2 py-1.5 text-[11px] leading-snug focus:outline-none focus:ring-2 focus:ring-ring/30 resize-y"
                             />
                           </div>
-                          <div className="space-y-1">
-                            <label className="block text-[10px] text-slate-500 dark:text-slate-400">
-                              語氣強度（strength 0~1，可選）
-                            </label>
-                            <input
-                              type="number"
-                              min={0}
-                              max={1}
-                              step={0.05}
-                              value={typeof plan.payload.strength === 'number' ? plan.payload.strength : ''}
-                              onChange={(event) => {
-                                const raw = event.target.value;
-                                updateVoiceoverPlanPayload(item.sceneId, (payload) => {
-                                  if (!raw.trim()) {
-                                    const nextPayload = { ...payload };
-                                    delete nextPayload.strength;
-                                    return nextPayload;
-                                  }
-                                  const parsed = Number(raw);
-                                  if (!Number.isFinite(parsed)) return payload;
-                                  return {
-                                    ...payload,
-                                    strength: Math.max(0, Math.min(1, parsed)),
-                                  };
-                                });
-                              }}
-                              disabled={isBusy}
-                              className="w-full rounded-md border border-border/70 bg-white/85 dark:bg-slate-900/70 px-2 py-1.5 text-[11px] leading-snug focus:outline-none focus:ring-2 focus:ring-ring/30"
-                            />
-                          </div>
-                        </div>
 
-                        <details className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 px-2 py-1.5">
-                          <summary className="cursor-pointer text-[10px] text-slate-500 dark:text-slate-400">
-                            查看原始 payload JSON
-                          </summary>
-                          <pre className="mt-1 text-[10px] leading-snug text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words overflow-x-auto">
-                            {JSON.stringify(plan.payload, null, 2)}
-                          </pre>
-                        </details>
+                          <details className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 px-2 py-1.5">
+                            <summary className="cursor-pointer text-[10px] text-slate-500 dark:text-slate-400">
+                              進階語氣設定（emotion_prompt / strength）
+                            </summary>
+                            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                              <div className="space-y-1">
+                                <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                                  語氣提示（可選）
+                                </label>
+                                <textarea
+                                  value={plan.payload.emotion_prompt || ''}
+                                  onChange={(event) => {
+                                    const value = event.target.value;
+                                    updateVoiceoverPlanPayload(item.sceneId, (payload) => {
+                                      if (!value.trim()) {
+                                        const nextPayload = { ...payload };
+                                        delete nextPayload.emotion_prompt;
+                                        return nextPayload;
+                                      }
+                                      return {
+                                        ...payload,
+                                        emotion_prompt: value,
+                                        should_use_prompt_for_emotion: true,
+                                      };
+                                    });
+                                  }}
+                                  disabled={isBusy}
+                                  rows={2}
+                                  className="w-full rounded-md border border-border/70 bg-white/85 dark:bg-slate-900/70 px-2 py-1.5 text-[11px] leading-snug focus:outline-none focus:ring-2 focus:ring-ring/30 resize-y"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                                  語氣強度（0~1，可選）
+                                </label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={1}
+                                  step={0.05}
+                                  value={typeof plan.payload.strength === 'number' ? plan.payload.strength : ''}
+                                  onChange={(event) => {
+                                    const raw = event.target.value;
+                                    updateVoiceoverPlanPayload(item.sceneId, (payload) => {
+                                      if (!raw.trim()) {
+                                        const nextPayload = { ...payload };
+                                        delete nextPayload.strength;
+                                        return nextPayload;
+                                      }
+                                      const parsed = Number(raw);
+                                      if (!Number.isFinite(parsed)) return payload;
+                                      return {
+                                        ...payload,
+                                        strength: Math.max(0, Math.min(1, parsed)),
+                                      };
+                                    });
+                                  }}
+                                  disabled={isBusy}
+                                  className="w-full rounded-md border border-border/70 bg-white/85 dark:bg-slate-900/70 px-2 py-1.5 text-[11px] leading-snug focus:outline-none focus:ring-2 focus:ring-ring/30"
+                                />
+                              </div>
+                            </div>
+                          </details>
 
-                        {plan.reasoning && (
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                            AI：{plan.reasoning}
+                          <details className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 px-2 py-1.5">
+                            <summary className="cursor-pointer text-[10px] text-slate-500 dark:text-slate-400">
+                              查看原始 payload JSON
+                            </summary>
+                            <pre className="mt-1 text-[10px] leading-snug text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words overflow-x-auto">
+                              {JSON.stringify(plan.payload, null, 2)}
+                            </pre>
+                          </details>
+
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 whitespace-pre-wrap break-words">
+                            來源文字：{item.sourceText}
                           </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
+
+                          {plan.reasoning && (
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                              AI：{plan.reasoning}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </details>
                 );
               })}
             </div>
