@@ -661,14 +661,14 @@ export function ImageGenerator({
             <div className="surface-panel space-y-2 p-4">
                 <div className="flex items-center justify-between">
                     <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">首幀 (Start Frame)</h4>
-                    {hasContinuationStart && (
+                    {previousEndFrameUrl && (
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                             沿用前場景尾幀
                         </span>
                     )}
                 </div>
                 <ImagePreview
-                    imageUrl={scene.generatedImage?.url || null}
+                    imageUrl={previousEndFrameUrl || scene.generatedImage?.url || null}
                     prompt={scene.generatedImage?.prompt}
                     isLoading={startGenerationLoading}
                     onRegenerate={() => handleGenerate(false)}

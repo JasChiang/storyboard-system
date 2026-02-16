@@ -499,7 +499,7 @@ export default function ImagesPage() {
                   const inheritedStartUrl = prev?.transitionToNext?.useEndFrameAsNextStart
                     ? prev.generatedEndFrame?.url
                     : undefined;
-                  const sceneStartPreviewUrl = scene.generatedImage?.url || inheritedStartUrl;
+                  const sceneStartPreviewUrl = inheritedStartUrl || scene.generatedImage?.url;
                   const sceneGenerationState = getSceneGenerationState(scene.id);
                   const isSceneGenerating = sceneGenerationState.isGeneratingStart || sceneGenerationState.isGeneratingEnd;
                   return (
