@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Plus, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fal } from '@fal-ai/client';
@@ -341,8 +342,8 @@ export function CharacterCreateDialog({
   );
   const selectedTypeOption = TYPE_OPTIONS.find((option) => option.value === type);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
       <div className="surface-panel flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden border border-white/90 dark:border-white/10">
         {/* 標題列 */}
         <div className="flex items-start justify-between border-b border-border/70 p-6">
@@ -751,6 +752,7 @@ export function CharacterCreateDialog({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
