@@ -322,9 +322,10 @@ function buildOpenReelEffects(effectNames: string[]): OpenReelEffect[] {
   return effects;
 }
 
-function getSceneSource(scene: Scene) {
+function getSceneSource(scene: Scene, continuationStartUrl?: string) {
   return (
     scene.generatedVideo?.url ||
+    continuationStartUrl ||
     scene.generatedImage?.url ||
     scene.generatedEndFrame?.url ||
     scene.referenceImage ||
@@ -390,6 +391,10 @@ export function convertToOpenReelProjectFile(
   storyboard.scenes.forEach((scene, index) => {
     const mediaId = `media-${scene.id}`;
     const clipId = `clip-${scene.id}`;
+    const previousScene = index > 0 ? storyboard.scenes[index - 1] : null;
+    const continuationStartUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
+      ? previousScene.generatedEndFrame?.url
+      : undefined;
     const sceneSuggestion = sceneSuggestionMap.get(scene.id);
     const sceneBaseDuration = clampDuration(scene.duration, 2);
     const isVideo = !!scene.generatedVideo?.url;
@@ -419,7 +424,7 @@ export function convertToOpenReelProjectFile(
     const speed = clampRange(Number(sceneSuggestion?.speedFactor), 0.25, 3, 1);
     const effects = buildOpenReelEffects(sceneSuggestion?.effects || []);
 
-    const rawSrc = getSceneSource(scene);
+    const rawSrc = getSceneSource(scene, continuationStartUrl);
     const src = rawSrc ? buildProxyUrl(rawSrc) : "";
     const type = isVideo ? 'video' : 'image';
 

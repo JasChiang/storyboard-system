@@ -94,7 +94,7 @@ export function ImageGenerator({
     }, [scene.id, scene.generatedEndFrame?.url, scene.requiresEndFrame, scene.endFrameDescription]);
 
     const shouldUseEndFrame = scene.requiresEndFrame || manualEndFrameEnabled;
-    const hasContinuationStart = Boolean(previousEndFrameUrl && !scene.generatedImage?.url);
+    const hasContinuationStart = Boolean(previousEndFrameUrl);
     const startGenerationLoading = isGeneratingStart || externalGeneratingStart;
     const endGenerationLoading = isGeneratingEnd || externalGeneratingEnd;
     const isAnyGenerationLoading = startGenerationLoading || endGenerationLoading;

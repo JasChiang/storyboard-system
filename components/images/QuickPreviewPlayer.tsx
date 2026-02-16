@@ -11,7 +11,18 @@ interface QuickPreviewPlayerProps {
 }
 
 export function QuickPreviewPlayer({ scenes, onClose }: QuickPreviewPlayerProps) {
-  const playableScenes = scenes.filter(s => s.generatedImage?.url);
+  // For continuation scenes, the effective start frame is the previous scene's end frame
+  const playableScenesWithUrls = scenes.map((scene, index) => {
+    const prevScene = index > 0 ? scenes[index - 1] : null;
+    const continuationUrl = prevScene?.transitionToNext?.useEndFrameAsNextStart
+      ? prevScene.generatedEndFrame?.url
+      : undefined;
+    const effectiveUrl = continuationUrl || scene.generatedImage?.url;
+    return { scene, effectiveUrl };
+  }).filter(({ effectiveUrl }) => Boolean(effectiveUrl));
+
+  const playableScenes = playableScenesWithUrls.map(({ scene }) => scene);
+  const effectiveUrls = playableScenesWithUrls.map(({ effectiveUrl }) => effectiveUrl as string);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,10 +94,10 @@ export function QuickPreviewPlayer({ scenes, onClose }: QuickPreviewPlayerProps)
 
       {/* Main image */}
       <div className="relative flex h-full max-h-[70vh] w-full max-w-4xl items-center justify-center">
-        {currentScene?.generatedImage?.url && (
+        {effectiveUrls[currentIndex] && (
           <Image
-            src={currentScene.generatedImage.url}
-            alt={`Scene ${currentScene.sceneNumber}`}
+            src={effectiveUrls[currentIndex]}
+            alt={`Scene ${currentScene?.sceneNumber}`}
             fill
             className="object-contain"
             priority

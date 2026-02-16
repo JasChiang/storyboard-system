@@ -231,7 +231,8 @@ export function BatchImageGenerator({
 
     const generateSceneImages = async (scene: Scene, previousContinuationEndFrameUrl?: string) => {
         const wantsEndFrame = scene.requiresEndFrame || !!scene.endFrameDescription;
-        const needsStartFrame = !scene.generatedImage;
+        // Continuation scenes always need their start frame refreshed with the latest previous end frame
+        const needsStartFrame = !scene.generatedImage || Boolean(previousContinuationEndFrameUrl);
         const needsEndFrame = wantsEndFrame && !scene.generatedEndFrame;
 
         updateStatus(scene.id, { status: needsStartFrame ? 'generating' : 'generating_end_frame' });
