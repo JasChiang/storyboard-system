@@ -20,7 +20,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           className={clsx(
             'w-full rounded-xl border px-3.5 py-2.5 text-sm',
-            'border-border/80 bg-white/72 text-foreground shadow-[0_10px_20px_-14px_rgba(15,23,42,0.45)] backdrop-blur-lg',
+            'border-border/80 bg-white/92 text-foreground shadow-[0_10px_20px_-14px_rgba(15,23,42,0.45)]',
             'dark:bg-slate-900/65',
             'focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/40',
             'disabled:cursor-not-allowed disabled:opacity-55',
