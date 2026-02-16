@@ -193,6 +193,141 @@ export const PRESET_STYLE_PROFILES: StyleProfile[] = [
     isPreset: true,
   },
   {
+    id: 'preset-calarts-2d-animation',
+    name: '加州學院 2D 動畫',
+    stylePrompt:
+      'Rendering style: CalArts-inspired 2D animation language. Composition goal: bold silhouette readability, expressive poses, clean linework, and flat cel shading for action clarity. Continuity lock: stable face proportions, consistent outfit shapes, and simplified background geometry across scenes for image-to-video interpolation.',
+    negativePrompt:
+      'No photoreal skin/materials, no painterly oil textures, no noisy crosshatching, no anatomy drift between scenes, no clutter blocking the subject.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-japanese-cel-anime',
+    name: '日式賽璐璐動畫',
+    stylePrompt:
+      'Rendering style: Japanese cel anime with clean ink outlines and 2-3 tone shading ramps. Composition goal: clear facial acting, readable hand gestures, and dialogue-safe framing. Continuity lock: consistent line thickness, stable eye/mouth geometry, and unchanged wardrobe materials across adjacent scenes.',
+    negativePrompt:
+      'No photoreal pores, no painterly smudge rendering, no random line-weight shifts, no facial feature drift, no overbloom hiding line art.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-japanese-anime-film-atmosphere',
+    name: '日式電影動畫空氣感',
+    stylePrompt:
+      'Rendering style: Japanese animated-feature atmosphere with soft gradients and controlled aerial perspective. Composition goal: emotionally rich environments while keeping the subject clearly legible. Continuity lock: stable horizon and architecture layout, consistent color temperature, and preserved identity geometry for start/end-frame workflows.',
+    negativePrompt:
+      'No overexposed glow washout, no photoreal conversion, no heavy grain flicker, no environment geometry warping between shots.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-retro-shoujo-editorial',
+    name: '復古少女漫畫社論風',
+    stylePrompt:
+      'Rendering style: retro shoujo manga editorial aesthetic with elegant line accents and restrained decorative motifs. Composition goal: subject-first framing with clean storytelling hierarchy. Continuity lock: consistent facial structure, hair silhouette, and costume block colors while preserving scene readability for motion generation.',
+    negativePrompt:
+      'No dense screentone noise, no text overlays, no photoreal skin rendering, no decorative clutter covering key action.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-ukiyoe-modern-narrative',
+    name: '浮世繪現代敘事風',
+    stylePrompt:
+      'Rendering style: ukiyo-e inspired woodblock visual language adapted for modern storyboards. Composition goal: flat color planes, carved-ink contour logic, and restrained palettes with strong focal hierarchy. Continuity lock: stable subject scale, horizon alignment, and recurring motif consistency across scenes.',
+    negativePrompt:
+      'No photoreal shading, no glossy 3D reflections, no mixed rendering engines, no perspective distortion jumps, no random texture noise.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-nihonga-sumi-modern',
+    name: '新和風墨彩（Nihonga）',
+    stylePrompt:
+      'Rendering style: modern Nihonga and sumi-e hybrid with disciplined brush contours and mineral-pigment-like color fields. Composition goal: elegant negative space and high subject readability. Continuity lock: consistent brush rhythm, stable silhouette edges, and unchanged identity anchors across all shots.',
+    negativePrompt:
+      'No muddy low-contrast silhouettes, no uncontrolled watercolor bleeding over subject edges, no photoreal skin/material conversion.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-polycon-lowpoly-3d',
+    name: 'Polycon 低多邊形 3D',
+    stylePrompt:
+      'Rendering style: polycon low-poly 3D with faceted geometry and clean material blocks. Composition goal: clear spatial hierarchy and readable action zones for camera motion. Continuity lock: stable topology density, consistent polygon language, and fixed object scale relationships across scenes.',
+    negativePrompt:
+      'No high-frequency texture noise, no photoreal PBR micro-detailing, no melted meshes, no inconsistent polygon density between shots.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-japanese-3d-toon-anime',
+    name: '日系 3D Toon 動畫',
+    stylePrompt:
+      'Rendering style: Japanese-inspired 3D toon animation with crisp shading ramps and soft rim lighting. Composition goal: expressive character acting while preserving product/prop readability. Continuity lock: unchanged face topology, hair volume, and costume silhouettes for sequential shot coherence.',
+    negativePrompt:
+      'No realistic skin scattering, no harsh metallic realism, no random shader switching, no geometry drift in face, hands, or props.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-japanese-miniature-diorama',
+    name: '日式微縮模型場景',
+    stylePrompt:
+      'Rendering style: Japanese miniature diorama aesthetic with handcrafted scale cues and tactile materials. Composition goal: organized depth layers and clear hero-subject placement for motion-ready framing. Continuity lock: stable environment blocks, consistent miniature scale logic, and repeatable lighting direction across shots.',
+    negativePrompt:
+      'No full-scale photoreal realism, no cluttered micro-props hiding the subject, no depth-of-field overblur that obscures story action.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-stylized-feature-3d',
+    name: '高級動畫電影 3D',
+    stylePrompt:
+      'Rendering style: stylized feature-animation 3D with cinematic yet continuity-safe lighting and expressive shape design. Composition goal: premium visual impact while maintaining clean readability for story beats. Continuity lock: consistent material response, stable character identity geometry, and fixed world layout for downstream video generation.',
+    negativePrompt:
+      'No uncanny photoreal skin, no hyper-detailed pores, no unstable global-illumination noise, no dramatic style jumps shot to shot.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-japanese-mecha-toon-3d',
+    name: '日系機甲動畫 3D',
+    stylePrompt:
+      'Rendering style: Japanese mecha-inspired 3D toon shading with clean panel segmentation and controlled specular accents. Composition goal: strong silhouette readability, clear foreground-midground-background separation, and action-ready staging. Continuity lock: stable hard-surface topology, unchanged emblem placement, and consistent material classes across all scenes.',
+    negativePrompt:
+      'No photoreal metal micro-scratches, no warped mechanical joints, no random decal/text generation, no inconsistent panel line density, no cluttered FX obscuring key geometry.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-jrpg-painted-3d',
+    name: 'JRPG 手繪 3D 幻想',
+    stylePrompt:
+      'Rendering style: JRPG-inspired painterly 3D with stylized forms, soft atmospheric depth, and curated color harmony. Composition goal: cinematic exploration framing with readable characters and props. Continuity lock: fixed character proportions, consistent costume pattern blocks, and stable environment landmarks for sequential shot coherence.',
+    negativePrompt:
+      'No photoreal conversion, no muddy low-contrast silhouettes, no random texture style switching, no environment layout jumps between scenes.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-kawaii-plush-mascot-3d',
+    name: '吉祥物絨毛 3D',
+    stylePrompt:
+      'Rendering style: kawaii plush mascot 3D with soft fabric fibers, rounded forms, and gentle bounce-ready proportions. Composition goal: clear emotional readability and product-safe framing with clean background separation. Continuity lock: stable stitch patterns, unchanged facial feature placement, and consistent fabric tone response across scenes.',
+    negativePrompt:
+      'No plastic toy gloss, no photoreal skin, no horror deformation, no noisy fur artifacts, no prop clutter hiding mascot silhouette.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-washi-papercraft-diorama',
+    name: '和風紙雕立體場景',
+    stylePrompt:
+      'Rendering style: Japanese washi papercraft diorama with layered cutout depth, subtle fiber texture, and soft inter-layer shadowing. Composition goal: high readability of subject and action path while keeping decorative elegance. Continuity lock: consistent paper thickness language, stable layer order, and repeatable light direction across shots.',
+    negativePrompt:
+      'No glossy plastic sheen, no photoreal camera realism, no dense tiny details that flicker in motion, no low-contrast subject separation.',
+    isPreset: true,
+  },
+  {
+    id: 'preset-japanese-broadcast-explainer-3d',
+    name: '日式解說動畫 3D',
+    stylePrompt:
+      'Rendering style: Japanese broadcast explainer 3D with clean geometric forms, friendly motion-graphic sensibility, and practical color coding. Composition goal: information-first clarity with strong focal hierarchy and storyboard readability. Continuity lock: stable iconography language, consistent object scale rules, and unchanged key UI/prop placements scene to scene.',
+    negativePrompt:
+      'No dense text overlays, no photoreal material rendering, no chaotic multi-style mixing, no perspective distortions that hurt instructional clarity.',
+    isPreset: true,
+  },
+  {
     id: 'preset-cinematic-ad',
     name: '電影廣告大片',
     stylePrompt:

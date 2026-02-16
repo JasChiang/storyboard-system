@@ -332,8 +332,10 @@ Rules:
 5) Keep identity/product geometry/logo/text constraints unchanged unless explicit delta says otherwise.
 6) Do not invent new logos/text/characters/props.
 7) Composed prompt must be for a single static frame only.
-8) Keep output concise and production-ready.
-9) JSON only, no markdown.`;
+8) Treat stylePrompt as the primary creative direction; negativePrompt is guardrail only.
+9) Preserve the original rendering medium from references (2D/3D/photoreal). Do not restyle medium unless explicitly requested.
+10) Keep output concise and production-ready.
+11) JSON only, no markdown.`;
 
   const userPayload = {
     scene: {

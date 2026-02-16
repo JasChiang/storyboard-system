@@ -1,11 +1,11 @@
 const PRIORITY_PREFIXES: Array<{ prefix: string; weight: number }> = [
   { prefix: 'Style direction:', weight: 100 },
-  { prefix: 'Negative constraints:', weight: 95 },
   { prefix: 'Content references:', weight: 90 },
   { prefix: 'Use the generated start frame as the single source of truth.', weight: 88 },
   { prefix: 'Apply only this end-frame delta:', weight: 86 },
   { prefix: 'Identity invariants:', weight: 84 },
-  { prefix: 'Hard negatives:', weight: 82 },
+  { prefix: 'Hard negatives:', weight: 62 },
+  { prefix: 'Negative constraints:', weight: 60 },
 ];
 
 function normalizeLine(input: string): string {
@@ -44,4 +44,3 @@ export function normalizePromptParts(parts: string[], maxChars?: number): string
 
   return compact.join('. ');
 }
-

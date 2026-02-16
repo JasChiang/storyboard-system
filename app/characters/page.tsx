@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { characterLibraryStorage } from '@/lib/db/character-library-storage';
-import type { CharacterLibraryItem } from '@/lib/types/character-library';
+import { resolveCharacterViewPreviewUrl, type CharacterLibraryItem } from '@/lib/types/character-library';
 import { Button } from '@/components/ui/button';
 import { Plus, Search, Trash2, Edit, Image as ImageIcon, Sparkles } from 'lucide-react';
 import Link from 'next/link';
@@ -220,7 +220,7 @@ function CharacterCard({
       {frontView && (
         <div className="relative aspect-video bg-slate-100 dark:bg-slate-900">
           <img
-            src={frontView.url}
+            src={resolveCharacterViewPreviewUrl(frontView)}
             alt={character.name}
             className="w-full h-full object-cover"
           />

@@ -4,7 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { X, Search, Check, Sparkles, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { characterLibraryStorage } from '@/lib/db/character-library-storage';
-import { characterLibraryItemToProjectReference, characterLibraryItemToProjectReferences } from '@/lib/types/character-library';
+import {
+  characterLibraryItemToProjectReference,
+  characterLibraryItemToProjectReferences,
+  resolveCharacterViewPreviewUrl,
+} from '@/lib/types/character-library';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
 import type { ProjectReference } from '@/lib/types/storyboard';
 
@@ -280,7 +284,7 @@ export function CharacterSelector({
                       {previewView && (
                         <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-900">
                           <img
-                            src={previewView.url}
+                            src={resolveCharacterViewPreviewUrl(previewView)}
                             alt={character.name}
                             className="h-full w-full object-cover"
                           />

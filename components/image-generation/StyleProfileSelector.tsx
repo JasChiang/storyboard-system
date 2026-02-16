@@ -39,7 +39,7 @@ export function StyleProfileSelector({
 
   const handleCreateCustomProfile = () => {
     if (!newProfileName.trim() || !newStylePrompt.trim()) {
-      alert('請至少填寫 Profile 名稱與 Style Prompt');
+      alert('請至少填寫 Profile 名稱與風格描述');
       return;
     }
 
@@ -67,7 +67,7 @@ export function StyleProfileSelector({
         <div>
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Style Profile</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            同一批次固定同一個風格模板，可維持商品與畫面語言一致。
+            同一批次固定同一個風格模板可維持一致；限制事項建議精簡為 3-6 條防呆規則。
           </p>
         </div>
       </div>
@@ -98,7 +98,7 @@ export function StyleProfileSelector({
         <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{activeProfile.stylePrompt}</p>
         {activeProfile.negativePrompt && (
           <p className="text-xs text-slate-500 dark:text-slate-500 leading-relaxed">
-            Negative: {activeProfile.negativePrompt}
+            限制事項: {activeProfile.negativePrompt}
           </p>
         )}
       </div>
@@ -122,7 +122,7 @@ export function StyleProfileSelector({
             className="w-full rounded-lg border border-border/80 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/40 dark:bg-slate-900/70"
           />
           <textarea
-            placeholder="Style Prompt（必填）"
+            placeholder="風格描述（必填）"
             value={newStylePrompt}
             onChange={(e) => setNewStylePrompt(e.target.value)}
             disabled={disabled}
@@ -130,7 +130,7 @@ export function StyleProfileSelector({
             className="w-full resize-none rounded-lg border border-border/80 bg-white/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary/40 dark:bg-slate-900/70"
           />
           <textarea
-            placeholder="Negative Prompt（選填）"
+            placeholder="限制事項（選填，建議 3-6 條）"
             value={newNegativePrompt}
             onChange={(e) => setNewNegativePrompt(e.target.value)}
             disabled={disabled}

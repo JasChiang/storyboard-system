@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateImage, checkQueueStatus, getImageResult } from '@/lib/api/fal';
 import { analyzeReferenceImage, generateCharacterProfile } from '@/lib/api/openrouter';
 import { sqliteCharacterLibraryRepo } from '@/lib/db/sqlite';
+import { saveRemoteImageToLocalMedia } from '@/lib/storage/local-media';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
 
 export const runtime = 'nodejs';
@@ -279,6 +280,10 @@ export async function POST(req: NextRequest) {
     );
     const endpoint = process.env.FAL_IMAGE_MODEL || 'fal-ai/nano-banana-pro';
     const generatedImageUrl = await waitForImageUrl(queue.request_id, endpoint, falApiKey);
+    const localBackup = await saveRemoteImageToLocalMedia(generatedImageUrl, {
+      category: 'character-library',
+      baseName: name,
+    });
 
     const imageDataUri = await imageUrlToDataUri(generatedImageUrl);
     const analysisRaw = await analyzeReferenceImage(
@@ -318,6 +323,7 @@ export async function POST(req: NextRequest) {
         {
           angle: 'front',
           url: generatedImageUrl,
+          archivedLocalPath: localBackup.relativePath,
           description: analysis.description,
           mustKeepFeatures: analysis.mustKeep,
           identityCore: analysis.identityCore,
@@ -347,6 +353,7 @@ export async function POST(req: NextRequest) {
       data: created,
       meta: {
         imagePrompt,
+        imageBackupPath: localBackup.relativePath,
       },
     }, { status: 201 });
   } catch (error) {

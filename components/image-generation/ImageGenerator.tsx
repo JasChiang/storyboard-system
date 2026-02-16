@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/lib/prompts/image-static';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
+import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 
@@ -159,13 +160,7 @@ export function ImageGenerator({
                 }
             }
 
-            const minimalParts: string[] = [];
-            if (styleProfile?.stylePrompt) {
-                minimalParts.push(`Style direction: ${styleProfile.stylePrompt}`);
-            }
-            if (styleProfile?.negativePrompt) {
-                minimalParts.push(`Negative constraints: ${styleProfile.negativePrompt}`);
-            }
+            const minimalParts: string[] = [...buildStyleDirectiveLines(styleProfile)];
 
             minimalParts.push('Use the generated start frame as the single source of truth.');
             minimalParts.push('Camera movement/reframing is allowed, but keep scene geometry and object continuity physically consistent.');
@@ -220,12 +215,7 @@ export function ImageGenerator({
             'Do not introduce new characters, props, logos, or text unless explicitly requested.',
         ];
 
-        if (styleProfile?.stylePrompt) {
-            parts.push(`Style direction: ${styleProfile.stylePrompt}`);
-        }
-        if (styleProfile?.negativePrompt) {
-            parts.push(`Negative constraints: ${styleProfile.negativePrompt}`);
-        }
+        parts.push(...buildStyleDirectiveLines(styleProfile));
 
         // 1. 加入專案參考圖的描述作為上下文
         const selectedStyleRefs = styleProjectReferences.filter((ref) =>

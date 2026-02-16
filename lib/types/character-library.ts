@@ -33,21 +33,31 @@ export interface CharacterLibraryItem {
   tags: string[];                   // 標籤（用於搜尋和分類）
 
   // 多視角參考圖
-  views: {
-    angle: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
-    url: string;                    // Fal Storage URL
-    description: string;            // 該視角的描述
-    mustKeepFeatures?: string[];    // 該視角不可變特徵
-    identityCore?: string;
-    styleTraits?: string;
-    angleVisibility?: string;
-  }[];
+  views: CharacterLibraryView[];
 
   // 中繼資料
   ipProfile?: CharacterIpProfile;     // IP 套件設定（版本、硬規則、預設參數）
   createdAt: string;
   updatedAt: string;
   usageCount: number;               // 被引用次數
+}
+
+export interface CharacterLibraryView {
+  angle: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
+  url: string;                    // Fal Storage URL（供模型參考使用）
+  description: string;            // 該視角的描述
+  mustKeepFeatures?: string[];    // 該視角不可變特徵
+  identityCore?: string;
+  styleTraits?: string;
+  angleVisibility?: string;
+  archivedLocalPath?: string;     // 本地備份路徑（.data/local-media 下的相對路徑）
+}
+
+export function resolveCharacterViewPreviewUrl(view: CharacterLibraryView): string {
+  if (view.archivedLocalPath) {
+    return `/api/local-media?path=${encodeURIComponent(view.archivedLocalPath)}`;
+  }
+  return view.url;
 }
 
 export interface CharacterLibrary {
