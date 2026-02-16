@@ -136,6 +136,25 @@ function normalizeMusicPromptIdeas(raw: unknown): ElevenLabsMusicPromptIdea[] {
     .filter((item): item is ElevenLabsMusicPromptIdea => item !== null);
 }
 
+function normalizeVoiceoverPayloadForSubmit(payload: IndexTtsScenePlan['payload']): IndexTtsScenePlan['payload'] {
+  const prompt = typeof payload.prompt === 'string' ? payload.prompt.trim() : '';
+  const normalized: IndexTtsScenePlan['payload'] = {
+    ...payload,
+    prompt,
+  };
+
+  if (typeof payload.emotion_prompt === 'string') {
+    const emotionPrompt = payload.emotion_prompt.trim();
+    if (emotionPrompt) {
+      normalized.emotion_prompt = emotionPrompt;
+    } else {
+      delete normalized.emotion_prompt;
+    }
+  }
+
+  return normalized;
+}
+
 export function AudioGeneratorPanel({
   projectId,
   storyboard,
@@ -544,6 +563,14 @@ export function AudioGeneratorPanel({
       }
 
       const planMap = new Map(plans.map((plan) => [plan.sceneId, plan]));
+      const firstEmptyPromptScene = voiceoverPlanInputs.find((scene) => {
+        const plan = planMap.get(scene.sceneId);
+        if (!plan) return false;
+        return !normalizeVoiceoverPayloadForSubmit(plan.payload).prompt;
+      });
+      if (firstEmptyPromptScene) {
+        throw new Error(`場景 ${firstEmptyPromptScene.sceneNumber} 的旁白文字為空，請先補上。`);
+      }
       const updates: Array<{
         sceneId: string;
         generatedVoiceover: Scene['generatedVoiceover'];
@@ -553,6 +580,7 @@ export function AudioGeneratorPanel({
         const sceneInput = voiceoverPlanInputs[i];
         const plan = planMap.get(sceneInput.sceneId);
         if (!plan) continue;
+        const requestInput = normalizeVoiceoverPayloadForSubmit(plan.payload);
 
         setStatusMessage(`旁白生成中 (${i + 1}/${voiceoverPlanInputs.length})：場景 ${sceneInput.sceneNumber}`);
 
@@ -562,7 +590,7 @@ export function AudioGeneratorPanel({
           body: JSON.stringify({
             kind: 'voiceover',
             provider: 'index-tts-2',
-            input: plan.payload,
+            input: requestInput,
           }),
         });
         const payload = await response.json();
@@ -582,9 +610,9 @@ export function AudioGeneratorPanel({
           generatedVoiceover: {
             url: result.url,
             model: 'index-tts-2',
-            script: plan.payload.prompt,
-            prompt: plan.payload.emotion_prompt || undefined,
-            requestPayload: plan.payload,
+            script: requestInput.prompt,
+            prompt: requestInput.emotion_prompt || undefined,
+            requestPayload: requestInput,
             reasoning: plan.reasoning,
             durationSeconds: result.durationSeconds,
             timestamp: new Date().toISOString(),
@@ -604,6 +632,19 @@ export function AudioGeneratorPanel({
     } finally {
       setIsGeneratingVoiceovers(false);
     }
+  };
+
+  const updateVoiceoverPlanPayload = (
+    sceneId: string,
+    updater: (payload: IndexTtsScenePlan['payload']) => IndexTtsScenePlan['payload']
+  ) => {
+    setVoiceoverPlans((prev) => prev.map((plan) => {
+      if (plan.sceneId !== sceneId) return plan;
+      return {
+        ...plan,
+        payload: updater(plan.payload),
+      };
+    }));
   };
 
   const handleGenerateMusic = async () => {
@@ -840,7 +881,7 @@ export function AudioGeneratorPanel({
                 {voiceoverPlanInputs.length} 筆{missingPlanCount > 0 ? `，待 AI ${missingPlanCount} 筆` : ''}
               </span>
             </div>
-            <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
               {voiceoverPlanInputs.length === 0 && (
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   目前沒有可送出的旁白內容。
@@ -867,16 +908,107 @@ export function AudioGeneratorPanel({
                         </p>
                       </>
                     ) : (
-                      <>
-                        <pre className="text-[10px] leading-snug text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words overflow-x-auto">
-                          {JSON.stringify(plan.payload, null, 2)}
-                        </pre>
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-1">來源文字</p>
+                          <p className="text-[11px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words">
+                            {item.sourceText}
+                          </p>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                            旁白文字（prompt，可編輯）
+                          </label>
+                          <textarea
+                            value={plan.payload.prompt}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              updateVoiceoverPlanPayload(item.sceneId, (payload) => ({
+                                ...payload,
+                                prompt: value,
+                              }));
+                            }}
+                            disabled={isBusy}
+                            rows={2}
+                            className="w-full rounded-md border border-border/70 bg-white/85 dark:bg-slate-900/70 px-2 py-1.5 text-[11px] leading-snug focus:outline-none focus:ring-2 focus:ring-ring/30 resize-y"
+                          />
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                              語氣提示（emotion_prompt，可選）
+                            </label>
+                            <textarea
+                              value={plan.payload.emotion_prompt || ''}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                updateVoiceoverPlanPayload(item.sceneId, (payload) => {
+                                  if (!value.trim()) {
+                                    const nextPayload = { ...payload };
+                                    delete nextPayload.emotion_prompt;
+                                    return nextPayload;
+                                  }
+                                  return {
+                                    ...payload,
+                                    emotion_prompt: value,
+                                    should_use_prompt_for_emotion: true,
+                                  };
+                                });
+                              }}
+                              disabled={isBusy}
+                              rows={2}
+                              className="w-full rounded-md border border-border/70 bg-white/85 dark:bg-slate-900/70 px-2 py-1.5 text-[11px] leading-snug focus:outline-none focus:ring-2 focus:ring-ring/30 resize-y"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="block text-[10px] text-slate-500 dark:text-slate-400">
+                              語氣強度（strength 0~1，可選）
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={typeof plan.payload.strength === 'number' ? plan.payload.strength : ''}
+                              onChange={(event) => {
+                                const raw = event.target.value;
+                                updateVoiceoverPlanPayload(item.sceneId, (payload) => {
+                                  if (!raw.trim()) {
+                                    const nextPayload = { ...payload };
+                                    delete nextPayload.strength;
+                                    return nextPayload;
+                                  }
+                                  const parsed = Number(raw);
+                                  if (!Number.isFinite(parsed)) return payload;
+                                  return {
+                                    ...payload,
+                                    strength: Math.max(0, Math.min(1, parsed)),
+                                  };
+                                });
+                              }}
+                              disabled={isBusy}
+                              className="w-full rounded-md border border-border/70 bg-white/85 dark:bg-slate-900/70 px-2 py-1.5 text-[11px] leading-snug focus:outline-none focus:ring-2 focus:ring-ring/30"
+                            />
+                          </div>
+                        </div>
+
+                        <details className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 px-2 py-1.5">
+                          <summary className="cursor-pointer text-[10px] text-slate-500 dark:text-slate-400">
+                            查看原始 payload JSON
+                          </summary>
+                          <pre className="mt-1 text-[10px] leading-snug text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words overflow-x-auto">
+                            {JSON.stringify(plan.payload, null, 2)}
+                          </pre>
+                        </details>
+
                         {plan.reasoning && (
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
                             AI：{plan.reasoning}
                           </p>
                         )}
-                      </>
+                      </div>
                     )}
                   </div>
                 );
