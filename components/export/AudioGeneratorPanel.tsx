@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Loader2, Mic2, Music2, CheckCircle2, Sparkles, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fal } from '@fal-ai/client';
-import type { IndexTtsScenePlan, IndexTtsScenePlanningInput } from '@/lib/types/audio';
+import type {
+  ElevenLabsMusicPromptIdea,
+  IndexTtsScenePlan,
+  IndexTtsScenePlanningInput,
+} from '@/lib/types/audio';
 import type { Scene, Storyboard } from '@/lib/types/storyboard';
 
 interface AudioGeneratorPanelProps {
@@ -110,6 +114,28 @@ function normalizeVoiceoverPlans(raw: unknown): IndexTtsScenePlan[] {
     .filter((plan): plan is IndexTtsScenePlan => plan !== null);
 }
 
+function normalizeMusicPromptIdeas(raw: unknown): ElevenLabsMusicPromptIdea[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const rawItem = item as Record<string, unknown>;
+      const prompt = typeof rawItem.prompt === 'string' ? rawItem.prompt.trim() : '';
+      if (!prompt) return null;
+      const energyRaw = typeof rawItem.energy === 'string' ? rawItem.energy.trim().toLowerCase() : '';
+      const energy = energyRaw === 'low' || energyRaw === 'medium' || energyRaw === 'high'
+        ? energyRaw
+        : undefined;
+      return {
+        prompt,
+        reasoning: typeof rawItem.reasoning === 'string' ? rawItem.reasoning.trim() : undefined,
+        mood: typeof rawItem.mood === 'string' ? rawItem.mood.trim() : undefined,
+        energy,
+      } as ElevenLabsMusicPromptIdea;
+    })
+    .filter((item): item is ElevenLabsMusicPromptIdea => item !== null);
+}
+
 export function AudioGeneratorPanel({
   projectId,
   storyboard,
@@ -117,6 +143,7 @@ export function AudioGeneratorPanel({
   onMusicGenerated,
 }: AudioGeneratorPanelProps) {
   const [isPlanningVoiceovers, setIsPlanningVoiceovers] = useState(false);
+  const [isPlanningMusicPrompts, setIsPlanningMusicPrompts] = useState(false);
   const [isGeneratingVoiceovers, setIsGeneratingVoiceovers] = useState(false);
   const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
   const [musicProvider, setMusicProvider] = useState<MusicProvider>('elevenlabs');
@@ -135,6 +162,7 @@ export function AudioGeneratorPanel({
     '以自然口語旁白呈現，語速穩定，貼合商業影片節奏，避免過度誇張。'
   );
   const [voiceoverPlans, setVoiceoverPlans] = useState<IndexTtsScenePlan[]>([]);
+  const [musicPromptIdeas, setMusicPromptIdeas] = useState<ElevenLabsMusicPromptIdea[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const voiceRefInputRef = useRef<HTMLInputElement>(null);
@@ -208,6 +236,23 @@ export function AudioGeneratorPanel({
   ).length;
   const missingPlanCount = voiceoverPlanInputs.filter((item) => !voiceoverPlanMap.has(item.sceneId)).length;
   const hasMusic = Boolean(storyboard.generatedMusic?.url);
+  const totalStoryDuration = useMemo(
+    () => Math.max(1, Math.round(storyboard.scenes.reduce((sum, scene) => sum + (scene.duration || 0), 0))),
+    [storyboard.scenes]
+  );
+  const musicIdeaSceneInputs = useMemo(() => {
+    return storyboard.scenes
+      .map((scene) => ({
+        sceneNumber: scene.sceneNumber,
+        duration: scene.duration || 1,
+        description: (scene.description || '').trim(),
+        dialogue: (scene.dialogue || '').trim(),
+        notes: (scene.notes || '').trim(),
+        cameraMovement: (scene.cameraMovement || '').trim(),
+      }))
+      .filter((scene) => scene.description || scene.dialogue || scene.notes)
+      .slice(0, 12);
+  }, [storyboard.scenes]);
 
   const voiceoverInputsSignature = useMemo(
     () => JSON.stringify(voiceoverPlanInputs.map((item) => ({
@@ -223,6 +268,10 @@ export function AudioGeneratorPanel({
   useEffect(() => {
     setVoiceoverPlans([]);
   }, [voiceRefUrl, emotionalVoiceRefUrl, voiceDirection, voiceoverInputsSignature]);
+
+  useEffect(() => {
+    setMusicPromptIdeas([]);
+  }, [musicPrompt, musicProvider, musicIdeaSceneInputs.length]);
 
   const uploadAudioReference = async (
     file: File,
@@ -381,6 +430,97 @@ export function AudioGeneratorPanel({
     }
   };
 
+  const buildMusicPromptIdeas = async (): Promise<ElevenLabsMusicPromptIdea[]> => {
+    if (musicIdeaSceneInputs.length === 0) {
+      throw new Error('目前缺少可供分析的場景內容，無法產生音樂提示詞建議。');
+    }
+
+    setIsPlanningMusicPrompts(true);
+    setErrorMessage(null);
+    setStatusMessage('AI 正在分析分鏡並產生 ElevenLabs 音樂提示詞建議...');
+
+    try {
+      const response = await fetch('/api/openrouter/generate-music-prompt-ideas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          storyboardTitle: storyboard.title,
+          originalPrompt: storyboard.originalPrompt,
+          currentPrompt: musicPrompt.trim() || undefined,
+          targetDurationSec: totalStoryDuration,
+          scenes: musicIdeaSceneInputs,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'AI 音樂提示詞建議生成失敗');
+      }
+
+      const ideas = normalizeMusicPromptIdeas(payload?.data?.ideas).slice(0, 3);
+      if (ideas.length === 0) {
+        throw new Error('AI 沒有回傳可用的音樂提示詞建議');
+      }
+
+      setMusicPromptIdeas(ideas);
+      return ideas;
+    } finally {
+      setIsPlanningMusicPrompts(false);
+    }
+  };
+
+  const handleAnalyzeAndUpdateParams = async () => {
+    if (isBusy) return;
+    setErrorMessage(null);
+
+    const tasks: string[] = [];
+    const errors: string[] = [];
+    let voiceUpdatedCount = 0;
+    let musicUpdatedCount = 0;
+
+    const canAnalyzeVoice = voiceoverPlanInputs.length > 0 && Boolean(voiceRefUrl.trim());
+    const canAnalyzeMusic = musicProvider === 'elevenlabs' && musicIdeaSceneInputs.length > 0;
+
+    if (!canAnalyzeVoice && !canAnalyzeMusic) {
+      if (!voiceRefUrl.trim()) {
+        setErrorMessage('請先上傳主聲音參考檔，或先切到 ElevenLabs 以取得音樂提示詞建議。');
+      } else {
+        setErrorMessage('目前沒有可分析的旁白/音樂資料。');
+      }
+      return;
+    }
+
+    try {
+      if (canAnalyzeVoice) {
+        tasks.push('旁白');
+        const plans = await buildVoiceoverPlans();
+        voiceUpdatedCount = plans.length;
+      } else if (voiceoverPlanInputs.length > 0) {
+        errors.push('略過旁白參數更新（未上傳主聲音參考檔）');
+      }
+
+      if (canAnalyzeMusic) {
+        tasks.push('音樂');
+        const ideas = await buildMusicPromptIdeas();
+        musicUpdatedCount = ideas.length;
+      } else if (musicProvider === 'elevenlabs') {
+        errors.push('略過音樂提示詞建議（缺少可分析場景）');
+      }
+
+      if (tasks.length > 0) {
+        const parts: string[] = [];
+        if (voiceUpdatedCount > 0) parts.push(`旁白 ${voiceUpdatedCount} 場`);
+        if (musicUpdatedCount > 0) parts.push(`音樂建議 ${musicUpdatedCount} 筆`);
+        setStatusMessage(`AI 分析完成：${parts.join('，') || '已更新'}。`);
+      }
+      if (errors.length > 0) {
+        setErrorMessage(errors.join('；'));
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'AI 分析更新失敗');
+    }
+  };
+
   const handleGenerateVoiceovers = async () => {
     const normalizedAudioUrl = voiceRefUrl.trim();
     if (!normalizedAudioUrl) {
@@ -517,6 +657,7 @@ export function AudioGeneratorPanel({
   };
 
   const isBusy = isPlanningVoiceovers
+    || isPlanningMusicPrompts
     || isGeneratingVoiceovers
     || isGeneratingMusic
     || isUploadingVoiceRef
@@ -669,20 +810,23 @@ export function AudioGeneratorPanel({
           </div>
 
           <Button
-            onClick={buildVoiceoverPlans}
-            disabled={isBusy || voiceoverPlanInputs.length === 0 || !voiceRefUrl.trim()}
+            onClick={handleAnalyzeAndUpdateParams}
+            disabled={isBusy || (
+              (voiceoverPlanInputs.length === 0 || !voiceRefUrl.trim())
+              && !(musicProvider === 'elevenlabs' && musicIdeaSceneInputs.length > 0)
+            )}
             variant="outline"
             className="w-full"
           >
-            {isPlanningVoiceovers ? (
+            {isPlanningVoiceovers || isPlanningMusicPrompts ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                AI 生成旁白參數中...
+                AI 分析更新中...
               </>
             ) : (
               <>
                 <Sparkles className="mr-2 h-4 w-4" />
-                AI 分析並更新參數
+                AI 分析並更新參數（旁白 + 音樂）
               </>
             )}
           </Button>
@@ -794,6 +938,53 @@ export function AudioGeneratorPanel({
               className="w-full rounded-lg border border-border/70 bg-white/85 dark:bg-slate-900/70 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 resize-y"
             />
           </div>
+
+          {musicProvider === 'elevenlabs' && musicPromptIdeas.length > 0 && (
+            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 p-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  AI 音樂提示詞建議（ElevenLabs）
+                </p>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {musicPromptIdeas.length} 筆
+                </span>
+              </div>
+              <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                {musicPromptIdeas.map((idea, index) => (
+                  <div
+                    key={`${index}-${idea.prompt.slice(0, 24)}`}
+                    className="rounded-md border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-2"
+                  >
+                    <p className="text-[11px] text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">
+                      {idea.prompt}
+                    </p>
+                    {(idea.mood || idea.energy) && (
+                      <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                        {idea.mood ? `mood: ${idea.mood}` : ''}{idea.mood && idea.energy ? ' · ' : ''}{idea.energy ? `energy: ${idea.energy}` : ''}
+                      </p>
+                    )}
+                    {idea.reasoning && (
+                      <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                        AI：{idea.reasoning}
+                      </p>
+                    )}
+                    <div className="mt-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={isBusy}
+                        onClick={() => setMusicPrompt(idea.prompt)}
+                        className="h-7 text-[11px]"
+                      >
+                        套用這個提示詞
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {musicProvider === 'elevenlabs' && (
             <div className="space-y-2">

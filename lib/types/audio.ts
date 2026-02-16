@@ -47,3 +47,10 @@ export interface IndexTtsScenePlan {
   payload: IndexTtsRequestInput;
   reasoning?: string;
 }
+
+export interface ElevenLabsMusicPromptIdea {
+  prompt: string;
+  reasoning?: string;
+  mood?: string;
+  energy?: 'low' | 'medium' | 'high';
+}

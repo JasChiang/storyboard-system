@@ -3,7 +3,13 @@ import { OpenRouterResponse } from '../types/api-responses';
 import { buildSystemPrompt } from '../prompts/prompt-builder';
 import { buildConsolidatedReferenceRules } from '../references/consistency-rules';
 import { sanitizeStaticFrameDescription } from '../prompts/image-static';
-import type { IndexTtsEmotionalStrengths, IndexTtsRequestInput, IndexTtsScenePlan, IndexTtsScenePlanningInput } from '../types/audio';
+import type {
+  ElevenLabsMusicPromptIdea,
+  IndexTtsEmotionalStrengths,
+  IndexTtsRequestInput,
+  IndexTtsScenePlan,
+  IndexTtsScenePlanningInput,
+} from '../types/audio';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_APP_ORIGIN = 'http://localhost:3000';
@@ -1165,4 +1171,142 @@ export async function planIndexTtsVoiceovers(
   });
 
   return normalizedPlans;
+}
+
+export interface ElevenLabsMusicPromptIdeasInput {
+  storyboardTitle?: string;
+  originalPrompt?: string;
+  currentPrompt?: string;
+  targetDurationSec?: number;
+  scenes: Array<{
+    sceneNumber: number;
+    duration: number;
+    description?: string;
+    dialogue?: string;
+    notes?: string;
+    cameraMovement?: string;
+  }>;
+}
+
+export async function suggestElevenLabsMusicPrompts(
+  input: ElevenLabsMusicPromptIdeasInput,
+  config: OpenRouterConfig
+): Promise<ElevenLabsMusicPromptIdea[]> {
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+  const scenes = input.scenes.filter((scene) => Number.isFinite(scene.sceneNumber) && Number.isFinite(scene.duration));
+  if (scenes.length === 0) return [];
+
+  const systemPrompt = `你是商業短影片配樂導演，專門撰寫 fal-ai/elevenlabs/music 的高品質提示詞。
+
+目標：
+1) 根據分鏡內容提出 3 組不同風格方向的音樂提示詞。
+2) 每組提示詞都要可直接貼進 ElevenLabs Music 生成。
+3) 音樂要支撐敘事節奏，避免搶戲。
+
+輸出限制：
+- 只輸出 JSON，不要其他文字。
+- JSON 格式：
+{
+  "ideas": [
+    {
+      "prompt": "string",
+      "reasoning": "string",
+      "mood": "string",
+      "energy": "low|medium|high"
+    }
+  ]
+}
+
+提示詞規範：
+- 以英文撰寫 prompt（更利於 music model 解讀），1-2 句自然語言。
+- 避免品牌名、歌詞內容、具體歌手名字。
+- 可包含：genre, instrumentation, tempo, emotional arc, mix style, no vocals / sparse vocals。
+- 不要關鍵字堆疊，不要用逗號長串。`;
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': getAppOrigin(),
+      'X-Title': 'Storyboard System',
+    },
+    body: JSON.stringify({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            provider: 'fal-ai/elevenlabs/music',
+            storyboardTitle: input.storyboardTitle || '',
+            originalPrompt: input.originalPrompt || '',
+            currentPrompt: input.currentPrompt || '',
+            targetDurationSec: input.targetDurationSec,
+            scenes: scenes.map((scene) => ({
+              sceneNumber: scene.sceneNumber,
+              duration: scene.duration,
+              description: scene.description || '',
+              dialogue: scene.dialogue || '',
+              notes: scene.notes || '',
+              cameraMovement: scene.cameraMovement || '',
+            })),
+          }),
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    let errorDetails = '';
+    try {
+      const errorData = await response.json();
+      errorDetails = errorData.error?.message || JSON.stringify(errorData);
+    } catch {
+      errorDetails = await response.text();
+    }
+    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
+  }
+
+  const data: OpenRouterResponse = await response.json();
+  const content = data.choices[0]?.message?.content;
+  if (!content) throw new Error('OpenRouter 沒有回傳任何內容');
+
+  const cleaned = cleanJsonText(content);
+  let parsed: { ideas?: Array<Record<string, unknown>> };
+  try {
+    parsed = JSON.parse(cleaned) as { ideas?: Array<Record<string, unknown>> };
+  } catch {
+    throw new Error('音樂提示詞建議回傳格式錯誤，無法解析 JSON');
+  }
+
+  const ideasRaw = Array.isArray(parsed.ideas) ? parsed.ideas : [];
+  const ideas = ideasRaw
+    .map((item) => {
+      const prompt = typeof item.prompt === 'string' ? item.prompt.trim() : '';
+      if (!prompt) return null;
+      const energyRaw = typeof item.energy === 'string' ? item.energy.trim().toLowerCase() : '';
+      const energy = energyRaw === 'low' || energyRaw === 'medium' || energyRaw === 'high'
+        ? energyRaw
+        : undefined;
+      return {
+        prompt,
+        reasoning: typeof item.reasoning === 'string' ? item.reasoning.trim() : undefined,
+        mood: typeof item.mood === 'string' ? item.mood.trim() : undefined,
+        energy,
+      } as ElevenLabsMusicPromptIdea;
+    })
+    .filter((item): item is ElevenLabsMusicPromptIdea => item !== null)
+    .slice(0, 3);
+
+  if (ideas.length > 0) return ideas;
+
+  const fallbackPrompt = (input.currentPrompt || '').trim();
+  return fallbackPrompt
+    ? [{ prompt: fallbackPrompt, reasoning: '沿用現有提示詞（AI 未回傳有效新提案）' }]
+    : [];
 }
