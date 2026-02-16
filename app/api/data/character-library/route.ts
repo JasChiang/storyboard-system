@@ -1,8 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sqliteCharacterLibraryRepo } from '@/lib/db/sqlite';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
+import { saveRemoteImageToLocalMedia } from '@/lib/storage/local-media';
 
 export const runtime = 'nodejs';
+
+async function ensureArchivedViews(
+  views: CharacterLibraryItem['views'],
+  itemName: string
+): Promise<CharacterLibraryItem['views']> {
+  const normalizedName = (itemName || 'character').trim();
+  return Promise.all(
+    views.map(async (view) => {
+      if (view.archivedLocalPath) return view;
+      try {
+        const saved = await saveRemoteImageToLocalMedia(view.url, {
+          category: 'character-library',
+          baseName: `${normalizedName}-${view.angle}`,
+        });
+        return {
+          ...view,
+          archivedLocalPath: saved.relativePath,
+        };
+      } catch {
+        return view;
+      }
+    })
+  );
+}
 
 export async function GET() {
   try {
@@ -27,14 +52,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'name, type and views are required' }, { status: 400 });
     }
 
+    const name = String(body.name);
+    const views = await ensureArchivedViews(body.views, name);
+
     const item: CharacterLibraryItem = {
       id: body.id || crypto.randomUUID(),
-      name: String(body.name),
+      name,
       type,
       description: String(body.description || ''),
       guidelines: body.guidelines,
       tags: Array.isArray(body.tags) ? body.tags : [],
-      views: body.views,
+      views,
       ipProfile: body.ipProfile,
       usageCount: typeof body.usageCount === 'number' ? body.usageCount : 0,
       createdAt: body.createdAt || now,

@@ -1,8 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sqliteCharacterLibraryRepo } from '@/lib/db/sqlite';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
+import { saveRemoteImageToLocalMedia } from '@/lib/storage/local-media';
 
 export const runtime = 'nodejs';
+
+async function ensureArchivedViews(
+  views: CharacterLibraryItem['views'],
+  itemName: string
+): Promise<CharacterLibraryItem['views']> {
+  const normalizedName = (itemName || 'character').trim();
+  return Promise.all(
+    views.map(async (view) => {
+      if (view.archivedLocalPath) return view;
+      try {
+        const saved = await saveRemoteImageToLocalMedia(view.url, {
+          category: 'character-library',
+          baseName: `${normalizedName}-${view.angle}`,
+        });
+        return {
+          ...view,
+          archivedLocalPath: saved.relativePath,
+        };
+      } catch {
+        return view;
+      }
+    })
+  );
+}
 
 export async function GET(
   _req: NextRequest,
@@ -30,7 +55,17 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = (await req.json()) as Partial<CharacterLibraryItem>;
-    const updated = sqliteCharacterLibraryRepo.update(id, body);
+    const existing = sqliteCharacterLibraryRepo.getById(id);
+    if (!existing) {
+      return NextResponse.json({ error: 'Character library item not found' }, { status: 404 });
+    }
+
+    const updates: Partial<CharacterLibraryItem> = { ...body };
+    if (Array.isArray(body.views)) {
+      updates.views = await ensureArchivedViews(body.views, body.name || existing.name);
+    }
+
+    const updated = sqliteCharacterLibraryRepo.update(id, updates);
     if (!updated) {
       return NextResponse.json({ error: 'Character library item not found' }, { status: 404 });
     }

@@ -4,11 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { X, Search, Check, Sparkles, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { characterLibraryStorage } from '@/lib/db/character-library-storage';
-import {
-  characterLibraryItemToProjectReference,
-  characterLibraryItemToProjectReferences,
-  resolveCharacterViewPreviewUrl,
-} from '@/lib/types/character-library';
+import { resolveCharacterViewPreviewUrl } from '@/lib/types/character-library';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
 import type { ProjectReference } from '@/lib/types/storyboard';
 
@@ -63,6 +59,8 @@ export function CharacterSelector({
   const [filterType, setFilterType] = useState<'all' | CharacterLibraryItem['type']>('all');
   const [selectedCharacters, setSelectedCharacters] = useState<Map<string, CharacterAngle>>(new Map());
   const [includeAllViews, setIncludeAllViews] = useState(true);
+  const [isResolving, setIsResolving] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
 
   const selectedIdsKey = selectedIds.join(',');
 
@@ -137,30 +135,49 @@ export function CharacterSelector({
     setSelectedCharacters(next);
   };
 
-  const handleConfirm = () => {
-    const references: ProjectReference[] = [];
+  const handleConfirm = async () => {
+    if (selectedCharacters.size === 0 || isResolving) return;
 
-    selectedCharacters.forEach((angle, characterId) => {
-      const character = characters.find((item) => item.id === characterId);
-      if (!character) return;
+    setIsResolving(true);
+    setResolveError(null);
 
-      try {
-        if (includeAllViews) {
-          references.push(...characterLibraryItemToProjectReferences(character, 'all'));
-        } else {
-          references.push(characterLibraryItemToProjectReference(character, angle));
-        }
-        void characterLibraryStorage.incrementUsage(characterId);
-      } catch (error) {
-        console.error(`轉換角色 ${character.name} 失敗:`, error);
+    try {
+      const selections = Array.from(selectedCharacters.entries()).map(([id, angle]) => ({ id, angle }));
+      const response = await fetch('/api/data/character-library/resolve-selection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selections,
+          includeAllViews,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || '角色參考圖刷新失敗');
       }
-    });
 
-    onSelect(references);
-    setSelectedCharacters(new Map());
-    setSearchQuery('');
-    setIncludeAllViews(true);
-    onClose();
+      const references = Array.isArray(payload.references)
+        ? (payload.references as ProjectReference[])
+        : [];
+
+      if (references.length === 0) {
+        throw new Error('沒有可用的角色參考圖，可能原始連結已失效。');
+      }
+
+      selections.forEach(({ id }) => {
+        void characterLibraryStorage.incrementUsage(id);
+      });
+
+      onSelect(references);
+      setSelectedCharacters(new Map());
+      setSearchQuery('');
+      setIncludeAllViews(true);
+      onClose();
+    } catch (error) {
+      setResolveError(error instanceof Error ? error.message : '角色參考圖刷新失敗');
+    } finally {
+      setIsResolving(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -343,15 +360,20 @@ export function CharacterSelector({
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-border/70 px-6 py-4">
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            已準備加入 {estimatedReferenceCount} 張參考圖
-          </p>
+          <div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              已準備加入 {estimatedReferenceCount} 張參考圖
+            </p>
+            {resolveError && (
+              <p className="mt-1 text-xs text-rose-600 dark:text-rose-400">{resolveError}</p>
+            )}
+          </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} disabled={isResolving}>
               取消
             </Button>
-            <Button onClick={handleConfirm} disabled={selectedCharacters.size === 0}>
-              確認加入 ({selectedCharacters.size})
+            <Button onClick={handleConfirm} disabled={selectedCharacters.size === 0 || isResolving}>
+              {isResolving ? '刷新 Fal 連結中...' : `確認加入 (${selectedCharacters.size})`}
             </Button>
           </div>
         </div>

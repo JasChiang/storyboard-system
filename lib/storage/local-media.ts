@@ -22,6 +22,50 @@ function extensionFromContentType(contentType: string | null): string {
   return 'jpg';
 }
 
+export function inferImageMimeTypeFromPath(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.png':
+      return 'image/png';
+    case '.webp':
+      return 'image/webp';
+    case '.gif':
+      return 'image/gif';
+    case '.bmp':
+      return 'image/bmp';
+    case '.avif':
+      return 'image/avif';
+    case '.jpg':
+    case '.jpeg':
+    default:
+      return 'image/jpeg';
+  }
+}
+
+export function normalizeLocalMediaRelativePath(rawPath: string): string | null {
+  const normalized = rawPath
+    .replace(/\\/g, '/')
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment && segment !== '.' && segment !== '..')
+    .join('/');
+
+  return normalized || null;
+}
+
+export function resolveLocalMediaAbsolutePath(rawPath: string): string | null {
+  const normalized = normalizeLocalMediaRelativePath(rawPath);
+  if (!normalized) return null;
+
+  const absolutePath = path.join(LOCAL_MEDIA_ROOT, ...normalized.split('/'));
+  const relative = path.relative(LOCAL_MEDIA_ROOT, absolutePath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    return null;
+  }
+
+  return absolutePath;
+}
+
 export interface SaveRemoteImageOptions {
   category?: string;
   baseName?: string;
