@@ -102,11 +102,11 @@
   }
 
   .surface-panel {
-    @apply rounded-[1.3rem] border border-white/70 bg-white/78 shadow-[0_18px_46px_-34px_rgba(15,23,42,0.55)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/52;
+    @apply rounded-[1.3rem] border border-white/70 bg-white/93 shadow-[0_18px_46px_-34px_rgba(15,23,42,0.55)] dark:border-white/10 dark:bg-slate-950/88;
   }
 
   .surface-soft {
-    @apply rounded-[1rem] border border-white/65 bg-white/62 shadow-[0_14px_30px_-26px_rgba(15,23,42,0.58)] backdrop-blur-lg dark:border-white/10 dark:bg-slate-950/42;
+    @apply rounded-[1rem] border border-white/65 bg-white/88 shadow-[0_14px_30px_-26px_rgba(15,23,42,0.58)] dark:border-white/10 dark:bg-slate-950/75;
   }
 
   .surface-inset {
