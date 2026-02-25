@@ -8,12 +8,15 @@ import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
 import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
+import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
 
 interface BatchImageGeneratorProps {
     scenes: Scene[];
     projectReferences?: ProjectReference[];
     styleProfile?: StyleProfile;
-    onBatchComplete: (results: Map<string, { url: string; prompt: string; endFrameUrl?: string; endFramePrompt?: string }>) => void;
+    onBatchComplete: (
+        results: Map<string, { url: string; prompt: string; startSeed?: number; endFrameUrl?: string; endFramePrompt?: string; endFrameSeed?: number }>
+    ) => void;
 }
 
 interface GenerationStatus {
@@ -23,6 +26,8 @@ interface GenerationStatus {
     prompt?: string;
     endFrameUrl?: string;
     endFramePrompt?: string;
+    startSeed?: number;
+    endFrameSeed?: number;
     error?: string;
 }
 
@@ -44,6 +49,7 @@ export function BatchImageGenerator({
     const [statuses, setStatuses] = useState<Map<string, GenerationStatus>>(new Map());
     const [aspectRatio, setAspectRatio] = useState<string>('16:9');
     const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('2K');
+    const [imageModel, setImageModel] = useState<ImageGenerationModel>('nano-banana-pro');
 
     const scenesToProcess = scenes.filter((scene) => {
         const needsStartFrame = !scene.generatedImage?.url;
@@ -176,6 +182,13 @@ export function BatchImageGenerator({
         options?: { primaryReferenceUrl?: string; continuityReferenceUrl?: string }
     ) => {
         const sceneScopedContentRefs = getSceneRelevantReferences(scene, contentProjectReferences);
+        const referenceImages = [
+            ...(options?.continuityReferenceUrl ? [options.continuityReferenceUrl] : []),
+            ...(options?.primaryReferenceUrl ? [options.primaryReferenceUrl] : []),
+            ...selectedStyleReferenceUrls,
+            ...(scene.referenceImage ? [scene.referenceImage] : []),
+            ...sceneScopedContentRefs.map(r => r.url)
+        ];
         const prompt = normalizePromptParts([
             buildImagePrompt(scene, isEndFrame),
             isEndFrame && options?.primaryReferenceUrl
@@ -195,13 +208,8 @@ export function BatchImageGenerator({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 prompt,
-                referenceImage: [
-                    ...(options?.continuityReferenceUrl ? [options.continuityReferenceUrl] : []),
-                    ...(options?.primaryReferenceUrl ? [options.primaryReferenceUrl] : []),
-                    ...selectedStyleReferenceUrls,
-                    ...(scene.referenceImage ? [scene.referenceImage] : []),
-                    ...sceneScopedContentRefs.map(r => r.url)
-                ], // 結合場景個別參考圖與專案級參考圖
+                model: imageModel,
+                referenceImage: referenceImages, // 結合場景個別參考圖與專案級參考圖
                 aspectRatio,
                 resolution,
             }),
@@ -220,9 +228,9 @@ export function BatchImageGenerator({
         const requestId = data.request_id;
         const endpoint = data.endpoint;
 
-        const imageUrl = await pollStatus(requestId, endpoint);
+        const { imageUrl, seed } = await pollStatus(requestId, endpoint);
 
-        return { url: imageUrl, prompt };
+        return { url: imageUrl, prompt, seed };
     };
 
     const generateSceneImages = async (scene: Scene, previousContinuationEndFrameUrl?: string) => {
@@ -234,13 +242,15 @@ export function BatchImageGenerator({
         updateStatus(scene.id, { status: needsStartFrame ? 'generating' : 'generating_end_frame' });
 
         try {
+            type GeneratedFrame = { url: string; prompt: string; seed?: number };
             // 1. 生成或沿用首幀
-            const startFrame = needsStartFrame
+            const startFrame: GeneratedFrame = needsStartFrame
                 ? (
                     previousContinuationEndFrameUrl
                         ? {
                             url: previousContinuationEndFrameUrl,
                             prompt: `${buildImagePrompt(scene, false)}. Start frame reused from previous scene end frame due to continuation transition.`,
+                            seed: undefined,
                         }
                         : await generateSingleImage(scene, false, {
                             continuityReferenceUrl: previousContinuationEndFrameUrl,
@@ -249,12 +259,14 @@ export function BatchImageGenerator({
                 : {
                     url: scene.generatedImage!.url,
                     prompt: scene.generatedImage?.prompt || '',
+                    seed: scene.generatedImage?.seed,
                 };
 
             if (needsStartFrame) {
                 updateStatus(scene.id, {
                     imageUrl: startFrame.url,
                     prompt: startFrame.prompt,
+                    startSeed: startFrame.seed,
                 });
             }
 
@@ -270,13 +282,16 @@ export function BatchImageGenerator({
                     status: 'completed',
                     endFrameUrl: endFrame.url,
                     endFramePrompt: endFrame.prompt,
+                    endFrameSeed: endFrame.seed,
                 });
 
                 return {
                     url: startFrame.url,
                     prompt: startFrame.prompt,
+                    startSeed: startFrame.seed,
                     endFrameUrl: endFrame.url,
                     endFramePrompt: endFrame.prompt,
+                    endFrameSeed: endFrame.seed,
                 };
             }
 
@@ -286,6 +301,7 @@ export function BatchImageGenerator({
             return {
                 url: startFrame.url,
                 prompt: startFrame.prompt,
+                startSeed: startFrame.seed,
             };
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : '生成失敗';
@@ -300,7 +316,7 @@ export function BatchImageGenerator({
     const pollStatus = async (
         requestId: string,
         endpoint: string
-    ): Promise<string> => {
+    ): Promise<{ imageUrl: string; seed?: number }> => {
         const maxAttempts = 60;
         let attempts = 0;
 
@@ -320,7 +336,8 @@ export function BatchImageGenerator({
             if (data.status === 'COMPLETED') {
                 const imageUrl = data.result.images[0]?.url;
                 if (!imageUrl) throw new Error('No image URL in response');
-                return imageUrl;
+                const seed = typeof data.result?.seed === 'number' ? data.result.seed : undefined;
+                return { imageUrl, seed };
             } else if (data.status === 'FAILED') {
                 throw new Error(data.error || 'Generation failed');
             }
@@ -343,7 +360,7 @@ export function BatchImageGenerator({
                 updateStatus(scene.id, { status: 'pending' });
             });
 
-            const results = new Map<string, { url: string; prompt: string; endFrameUrl?: string; endFramePrompt?: string }>();
+            const results = new Map<string, { url: string; prompt: string; startSeed?: number; endFrameUrl?: string; endFramePrompt?: string; endFrameSeed?: number }>();
 
             // 依序生成（避免超過 API 限制）
             for (const scene of scenesToProcess) {
@@ -391,7 +408,23 @@ export function BatchImageGenerator({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                            圖片模型
+                        </label>
+                        <select
+                            value={imageModel}
+                            onChange={(e) => setImageModel(e.target.value as ImageGenerationModel)}
+                            disabled={isGenerating}
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                       text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                        >
+                            <option value="nano-banana-pro">{IMAGE_GENERATION_MODEL_LABELS['nano-banana-pro']}</option>
+                            <option value="seedream-5-lite">{IMAGE_GENERATION_MODEL_LABELS['seedream-5-lite']}</option>
+                        </select>
+                    </div>
+
                     <div className="space-y-2">
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                             長寬比

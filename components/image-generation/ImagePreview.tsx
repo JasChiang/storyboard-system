@@ -6,6 +6,7 @@ import { Sparkles, Loader2 } from 'lucide-react';
 interface ImagePreviewProps {
     imageUrl: string | null;
     prompt?: string;
+    seed?: number;
     isLoading?: boolean;
     onRegenerate?: () => void;
 }
@@ -17,6 +18,7 @@ const loadedImageUrlCache = new Set<string>();
 export function ImagePreview({
     imageUrl,
     prompt,
+    seed,
     isLoading = false,
     onRegenerate
 }: ImagePreviewProps) {
@@ -109,10 +111,17 @@ export function ImagePreview({
                 )}
             </div>
 
-            {prompt && (
+            {(prompt || typeof seed === 'number') && (
                 <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
-                    <p className="text-xs text-slate-500 mb-1">Prompt</p>
-                    <p className="text-sm text-slate-700 dark:text-slate-300">{prompt}</p>
+                    {typeof seed === 'number' && (
+                        <p className="text-xs text-slate-500 mb-1">Seed: <span className="font-mono">{seed}</span></p>
+                    )}
+                    {prompt && (
+                        <>
+                            <p className="text-xs text-slate-500 mb-1">Prompt</p>
+                            <p className="text-sm text-slate-700 dark:text-slate-300">{prompt}</p>
+                        </>
+                    )}
                 </div>
             )}
         </div>

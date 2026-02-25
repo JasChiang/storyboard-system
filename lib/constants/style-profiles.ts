@@ -230,11 +230,11 @@ export const PRESET_STYLE_PROFILES: StyleProfile[] = [
   },
   {
     id: 'preset-ukiyoe-modern-narrative',
-    name: '浮世繪現代敘事風',
+    name: '江戶浮世繪木版畫',
     stylePrompt:
-      'Rendering style: ukiyo-e inspired woodblock visual language adapted for modern storyboards. Composition goal: flat color planes, carved-ink contour logic, and restrained palettes with strong focal hierarchy. Continuity lock: stable subject scale, horizon alignment, and recurring motif consistency across scenes.',
+      'Rendering style: authentic Edo-period ukiyo-e woodblock print language with hand-carved keylines, flat pigment blocks, bokashi gradation, and visible washi-paper texture. Composition goal: traditional Japanese print composition with clear silhouette hierarchy, restrained indigo-vermilion-earth palette, and decorative cloud/wave/floral motifs only when contextually relevant. Continuity lock: consistent woodblock registration feel, stable contour thickness, fixed kimono/pattern geometry, and unchanged motif placement across sequential shots.',
     negativePrompt:
-      'No photoreal shading, no glossy 3D reflections, no mixed rendering engines, no perspective distortion jumps, no random texture noise.',
+      'No photoreal lighting, no modern digital painting brushwork, no glossy 3D reflections, no lens blur/bokeh, no contemporary typography or UI elements, no mixed rendering engines.',
     isPreset: true,
   },
   {

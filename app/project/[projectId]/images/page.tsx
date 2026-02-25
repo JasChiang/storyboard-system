@@ -229,7 +229,15 @@ export default function ImagesPage() {
     persistStyleSettings(selectedStyleProfileId, profiles);
   };
 
-  const handleImageGenerated = (sceneId: string, imageUrl: string, prompt: string, endFrameUrl?: string, endFramePrompt?: string) => {
+  const handleImageGenerated = (
+    sceneId: string,
+    imageUrl: string,
+    prompt: string,
+    endFrameUrl?: string,
+    endFramePrompt?: string,
+    startSeed?: number,
+    endFrameSeed?: number
+  ) => {
     if (!currentProject?.storyboard) return;
 
     const updatedScenes = currentProject.storyboard.scenes.map(scene =>
@@ -239,11 +247,13 @@ export default function ImagesPage() {
           generatedImage: imageUrl ? {
             url: imageUrl,
             prompt,
+            seed: startSeed,
             timestamp: new Date().toISOString(),
           } : scene.generatedImage,
           generatedEndFrame: endFrameUrl ? {
             url: endFrameUrl,
             prompt: endFramePrompt || '',
+            seed: endFrameSeed,
             timestamp: new Date().toISOString(),
           } : scene.generatedEndFrame, // 保留現有尾幀
         }
@@ -287,7 +297,9 @@ export default function ImagesPage() {
     });
   };
 
-  const handleBatchComplete = (results: Map<string, { url: string; prompt: string; endFrameUrl?: string; endFramePrompt?: string }>) => {
+  const handleBatchComplete = (
+    results: Map<string, { url: string; prompt: string; startSeed?: number; endFrameUrl?: string; endFramePrompt?: string; endFrameSeed?: number }>
+  ) => {
     if (!currentProject?.storyboard) return;
 
     const updatedScenes = currentProject.storyboard.scenes.map(scene => {
@@ -298,12 +310,14 @@ export default function ImagesPage() {
           generatedImage: result.url ? {
             url: result.url,
             prompt: result.prompt,
+            seed: result.startSeed,
             timestamp: new Date().toISOString(),
           } : scene.generatedImage,
           // 如果有尾幀，也儲存尾幀資訊（不再依賴 requiresEndFrame）
           generatedEndFrame: result.endFrameUrl ? {
             url: result.endFrameUrl,
             prompt: result.endFramePrompt || '',
+            seed: result.endFrameSeed,
             timestamp: new Date().toISOString(),
           } : scene.generatedEndFrame,
         };
@@ -684,8 +698,8 @@ export default function ImagesPage() {
                         key={selectedScene.id}
                         projectId={projectId}
                         scene={selectedScene}
-                        onImageGenerated={(url, prompt, endFrameUrl, endFramePrompt) =>
-                          handleImageGenerated(selectedScene.id, url, prompt, endFrameUrl, endFramePrompt)
+                        onImageGenerated={(url, prompt, endFrameUrl, endFramePrompt, startSeed, endFrameSeed) =>
+                          handleImageGenerated(selectedScene.id, url, prompt, endFrameUrl, endFramePrompt, startSeed, endFrameSeed)
                         }
                         onEndFrameDescriptionChanged={(description, enabled) =>
                           handleEndFrameDescriptionChanged(selectedScene.id, description, enabled)

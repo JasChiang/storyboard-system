@@ -67,11 +67,13 @@ export interface Scene {
   generatedImage?: {
     url: string;
     prompt: string;
+    seed?: number;
     timestamp: string;
   };
   generatedEndFrame?: {          // 尾幀圖片 (當 requiresEndFrame=true 時生成)
     url: string;
     prompt: string;
+    seed?: number;
     timestamp: string;
   };
   motionPrompt?: string;         // 動作提示詞

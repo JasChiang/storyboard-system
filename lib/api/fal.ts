@@ -7,10 +7,14 @@ import {
   FalAudioResult,
 } from '../types/api-responses';
 import type { IndexTtsEmotionalStrengths, IndexTtsRequestInput } from '../types/audio';
+import { resolveImageModelEndpoint } from '../constants/image-models';
 
 export interface FalConfig {
   apiKey: string;
 }
+
+type ImageResolution = '1K' | '2K' | '4K';
+type ImageAspectRatio = '16:9' | '9:16' | '1:1' | '4:3' | '3:4';
 
 type FalQueueLog = {
   message?: string;
@@ -103,29 +107,40 @@ export async function generateImage(
   options: {
     referenceImage?: string | string[];  // base64 或 URL，或者 File 對象 (支援單張或多張)
     aspectRatio?: string;
-    resolution?: '1K' | '2K' | '4K';
+    resolution?: ImageResolution;
+    modelEndpoint?: string;
+    seed?: number;
   },
   config: FalConfig
 ): Promise<FalQueueResponse> {
   configureFal(config.apiKey);
 
   // 從環境變數讀取模型名稱，預設為 nano-banana-pro
-  const baseModel = process.env.FAL_IMAGE_MODEL || 'fal-ai/nano-banana-pro';
+  const baseModel = options.modelEndpoint || process.env.FAL_IMAGE_MODEL || 'fal-ai/nano-banana-pro';
 
   // 如果有參考圖，使用 edit endpoint
   const hasReference = options.referenceImage &&
     (Array.isArray(options.referenceImage) ? options.referenceImage.length > 0 : true);
 
-  const endpoint = hasReference
-    ? `${baseModel}/edit`
-    : baseModel;
+  const { endpoint, isEditOnlyEndpoint } = resolveImageModelEndpoint(baseModel, Boolean(hasReference));
+  if (isEditOnlyEndpoint && !hasReference) {
+    throw new Error('Selected image model requires at least one reference image');
+  }
 
   const input: Record<string, unknown> = {
     prompt,
     num_images: 1,
-    aspect_ratio: options.aspectRatio || '16:9',
-    resolution: options.resolution || '1K',
   };
+
+  const isSeedream = endpoint.includes('/seedream/');
+  if (isSeedream) {
+    const aspectRatio = (options.aspectRatio || '16:9') as ImageAspectRatio;
+    const resolution = options.resolution || '1K';
+    input.image_size = toSeedreamImageSize(aspectRatio, resolution);
+  } else {
+    input.aspect_ratio = options.aspectRatio || '16:9';
+    input.resolution = options.resolution || '1K';
+  }
 
   if (options.referenceImage) {
     // SDK 會自動處理 File 對象或 URL
@@ -133,6 +148,10 @@ export async function generateImage(
     input.image_urls = Array.isArray(options.referenceImage)
       ? options.referenceImage
       : [options.referenceImage];
+  }
+
+  if (typeof options.seed === 'number' && Number.isFinite(options.seed)) {
+    input.seed = Math.trunc(options.seed);
   }
 
   console.log('Generating image with endpoint:', endpoint);
@@ -154,6 +173,25 @@ export async function generateImage(
     console.error('Generate image failed:', error);
     throw error;
   }
+}
+
+function toSeedreamImageSize(
+  aspectRatio: ImageAspectRatio,
+  resolution: ImageResolution
+): string {
+  if (resolution === '4K') {
+    return 'auto_3K';
+  }
+
+  const byAspect: Record<ImageAspectRatio, string> = {
+    '16:9': 'landscape_16_9',
+    '9:16': 'portrait_16_9',
+    '1:1': 'square_hd',
+    '4:3': 'landscape_4_3',
+    '3:4': 'portrait_4_3',
+  };
+
+  return byAspect[aspectRatio];
 }
 
 // Kling 2.6 Pro 影片生成

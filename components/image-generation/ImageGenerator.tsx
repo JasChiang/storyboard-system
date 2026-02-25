@@ -11,11 +11,19 @@ import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
 import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
+import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
 
 interface ImageGeneratorProps {
     projectId: string;
     scene: Scene;
-    onImageGenerated: (imageUrl: string, prompt: string, endFrameUrl?: string, endFramePrompt?: string) => void;
+    onImageGenerated: (
+        imageUrl: string,
+        prompt: string,
+        endFrameUrl?: string,
+        endFramePrompt?: string,
+        startSeed?: number,
+        endFrameSeed?: number
+    ) => void;
     onEndFrameDescriptionChanged?: (description: string, enabled: boolean) => void;
     projectReferences?: ProjectReference[];
     styleProfile?: StyleProfile;
@@ -48,6 +56,9 @@ export function ImageGenerator({
     );
     const [aspectRatio, setAspectRatio] = useState<string>('16:9');
     const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('2K');
+    const [imageModel, setImageModel] = useState<ImageGenerationModel>('nano-banana-pro');
+    const [seedMode, setSeedMode] = useState<'auto' | 'fixed' | 'end_from_start'>('auto');
+    const [manualSeedInput, setManualSeedInput] = useState('');
     const [customPrompt, setCustomPrompt] = useState('');
     const [promptMode, setPromptMode] = useState<'append' | 'replace' | 'prepend'>('append');
     const [showAdvanced, setShowAdvanced] = useState(false);
@@ -359,6 +370,17 @@ export function ImageGenerator({
         }
     };
 
+    const getRequestedSeed = (isEndFrame: boolean): number | undefined => {
+        if (seedMode === 'fixed') {
+            const parsed = Number.parseInt(manualSeedInput.trim(), 10);
+            return Number.isFinite(parsed) ? parsed : undefined;
+        }
+        if (seedMode === 'end_from_start' && isEndFrame) {
+            return scene.generatedImage?.seed;
+        }
+        return undefined;
+    };
+
     const updateTaskStatus = async (taskId: string, updates: Record<string, unknown>) => {
         try {
             await fetch(`/api/workflow/tasks/${taskId}`, {
@@ -387,7 +409,9 @@ export function ImageGenerator({
                 previousEndFrameUrl,
                 reusedPrompt,
                 scene.generatedEndFrame?.url,
-                scene.generatedEndFrame?.prompt
+                scene.generatedEndFrame?.prompt,
+                scene.generatedImage?.seed,
+                scene.generatedEndFrame?.seed
             );
             return;
         }
@@ -412,7 +436,7 @@ export function ImageGenerator({
                     sceneId: scene.id,
                     stage: isEndFrame ? 'image_end' : 'image_start',
                     status: 'running',
-                    model: 'nano-banana',
+                    model: imageModel,
                     prompt,
                     inputUrl: referenceImage || previousEndFrameUrl || scene.generatedImage?.url,
                     metadata: {
@@ -422,18 +446,26 @@ export function ImageGenerator({
                 }),
             });
 
+            const referenceImages = getSelectedReferenceUrls({
+                includeStartFrameForEnd: isEndFrame,
+                includePreviousSceneEnd: !isEndFrame,
+            });
+            const requestedSeed = getRequestedSeed(isEndFrame);
+            if (seedMode === 'fixed' && typeof requestedSeed !== 'number') {
+                throw new Error('請輸入有效的固定 Seed（整數）');
+            }
+
             // 呼叫生成 API
             const response = await fetch('/api/fal/generate-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     prompt,
-                    referenceImage: getSelectedReferenceUrls({
-                        includeStartFrameForEnd: isEndFrame,
-                        includePreviousSceneEnd: !isEndFrame,
-                    }), // 傳送所有選取的參考圖 URL
+                    model: imageModel,
+                    referenceImage: referenceImages, // 傳送所有選取的參考圖 URL
                     aspectRatio,
                     resolution,
+                    seed: requestedSeed,
                 }),
             });
 
@@ -559,10 +591,14 @@ export function ImageGenerator({
 
             if (data.status === 'COMPLETED') {
                 const imageUrl = data.result?.images?.[0]?.url;
+                const resultSeed = typeof data.result?.seed === 'number' ? data.result.seed : undefined;
                 if (imageUrl) {
                     await updateTaskStatus(taskId, {
                         status: 'completed',
                         outputUrl: imageUrl,
+                        metadata: {
+                            seed: resultSeed,
+                        },
                     });
                     // 如果是尾幀，保留現有的首幀資訊
                     if (isEndFrame) {
@@ -575,7 +611,9 @@ export function ImageGenerator({
                             startFrameUrlForSave,
                             startFramePromptForSave,
                             imageUrl,
-                            prompt
+                            prompt,
+                            scene.generatedImage?.seed,
+                            resultSeed
                         );
                     } else {
                         // 如果是首幀，保留現有的尾幀資訊
@@ -583,7 +621,9 @@ export function ImageGenerator({
                             imageUrl,
                             prompt,
                             scene.generatedEndFrame?.url,
-                            scene.generatedEndFrame?.prompt
+                            scene.generatedEndFrame?.prompt,
+                            resultSeed,
+                            scene.generatedEndFrame?.seed
                         );
                     }
                 } else {
@@ -679,6 +719,7 @@ export function ImageGenerator({
                 <ImagePreview
                     imageUrl={previousEndFrameUrl || scene.generatedImage?.url || null}
                     prompt={scene.generatedImage?.prompt}
+                    seed={scene.generatedImage?.seed}
                     isLoading={startGenerationLoading}
                     onRegenerate={() => handleGenerate(false)}
                 />
@@ -752,6 +793,7 @@ export function ImageGenerator({
                     <ImagePreview
                         imageUrl={scene.generatedEndFrame?.url || null}
                         prompt={scene.generatedEndFrame?.prompt}
+                        seed={scene.generatedEndFrame?.seed}
                         isLoading={endGenerationLoading}
                         onRegenerate={() => handleGenerate(true)}
                     />
@@ -925,7 +967,34 @@ export function ImageGenerator({
                 </button>
 
                 {showAdvanced && (
-                    <div className="surface-soft grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
+                    <div className="surface-soft grid grid-cols-1 gap-4 p-4 md:grid-cols-2 lg:grid-cols-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">圖片模型</label>
+                            <select
+                                value={imageModel}
+                                onChange={(event) => setImageModel(event.target.value as ImageGenerationModel)}
+                                disabled={isAnyGenerationLoading}
+                                className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
+                            >
+                                <option value="nano-banana-pro">{IMAGE_GENERATION_MODEL_LABELS['nano-banana-pro']}</option>
+                                <option value="seedream-5-lite">{IMAGE_GENERATION_MODEL_LABELS['seedream-5-lite']}</option>
+                            </select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Seed 策略</label>
+                            <select
+                                value={seedMode}
+                                onChange={(event) => setSeedMode(event.target.value as 'auto' | 'fixed' | 'end_from_start')}
+                                disabled={isAnyGenerationLoading}
+                                className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
+                            >
+                                <option value="auto">Auto (每次自動)</option>
+                                <option value="fixed">固定同一 Seed</option>
+                                <option value="end_from_start">尾幀用首幀 Seed</option>
+                            </select>
+                        </div>
+
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">長寬比</label>
                             <select
@@ -954,6 +1023,23 @@ export function ImageGenerator({
                                 <option value="2K">2K (推薦)</option>
                                 <option value="4K">4K (最高品質)</option>
                             </select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">手動 Seed</label>
+                            <input
+                                type="number"
+                                value={manualSeedInput}
+                                onChange={(event) => setManualSeedInput(event.target.value)}
+                                disabled={isAnyGenerationLoading || seedMode !== 'fixed'}
+                                placeholder="例如 123456"
+                                className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-60 dark:bg-slate-900/65"
+                            />
+                            {seedMode === 'end_from_start' && (
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    尾幀生成時會使用首幀 seed：{scene.generatedImage?.seed ?? '尚未有首幀 seed'}
+                                </p>
+                            )}
                         </div>
                     </div>
                 )}

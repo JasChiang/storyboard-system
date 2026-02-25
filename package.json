@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 5100",
     "dev:openreel": "pnpm -C external/openreel-video dev",
-    "dev:all": "concurrently -k \"pnpm -C external/openreel-video dev\" \"next dev\"",
+    "dev:all": "concurrently -k \"pnpm -C external/openreel-video dev\" \"next dev -p 5100\"",
     "install:all": "npm install && pnpm -C external/openreel-video install",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 5100",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest"
