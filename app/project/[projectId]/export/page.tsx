@@ -18,7 +18,7 @@ export default function ExportPage() {
   const params = useParams();
   const projectId = params.projectId as string;
 
-  const { currentProject, setCurrentProject, updateProject } = useProjectStore();
+  const { currentProject, isCurrentProjectLoading, setCurrentProject, updateProject } = useProjectStore();
   const [editingSuggestion, setEditingSuggestion] = useState<EditingSuggestion | null>(null);
   const [renderMode, setRenderMode] = useState<'openreel' | 'ffmpeg' | 'blender'>('openreel');
 
@@ -106,7 +106,34 @@ export default function ExportPage() {
     });
   }, [currentProject?.storyboard, projectId, updateProject]);
 
-  if (!currentProject?.storyboard) {
+  if (isCurrentProjectLoading && !currentProject) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-lg text-muted-foreground font-medium">載入專案中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <p className="text-muted-foreground">找不到專案或已被刪除</p>
+          <Link
+            href="/"
+            className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            返回首頁
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProject.storyboard) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">

@@ -57,7 +57,8 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
       - 只有在「商品發生物理狀態改變」時（如：打開蓋子、被壓扁、液體流出），才設 requiresEndFrame = true。
    
    c) 與轉場聯動規則：
-      - 只有當 transitionToNext.type = "continuation" 時，才優先考慮 requiresEndFrame = true
+      - 當 transitionToNext.type = "continuation" 時，requiresEndFrame 可為 true 或 false（依是否真的需要尾幀）
+      - 若 continuation 且 requiresEndFrame = false，代表下一景沿用前景首幀或自動來源
       - 若不是 continuation，預設 requiresEndFrame = false
 
    d) 範例：
@@ -92,7 +93,7 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
    - dissolve: 交叉溶解 - 柔和過渡（同空間時間跳躍、情緒延續）
    - fade_black: 淡入黑場 - 明確的段落分隔（結束語、轉折點）
    - fade_white: 淡入白場 - 夢境或閃回結束
-   - continuation: 延續 - 用此場景的 endFrame 作為下一場景的 startFrame（動作連續）
+   - continuation: 延續 - 下一場景沿用此場景畫面來源（優先尾幀，無尾可用首幀）
    - match_cut: 匹配剪接 - 形狀或動作相似的畫面接續（球→月亮、眼睛→窗戶）
    - wipe: 擦除 - 有方向感的畫面替換
    - push: 推出 - 新畫面推開舊畫面
@@ -101,7 +102,7 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
    a) 如果下一場景是「同一動作的延續」（同主體、動作連續）：
       → type = "continuation"
       → useEndFrameAsNextStart = true
-      → ⚠️ 此時 requiresEndFrame 也必須設為 true
+      → requiresEndFrame 依需求決定（若無尾幀，下一景可沿用首幀）
       
    b) 如果下一場景是「同一空間但時間跳躍」（如：白天→黑夜）：
       → type = "dissolve"
@@ -162,6 +163,14 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                             type: 'string',
                             description: '此鏡頭不允許改變的連續性約束'
                         },
+                        shotIntent: {
+                            type: 'string',
+                            description: '鏡頭在整體敘事中的任務（一句話）'
+                        },
+                        continuityAnchor: {
+                            type: 'string',
+                            description: '跨鏡頭必須維持的一個關鍵連續性錨點'
+                        },
                         requiresEndFrame: {
                             type: 'boolean',
                             description: 'AI 判斷是否需要生成尾幀（依據運鏡幅度與商品規則）'
@@ -210,6 +219,11 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                             type: 'string',
                             description: '相對前一場景的變化摘要（第一場景填 N/A）'
                         },
+                        requiredReferences: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: '本鏡頭必須使用的參考標記（如 ["<Alice>", "<iPhone>"]）'
+                        },
                         transitionToNext: {
                             type: 'object',
                             description: '與下一場景的轉場設定',
@@ -235,7 +249,7 @@ export const DEFAULT_STORYBOARD_TEMPLATE: PromptTemplate = {
                             required: ['type', 'reason']
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'shotIntent', 'continuityAnchor', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'requiredReferences', 'transitionToNext']
                 }
             }
         },

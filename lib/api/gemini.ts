@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import type { Storyboard, Scene, ProjectReference } from '../types/storyboard';
 import { EditingSuggestion } from '../types/project';
 import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
@@ -18,7 +18,7 @@ export interface UploadedFile {
 
 export interface ComposeVideoPromptInput {
   model: 'kling' | 'seedance';
-  scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'requiresEndFrame' | 'endFrameDescription'>;
+  scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev' | 'requiresEndFrame' | 'endFrameDescription'>;
   motionPrompt: string;
   references: ProjectReference[];
   hasPreviousEndFrame?: boolean;
@@ -48,6 +48,55 @@ export interface ComposeImagePromptResult {
   composedPrompt: string;
   notes?: string;
   sourceModel: string;
+}
+
+const VIDEO_PROMPT_COMPOSER_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    composedPrompt: { type: Type.STRING },
+    suggestedMotionPrompt: { type: Type.STRING },
+    notes: { type: Type.STRING },
+  },
+  required: ['composedPrompt'],
+};
+
+const IMAGE_PROMPT_COMPOSER_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    suggestedEndFrameDescription: { type: Type.STRING },
+    composedPrompt: { type: Type.STRING },
+    notes: { type: Type.STRING },
+  },
+  required: ['suggestedEndFrameDescription', 'composedPrompt'],
+};
+
+function parseGeminiJsonResponse<T extends Record<string, unknown>>(
+  responseText: string,
+  errorMessage: string
+): T {
+  const rawText = (responseText || '').trim();
+  if (!rawText) throw new Error(errorMessage);
+
+  const cleaned = rawText
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+
+  try {
+    return JSON.parse(cleaned) as T;
+  } catch {
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      try {
+        return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1)) as T;
+      } catch {
+        throw new Error(errorMessage);
+      }
+    }
+    throw new Error(errorMessage);
+  }
 }
 
 // 上傳影片到 Gemini Files API
@@ -180,8 +229,8 @@ export async function analyzeVideosForEditing(
     if (message.includes('quota') || message.includes('429')) {
       throw new Error(
         `Gemini API 配額已超限。建議解決方案：\\n` +
-        `1. 在 .env.local 中將 GEMINI_MODEL 改為 gemini-1.5-flash\\n` +
-        `2. 或使用 gemini-1.5-pro (更高配額)\\n` +
+        `1. 在 .env.local 中將 GEMINI_MODEL 改為 gemini-2.5-flash-lite\\n` +
+        `2. 或使用 gemini-2.5-flash (更高品質/較高成本)\\n` +
         `3. 或等待配額重置（通常為每日/每分鐘限制）\\n\\n` +
         `原始錯誤: ${message || 'Unknown error'}`
       );
@@ -218,6 +267,10 @@ export async function composeVideoPromptWithGemini(
     };
   });
 
+  const modelSpecificRule = input.model === 'kling'
+    ? '8) For Kling: prioritize physically plausible camera inertia and avoid sudden reframing leaps.'
+    : '8) For Seedance: prioritize smooth temporal continuity across all frames and avoid frame flicker.'
+
   const systemPrompt = `You are a professional video prompt composer for ${input.model.toUpperCase()} image-to-video generation.
 Return JSON only with keys:
 {
@@ -233,7 +286,11 @@ Rules:
 4) If end frame is available, enforce end-state alignment. If not, avoid fake object motion.
 5) Do not invent new logos/text/brand marks.
 6) Keep output concise (prefer <= 2200 chars for kling, <= 3400 chars for seedance).
-7) JSON only, no markdown.`;
+7) The composed prompt must describe one continuous shot only; never include cuts, montage, or scene switches.
+${modelSpecificRule}
+9) Avoid keyword stuffing like "masterpiece, best quality, 8k, ultra-detailed".
+10) Respect storyboard directives: sceneIntent/startComposition/subjectMotion/continuityLock/shotIntent/continuityAnchor/changeFromPrev.
+11) If visible text/logo exists, require exact spelling and placement. JSON only, no markdown.`;
 
   const userPayload = {
     mode: input.model,
@@ -242,6 +299,13 @@ Rules:
       sceneNumber: input.scene.sceneNumber,
       description: input.scene.description,
       cameraMovement: input.scene.cameraMovement,
+      sceneIntent: input.scene.sceneIntent || '',
+      startComposition: input.scene.startComposition || '',
+      subjectMotion: input.scene.subjectMotion || '',
+      continuityLock: input.scene.continuityLock || '',
+      shotIntent: input.scene.shotIntent || '',
+      continuityAnchor: input.scene.continuityAnchor || '',
+      changeFromPrev: input.scene.changeFromPrev || '',
       requiresEndFrame: Boolean(input.scene.requiresEndFrame),
       endFrameDescription: input.scene.endFrameDescription || '',
       hasPreviousEndFrame: Boolean(input.hasPreviousEndFrame),
@@ -252,6 +316,10 @@ Rules:
 
   const result = await ai.models.generateContent({
     model: modelName,
+    config: {
+      responseMimeType: 'application/json',
+      responseSchema: VIDEO_PROMPT_COMPOSER_RESPONSE_SCHEMA,
+    },
     contents: [
       {
         role: 'user',
@@ -262,20 +330,11 @@ Rules:
     ],
   });
 
-  const responseText = result.text || '';
-  const fenced = responseText.match(/```json\s*([\s\S]*?)```/i);
-  const jsonCandidate = fenced?.[1]?.trim() || responseText.trim();
-
-  let parsed: { composedPrompt?: string; suggestedMotionPrompt?: string; notes?: string } | null = null;
-  try {
-    parsed = JSON.parse(jsonCandidate);
-  } catch {
-    const firstBrace = responseText.indexOf('{');
-    const lastBrace = responseText.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      parsed = JSON.parse(responseText.slice(firstBrace, lastBrace + 1));
-    }
-  }
+  const parsed = parseGeminiJsonResponse<{
+    composedPrompt?: string;
+    suggestedMotionPrompt?: string;
+    notes?: string;
+  }>(result.text || '', 'Gemini 未回傳可用的 composedPrompt');
 
   const composedPrompt = parsed?.composedPrompt?.trim();
   if (!composedPrompt) {
@@ -334,8 +393,10 @@ Rules:
 7) Composed prompt must be for a single static frame only.
 8) Treat stylePrompt as the primary creative direction; negativePrompt is guardrail only.
 9) Preserve the original rendering medium from references (2D/3D/photoreal). Do not restyle medium unless explicitly requested.
-10) Keep output concise and production-ready.
-11) JSON only, no markdown.`;
+10) For visible text/logo, explicitly specify exact wording and placement; if text is not required, explicitly forbid new text.
+11) Avoid gibberish characters, corrupted typography, or accidental watermark-like marks.
+12) Keep output concise and production-ready.
+13) JSON only, no markdown.`;
 
   const userPayload = {
     scene: {
@@ -371,6 +432,10 @@ Rules:
 
   const result = await ai.models.generateContent({
     model: modelName,
+    config: {
+      responseMimeType: 'application/json',
+      responseSchema: IMAGE_PROMPT_COMPOSER_RESPONSE_SCHEMA,
+    },
     contents: [
       {
         role: 'user',
@@ -381,20 +446,11 @@ Rules:
     ],
   });
 
-  const responseText = result.text || '';
-  const fenced = responseText.match(/```json\s*([\s\S]*?)```/i);
-  const jsonCandidate = fenced?.[1]?.trim() || responseText.trim();
-
-  let parsed: { suggestedEndFrameDescription?: string; composedPrompt?: string; notes?: string } | null = null;
-  try {
-    parsed = JSON.parse(jsonCandidate);
-  } catch {
-    const firstBrace = responseText.indexOf('{');
-    const lastBrace = responseText.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      parsed = JSON.parse(responseText.slice(firstBrace, lastBrace + 1));
-    }
-  }
+  const parsed = parseGeminiJsonResponse<{
+    suggestedEndFrameDescription?: string;
+    composedPrompt?: string;
+    notes?: string;
+  }>(result.text || '', 'Gemini 未回傳可用的 image compose 結果');
 
   const suggestedEndFrameDescription = parsed?.suggestedEndFrameDescription?.trim();
   const composedPrompt = parsed?.composedPrompt?.trim();

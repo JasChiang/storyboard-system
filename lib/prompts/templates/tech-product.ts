@@ -101,6 +101,14 @@ Hook Design Rules（第一場景必選其一）：
                             type: 'string',
                             description: '品牌與空間連續性硬約束'
                         },
+                        shotIntent: {
+                            type: 'string',
+                            description: '鏡頭在整體敘事中的任務（一句話）'
+                        },
+                        continuityAnchor: {
+                            type: 'string',
+                            description: '跨鏡頭必須維持的一個關鍵連續性錨點'
+                        },
                         requiresEndFrame: {
                             type: 'boolean',
                             description: 'AI 判斷是否需要生成尾幀'
@@ -149,6 +157,11 @@ Hook Design Rules（第一場景必選其一）：
                             type: 'string',
                             description: '相對前一場景的變化摘要'
                         },
+                        requiredReferences: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: '本鏡頭必須使用的參考標記（如 ["<Alice>", "<iPhone>"]）'
+                        },
                         transitionToNext: {
                             type: 'object',
                             description: '與下一場景的轉場設定',
@@ -174,7 +187,7 @@ Hook Design Rules（第一場景必選其一）：
                             required: ['type', 'reason']
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'shotIntent', 'continuityAnchor', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'requiredReferences', 'transitionToNext']
                 }
             }
         },

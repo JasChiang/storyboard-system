@@ -6,9 +6,10 @@ interface ProjectStore {
   projects: Project[];
   currentProject: Project | null;
   isLoading: boolean;
+  isCurrentProjectLoading: boolean;
   loadProjects: () => void;
   setCurrentProject: (projectId: string | null) => void;
-  createProject: (name: string, description?: string, targetDurationSec?: number) => void;
+  createProject: (name: string, description?: string, targetDurationSec?: number) => Promise<Project | null>;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
   refreshCurrentProject: () => void;
@@ -74,6 +75,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   projects: [],
   currentProject: null,
   isLoading: false,
+  isCurrentProjectLoading: false,
 
   loadProjects: () => {
     void (async () => {
@@ -98,36 +100,37 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setCurrentProject: (projectId: string | null) => {
     if (!projectId) {
       currentProjectRequestSeq += 1;
-      set({ currentProject: null });
+      set({ currentProject: null, isCurrentProjectLoading: false });
       return;
     }
 
     const requestSeq = ++currentProjectRequestSeq;
+    set({ currentProject: null, isCurrentProjectLoading: true });
     void (async () => {
       try {
         const project = await apiGetProjectById(projectId);
         if (requestSeq !== currentProjectRequestSeq) return;
-        set({ currentProject: project });
+        set({ currentProject: project, isCurrentProjectLoading: false });
       } catch {
         const fallback = projectStorage.getById(projectId);
         if (requestSeq !== currentProjectRequestSeq) return;
-        set({ currentProject: fallback });
+        set({ currentProject: fallback, isCurrentProjectLoading: false });
       }
     })();
   },
 
-  createProject: (name: string, description?: string, targetDurationSec?: number) => {
-    void (async () => {
-      try {
-        const created = await apiCreateProject(name, description, targetDurationSec);
-        const projects = await apiGetProjects();
-        set({ projects, currentProject: created });
-      } catch {
-        const local = projectStorage.create({ name, description, status: 'draft', targetDurationSec });
-        const projects = projectStorage.getAll();
-        set({ projects, currentProject: local });
-      }
-    })();
+  createProject: async (name: string, description?: string, targetDurationSec?: number) => {
+    try {
+      const created = await apiCreateProject(name, description, targetDurationSec);
+      const projects = await apiGetProjects();
+      set({ projects, currentProject: created });
+      return created;
+    } catch {
+      const local = projectStorage.create({ name, description, status: 'draft', targetDurationSec });
+      const projects = projectStorage.getAll();
+      set({ projects, currentProject: local });
+      return local;
+    }
   },
 
   updateProject: (id: string, updates: Partial<Project>) => {
@@ -183,12 +186,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const { currentProject } = get();
       if (!currentProject) return;
 
+      set({ isCurrentProjectLoading: true });
       try {
         const refreshed = await apiGetProjectById(currentProject.id);
-        set({ currentProject: refreshed });
+        set({ currentProject: refreshed, isCurrentProjectLoading: false });
       } catch {
         const refreshed = projectStorage.getById(currentProject.id);
-        set({ currentProject: refreshed });
+        set({ currentProject: refreshed, isCurrentProjectLoading: false });
       }
     })();
   },

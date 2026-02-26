@@ -88,7 +88,13 @@ export function ProjectStepNavigator({
 
             return (
               <div key={step.id} className="flex items-center gap-2">
-                <Link href={step.href}>{content}</Link>
+                {isAvailable || isActive ? (
+                  <Link href={step.href}>{content}</Link>
+                ) : (
+                  <span aria-disabled="true" title="請先完成前一步驟">
+                    {content}
+                  </span>
+                )}
                 {index < steps.length - 1 && (
                   <span className="text-slate-300 dark:text-slate-700">·</span>
                 )}

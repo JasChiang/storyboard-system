@@ -4,6 +4,12 @@ import type { StoryboardQaIssue } from '@/lib/db/sqlite';
 const HIGH = 30;
 const MEDIUM = 12;
 const LOW = 5;
+const TAG_PATTERN = /^<[^<>]+>$/;
+
+function normalizeTag(raw: string): string {
+  const trimmed = raw.replace(/^<|>$/g, '').trim().toLowerCase();
+  return trimmed ? `<${trimmed}>` : '';
+}
 
 function issue(
   severity: 'high' | 'medium' | 'low',
@@ -32,17 +38,35 @@ export function validateStoryboard(storyboard: Storyboard): {
   }>;
 } {
   const issues: StoryboardQaIssue[] = [];
+  const availableReferenceTags = new Set<string>(
+    (storyboard.projectReferences || [])
+      .map((reference) => (typeof reference.name === 'string' ? normalizeTag(reference.name) : ''))
+      .filter(Boolean)
+  );
 
   storyboard.scenes.forEach((scene, index) => {
     const hasCharactersTag = Array.isArray(scene.charactersUsed) && scene.charactersUsed.length > 0;
     const hasProductsTag = Array.isArray(scene.productsUsed) && scene.productsUsed.length > 0;
+    const hasRequiredReferences = Array.isArray(scene.requiredReferences);
     const hasTransition = Boolean(scene.transitionToNext?.type);
     const hasDescription = Boolean(scene.description?.trim());
     const hasCameraMovement = Boolean(scene.cameraMovement?.trim());
+    const hasSceneIntent = Boolean(scene.sceneIntent?.trim());
+    const hasStartComposition = Boolean(scene.startComposition?.trim());
+    const hasSubjectMotion = Boolean(scene.subjectMotion?.trim());
+    const hasContinuityLock = Boolean(scene.continuityLock?.trim());
+    const hasShotIntent = Boolean(scene.shotIntent?.trim());
+    const hasContinuityAnchor = Boolean(scene.continuityAnchor?.trim());
+    const hasChangeFromPrev = Boolean(scene.changeFromPrev?.trim());
+    const continuationMode = scene.transitionToNext?.continuitySourceMode;
+    const continuationUsesStartOnly = continuationMode === 'previous_start_only' || continuationMode === 'none';
+    const normalizedRequiredTags = (scene.requiredReferences || [])
+      .map((tag) => normalizeTag(typeof tag === 'string' ? tag : ''))
+      .filter(Boolean);
 
     // ===== Block（只保留流程必要檢查）=====
-    if ((scene.transitionToNext?.type === 'continuation' || scene.transitionToNext?.useEndFrameAsNextStart) && !scene.requiresEndFrame) {
-      issues.push(issue('high', 'continuation_without_endframe', '設定了 continuation 但此場景沒有啟用尾幀。', scene));
+    if ((scene.transitionToNext?.type === 'continuation' || scene.transitionToNext?.useEndFrameAsNextStart) && !scene.requiresEndFrame && !continuationUsesStartOnly) {
+      issues.push(issue('medium', 'continuation_without_endframe', '設定了 continuation 但此場景未啟用尾幀；若要沿用上一景，建議確認來源模式可使用首幀或手動啟用尾幀。', scene));
     }
 
     if (scene.requiresEndFrame && !scene.endFrameDelta?.trim()) {
@@ -62,22 +86,46 @@ export function validateStoryboard(storyboard: Storyboard): {
     if (!hasTransition) {
       issues.push(issue('high', 'missing_transition', '場景缺少 transitionToNext.type，後續剪輯轉場依據不足。', scene));
     }
+    if (hasRequiredReferences && scene.requiredReferences?.some((tag) => !TAG_PATTERN.test((tag || '').trim()))) {
+      issues.push(issue('high', 'invalid_required_reference_tags', 'requiredReferences 必須使用 <名稱> 標記格式。', scene));
+    }
+    if (availableReferenceTags.size > 0) {
+      const missingRequiredTags = normalizedRequiredTags.filter((tag) => !availableReferenceTags.has(tag));
+      if (missingRequiredTags.length > 0) {
+        issues.push(issue('high', 'required_references_not_found', `requiredReferences 找不到對應專案參考：${missingRequiredTags.join(', ')}`, scene));
+      }
+    }
 
     // ===== Warn（品質提醒，不阻擋流程）=====
     if (!hasCharactersTag && !hasProductsTag) {
       issues.push(issue('medium', 'missing_entity_tags', '場景缺少 charactersUsed/productsUsed，一致性追蹤會較弱。', scene));
     }
-    if (!scene.sceneIntent?.trim()) {
-      issues.push(issue('low', 'missing_scene_intent', '缺少 sceneIntent，建議補上以利腳本語意一致。', scene));
+    if (!hasSceneIntent) {
+      issues.push(issue('medium', 'missing_scene_intent', '缺少 sceneIntent，會降低鏡頭敘事聚焦。', scene));
     }
-    if (!scene.startComposition?.trim()) {
-      issues.push(issue('low', 'missing_start_composition', '缺少 startComposition，首幀構圖錨點較弱。', scene));
+    if (!hasStartComposition) {
+      issues.push(issue('medium', 'missing_start_composition', '缺少 startComposition，首幀構圖錨點不足。', scene));
     }
-    if (!scene.continuityLock?.trim()) {
-      issues.push(issue('low', 'missing_continuity_lock', '缺少 continuityLock，首尾幀幾何延續風險提高。', scene));
+    if (!hasSubjectMotion) {
+      issues.push(issue('medium', 'missing_subject_motion', '缺少 subjectMotion，影片動作邊界不明確。', scene));
     }
-    if (index > 0 && !scene.changeFromPrev?.trim()) {
-      issues.push(issue('low', 'missing_change_from_prev', '缺少 changeFromPrev，連場變化語意不完整。', scene));
+    if (!hasContinuityLock) {
+      issues.push(issue('medium', 'missing_continuity_lock', '缺少 continuityLock，影像保真與連續性風險提高。', scene));
+    }
+    if (!hasShotIntent) {
+      issues.push(issue('medium', 'missing_shot_intent', '缺少 shotIntent，鏡頭任務不明確。', scene));
+    }
+    if (!hasContinuityAnchor) {
+      issues.push(issue('medium', 'missing_continuity_anchor', '缺少 continuityAnchor，跨鏡頭連續性不易維持。', scene));
+    }
+    if (!hasRequiredReferences) {
+      issues.push(issue('medium', 'missing_required_references', '缺少 requiredReferences 欄位，無法精準限制本鏡頭必用參考。', scene));
+    }
+    if (hasRequiredReferences && scene.requiredReferences!.length > 0 && !hasCharactersTag && !hasProductsTag) {
+      issues.push(issue('medium', 'required_refs_without_entity_tags', '有 requiredReferences 但缺少 charactersUsed/productsUsed，參考映射可能失效。', scene));
+    }
+    if (index > 0 && !hasChangeFromPrev) {
+      issues.push(issue('medium', 'missing_change_from_prev', '缺少 changeFromPrev，連場變化語意不完整。', scene));
     }
   });
 

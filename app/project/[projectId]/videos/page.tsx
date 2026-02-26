@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Film, CheckCircle2, Search } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -10,20 +10,83 @@ import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator'
 import { getWorkflowProgress } from '@/lib/project/workflow';
 import { VideoGenerator } from '@/components/video-generation/VideoGenerator';
 import { Button } from '@/components/ui/button';
+import { resolveContinuationSource } from '@/lib/utils/transition';
 
 type VideoModel = 'kling' | 'seedance';
+
+type WorkflowTaskStage = 'video';
+type WorkflowTaskStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+interface WorkflowTask {
+  id: string;
+  sceneId?: string;
+  stage: WorkflowTaskStage;
+  status: WorkflowTaskStatus;
+  model?: string;
+  prompt?: string;
+  outputUrl?: string;
+  metadata?: Record<string, unknown>;
+  updatedAt: string;
+}
+
+interface CheckStatusResponse {
+  status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  error?: string;
+  result?: {
+    video?: { url?: string };
+  };
+}
+
+const MISSING_VIDEO_RECOVERY_METADATA_TIMEOUT_MS = 45_000;
 
 export default function VideosPage() {
   const params = useParams();
   const projectId = params.projectId as string;
 
-  const { currentProject, setCurrentProject, updateProject } = useProjectStore();
+  const { currentProject, isCurrentProjectLoading, setCurrentProject, updateProject } = useProjectStore();
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [sceneQuery, setSceneQuery] = useState('');
+  const [generationTasks, setGenerationTasks] = useState<WorkflowTask[]>([]);
+  const recoveringTaskIdsRef = useRef<Set<string>>(new Set());
+  const appliedRecoveredKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     setCurrentProject(projectId);
   }, [projectId, setCurrentProject]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchTasks = async () => {
+      try {
+        const response = await fetch(`/api/workflow/tasks?projectId=${encodeURIComponent(projectId)}&stage=video`);
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { data?: WorkflowTask[] };
+        if (!cancelled) {
+          setGenerationTasks(Array.isArray(payload.data) ? payload.data : []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to fetch video workflow tasks', error);
+        }
+      } finally {
+        if (!cancelled) {
+          timer = setTimeout(fetchTasks, 3000);
+        }
+      }
+    };
+
+    void fetchTasks();
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [projectId]);
 
   const scenes = useMemo(
     () => currentProject?.storyboard?.scenes ?? [],
@@ -41,19 +104,40 @@ export default function VideosPage() {
     });
   }, [sceneQuery, scenes]);
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
+  const latestVideoTaskMap = useMemo(() => {
+    const map = new Map<string, WorkflowTask>();
+    const sortedTasks = [...generationTasks].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+
+    for (const task of sortedTasks) {
+      if (!task.sceneId || task.stage !== 'video') continue;
+      if (!map.has(task.sceneId)) {
+        map.set(task.sceneId, task);
+      }
+    }
+
+    return map;
+  }, [generationTasks]);
+
+  const getSceneGenerationState = useCallback((sceneId: string) => {
+    const task = latestVideoTaskMap.get(sceneId);
+    return {
+      isGenerating: task?.status === 'running',
+    };
+  }, [latestVideoTaskMap]);
 
   // 統計資訊
   const scenesWithImages = scenes.filter(s => Boolean(s.generatedImage?.url));
   const scenesWithVideos = scenes.filter(s => Boolean(s.generatedVideo?.url));
+  const generatingSceneCount = scenes.filter((scene) => getSceneGenerationState(scene.id).isGenerating).length;
   const selectedSceneInFilterIndex = filteredScenes.findIndex((scene) => scene.id === selectedSceneId);
   const hasEffectiveStartFrame = useCallback((sceneId: string) => {
     const sceneIndex = scenes.findIndex((scene) => scene.id === sceneId);
     if (sceneIndex === -1) return false;
     const scene = scenes[sceneIndex];
     const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
-    const previousEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
-      ? previousScene.generatedEndFrame?.url
-      : undefined;
+    const previousEndFrameUrl = resolveContinuationSource(previousScene).url;
 
     return Boolean(previousEndFrameUrl || scene.generatedImage?.url);
   }, [scenes]);
@@ -111,6 +195,175 @@ export default function VideosPage() {
     const firstReadyInFilter = filteredScenes.find((scene) => scene.qaStatus !== 'block' && hasEffectiveStartFrame(scene.id));
     setSelectedSceneId(firstReadyInFilter?.id || null);
   }, [filteredScenes, hasEffectiveStartFrame, selectedSceneId]);
+
+  const applyRecoveredVideoTask = useCallback((
+    task: Pick<WorkflowTask, 'sceneId' | 'prompt' | 'model' | 'metadata'>,
+    videoUrl: string
+  ) => {
+    if (!currentProject?.storyboard || !task.sceneId || !videoUrl.trim()) return;
+
+    const trimmedUrl = videoUrl.trim();
+    const durationCandidate = task.metadata?.durationSeconds;
+    const durationSeconds = typeof durationCandidate === 'number' ? durationCandidate : undefined;
+    const savedMotionPrompt = typeof task.metadata?.motionPrompt === 'string'
+      ? task.metadata.motionPrompt
+      : undefined;
+
+    const nextScenes = currentProject.storyboard.scenes.map((scene) => {
+      if (scene.id !== task.sceneId) return scene;
+
+      const model = task.model === 'kling' || task.model === 'seedance'
+        ? task.model
+        : (scene.generatedVideo?.model || 'kling');
+      const prompt = task.prompt || scene.generatedVideo?.prompt || '';
+      const sameUrl = scene.generatedVideo?.url === trimmedUrl;
+      const samePrompt = (scene.generatedVideo?.prompt || '') === prompt;
+      const sameModel = scene.generatedVideo?.model === model;
+      const sameDuration = typeof durationSeconds === 'number'
+        ? scene.generatedVideo?.durationSeconds === durationSeconds
+        : true;
+      if (sameUrl && samePrompt && sameModel && sameDuration) {
+        return scene;
+      }
+
+      return {
+        ...scene,
+        generatedVideo: {
+          url: trimmedUrl,
+          model,
+          prompt,
+          durationSeconds: typeof durationSeconds === 'number'
+            ? durationSeconds
+            : scene.generatedVideo?.durationSeconds,
+          timestamp: new Date().toISOString(),
+        },
+        motionPrompt: savedMotionPrompt || scene.motionPrompt || scene.cameraMovement,
+      };
+    });
+
+    const changed = nextScenes.some((scene, index) => scene !== currentProject.storyboard!.scenes[index]);
+    if (!changed) return;
+
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        scenes: nextScenes,
+        updatedAt: new Date().toISOString(),
+      },
+      status: 'videos',
+    });
+  }, [currentProject, projectId, updateProject]);
+
+  useEffect(() => {
+    if (!currentProject?.storyboard) return;
+
+    generationTasks.forEach((task) => {
+      if (!task.sceneId) return;
+      if (task.stage !== 'video') return;
+      if (task.status !== 'completed') return;
+      if (!task.outputUrl || !task.outputUrl.trim()) return;
+
+      const key = `${task.id}:${task.outputUrl}`;
+      if (appliedRecoveredKeysRef.current.has(key)) return;
+      appliedRecoveredKeysRef.current.add(key);
+      applyRecoveredVideoTask(task, task.outputUrl);
+    });
+  }, [applyRecoveredVideoTask, currentProject?.storyboard, generationTasks]);
+
+  useEffect(() => {
+    if (!currentProject?.storyboard) return;
+
+    generationTasks.forEach((task) => {
+      if (!task.sceneId) return;
+      if (task.stage !== 'video') return;
+      if (task.status !== 'running') return;
+      if (recoveringTaskIdsRef.current.has(task.id)) return;
+
+      const requestId = typeof task.metadata?.requestId === 'string' ? task.metadata.requestId.trim() : '';
+      const endpoint = typeof task.metadata?.endpoint === 'string' ? task.metadata.endpoint.trim() : '';
+
+      if (!requestId || !endpoint) {
+        const updatedAt = Date.parse(task.updatedAt);
+        if (!Number.isFinite(updatedAt)) return;
+        if (Date.now() - updatedAt <= MISSING_VIDEO_RECOVERY_METADATA_TIMEOUT_MS) return;
+
+        recoveringTaskIdsRef.current.add(task.id);
+        void (async () => {
+          try {
+            await fetch(`/api/workflow/tasks/${task.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'failed',
+                error: 'Task recovery metadata missing (requestId/endpoint). Please regenerate this video.',
+              }),
+            });
+          } catch (error) {
+            console.error('Failed to fail stale video task without recovery metadata', task.id, error);
+          } finally {
+            recoveringTaskIdsRef.current.delete(task.id);
+          }
+        })();
+        return;
+      }
+
+      recoveringTaskIdsRef.current.add(task.id);
+      void (async () => {
+        try {
+          const response = await fetch('/api/fal/check-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestId,
+              endpoint,
+              type: 'video',
+            }),
+          });
+          if (!response.ok) return;
+
+          const payload = await response.json() as CheckStatusResponse;
+          if (payload.status === 'FAILED') {
+            await fetch(`/api/workflow/tasks/${task.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'failed',
+                error: payload.error || 'Video generation failed during recovery',
+              }),
+            });
+            return;
+          }
+
+          if (payload.status !== 'COMPLETED') return;
+
+          const videoUrl = typeof payload.result?.video?.url === 'string'
+            ? payload.result.video.url.trim()
+            : '';
+          if (!videoUrl) return;
+
+          await fetch(`/api/workflow/tasks/${task.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: 'completed',
+              outputUrl: videoUrl,
+              metadata: {
+                ...(task.metadata || {}),
+                requestId,
+                endpoint,
+                recoveredAt: new Date().toISOString(),
+              },
+            }),
+          });
+          applyRecoveredVideoTask(task, videoUrl);
+        } catch (error) {
+          console.error('Failed to recover running video task', task.id, error);
+        } finally {
+          recoveringTaskIdsRef.current.delete(task.id);
+        }
+      })();
+    });
+  }, [applyRecoveredVideoTask, currentProject?.storyboard, generationTasks]);
 
   const handleVideoGenerated = (
     sceneId: string,
@@ -174,7 +427,34 @@ export default function VideosPage() {
     });
   };
 
-  if (!currentProject?.storyboard) {
+  if (isCurrentProjectLoading && !currentProject) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-lg text-muted-foreground font-medium">載入專案中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <p className="text-muted-foreground">找不到專案或已被刪除</p>
+          <Link
+            href="/"
+            className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            返回首頁
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProject.storyboard) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -253,9 +533,9 @@ export default function VideosPage() {
             <p className="mt-1 text-xs text-muted-foreground">已完成的影片場景</p>
           </div>
           <div className="surface-soft p-4">
-            <p className="text-kicker">QA Blocked</p>
-            <p className="mt-2 text-2xl font-semibold text-foreground">{blockedScenes.length}</p>
-            <p className="mt-1 text-xs text-muted-foreground">需先回分鏡處理的場景</p>
+            <p className="text-kicker">In Queue</p>
+            <p className="mt-2 text-2xl font-semibold text-foreground">{generatingSceneCount}</p>
+            <p className="mt-1 text-xs text-muted-foreground">正在生成中的影片場景</p>
           </div>
         </div>
         <div className="grid grid-cols-12 gap-6">
@@ -286,12 +566,13 @@ export default function VideosPage() {
               {filteredScenes.map((scene) => {
                 const sceneIndex = scenes.findIndex((s) => s.id === scene.id);
                 const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
-                const previousEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
-                  ? previousScene.generatedEndFrame?.url
-                  : undefined;
-                const effectiveStartFrameUrl = previousEndFrameUrl || scene.generatedImage?.url;
+                const previousContinuation = resolveContinuationSource(previousScene);
+                const previousContinuationUrl = previousContinuation.url;
+                const previousContinuationSource = previousContinuation.source;
+                const effectiveStartFrameUrl = previousContinuationUrl || scene.generatedImage?.url;
                 const hasImage = !!effectiveStartFrameUrl;
                 const hasVideo = Boolean(scene.generatedVideo?.url);
+                const sceneGenerationState = getSceneGenerationState(scene.id);
                 const isLocked = scene.qaStatus === 'block' || !hasImage;
 
                 return (
@@ -315,6 +596,12 @@ export default function VideosPage() {
                         場景 {scene.sceneNumber}
                       </span>
                       <div className="flex items-center gap-1">
+                        {sceneGenerationState.isGenerating && (
+                          <div
+                            className="h-2 w-2 animate-pulse rounded-full bg-amber-400"
+                            title="影片生成中"
+                          />
+                        )}
                         {hasImage && (
                           <div className="h-1.5 w-1.5 rounded-full bg-blue-400" title="已生成圖片" />
                         )}
@@ -352,9 +639,10 @@ export default function VideosPage() {
                             unoptimized
                           />
                         </div>
-                        {previousEndFrameUrl && (
+                        {previousContinuationUrl && (
                           <p className="text-[10px] text-purple-600 dark:text-purple-400">
-                            起始幀來源：場景 {previousScene?.sceneNumber} 尾幀
+                            起始幀來源：場景 {previousScene?.sceneNumber}
+                            {previousContinuationSource === 'start' ? ' 首幀' : ' 尾幀'}
                           </p>
                         )}
                         {scene.generatedEndFrame && (
@@ -390,9 +678,10 @@ export default function VideosPage() {
               // 計算 previousEndFrameUrl（用於 continuation 轉場）
               const sceneIndex = scenes.findIndex(s => s.id === selectedSceneId);
               const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
-              const previousEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
-                ? previousScene.generatedEndFrame?.url
-                : undefined;
+              const previousContinuation = resolveContinuationSource(previousScene);
+              const previousEndFrameUrl = previousContinuation.url;
+              const previousContinuationSource = previousContinuation.source;
+              const selectedSceneGenerationState = getSceneGenerationState(selectedScene.id);
 
               return (
                 <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
@@ -435,14 +724,22 @@ export default function VideosPage() {
                   {previousEndFrameUrl && (
                     <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg">
                       <p className="text-sm text-purple-700 dark:text-purple-300">
-                        🔗 <strong>Continuation 轉場</strong>：將使用場景 {previousScene?.sceneNumber} 的尾幀作為起始畫面
+                        🔗 <strong>Continuation 轉場</strong>：將使用場景 {previousScene?.sceneNumber}
+                        {previousContinuationSource === 'start' ? ' 首幀' : ' 尾幀'}
+                        作為起始畫面
                       </p>
+                    </div>
+                  )}
+                  {selectedSceneGenerationState.isGenerating && (
+                    <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+                      此場景影片正在背景生成中，重新整理或關閉頁面後會自動恢復狀態。
                     </div>
                   )}
                   <VideoGenerator
                     projectId={projectId}
                     scene={selectedScene}
                     previousEndFrameUrl={previousEndFrameUrl}
+                    externalGenerating={selectedSceneGenerationState.isGenerating}
                     projectReferences={currentProject.storyboard?.projectReferences}
                     onPromptDraftChanged={(draftPrompt, notes) =>
                       handleVideoPromptDraftChanged(selectedScene.id, draftPrompt, notes)

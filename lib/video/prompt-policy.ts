@@ -1,13 +1,13 @@
 export type VideoPromptModel = 'kling' | 'seedance';
 
 const HARD_LIMITS: Record<VideoPromptModel, number> = {
-  kling: 2500,
-  seedance: 4000,
+  kling: 2200,
+  seedance: 3400,
 };
 
 const SOFT_TARGETS: Record<VideoPromptModel, number> = {
-  kling: 2300,
-  seedance: 3600,
+  kling: 1900,
+  seedance: 3000,
 };
 
 export interface PromptPolicyResult {
@@ -46,7 +46,7 @@ export function enforceVideoPromptPolicy(
 
   // Keep the front of the prompt (camera/action directives usually come first),
   // then append a short high-priority identity lock sentence.
-  const lockSentence = ' Keep identity, geometry, logos, and visible text unchanged.';
+  const lockSentence = ' Keep identity, geometry, logos, and visible text exact and unchanged.';
   const budget = Math.max(200, softTarget - lockSentence.length);
   let truncated = normalized.slice(0, budget).trim();
   truncated = truncated.replace(/[|,;:\-.\s]+$/g, '').trim();

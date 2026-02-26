@@ -58,7 +58,7 @@ export function CharacterSelector({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | CharacterLibraryItem['type']>('all');
   const [selectedCharacters, setSelectedCharacters] = useState<Map<string, CharacterAngle>>(new Map());
-  const [includeAllViews, setIncludeAllViews] = useState(true);
+  const [includeAllViews, setIncludeAllViews] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
 
@@ -171,7 +171,7 @@ export function CharacterSelector({
       onSelect(references);
       setSelectedCharacters(new Map());
       setSearchQuery('');
-      setIncludeAllViews(true);
+      setIncludeAllViews(false);
       onClose();
     } catch (error) {
       setResolveError(error instanceof Error ? error.message : '角色參考圖刷新失敗');
@@ -268,7 +268,7 @@ export function CharacterSelector({
               onChange={(event) => setIncludeAllViews(event.target.checked)}
               className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
             />
-            每個角色自動帶入全部視角（推薦）
+            每個角色自動帶入全部視角（可切換）
           </label>
         </div>
 

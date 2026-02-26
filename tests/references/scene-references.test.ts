@@ -47,6 +47,7 @@ describe('scene references', () => {
         description: 'Close-up on <Alice> only',
         charactersUsed: [],
         productsUsed: [],
+        requiredReferences: [],
       },
       references
     );
@@ -55,16 +56,47 @@ describe('scene references', () => {
     expect(matched[0]?.name).toBe('Alice');
   });
 
-  it('falls back to all references when scene has no tags', () => {
+  it('falls back to environment references when scene has no tags', () => {
     const matched = getSceneRelevantReferences(
       {
         description: 'Wide establishing shot',
         charactersUsed: [],
         productsUsed: [],
+        requiredReferences: [],
       },
       references
     );
 
-    expect(matched).toHaveLength(references.length);
+    expect(matched).toHaveLength(1);
+    expect(matched[0]?.name).toBe('Room');
+  });
+
+  it('prioritizes requiredReferences over description tags', () => {
+    const matched = getSceneRelevantReferences(
+      {
+        description: 'Close-up on <Alice> only',
+        charactersUsed: [],
+        productsUsed: [],
+        requiredReferences: ['<ProductX>'],
+      },
+      references
+    );
+
+    expect(matched).toHaveLength(1);
+    expect(matched[0]?.name).toBe('ProductX');
+  });
+
+  it('returns empty result when requiredReferences are specified but no reference matches', () => {
+    const matched = getSceneRelevantReferences(
+      {
+        description: 'Close-up on <Alice> only',
+        charactersUsed: ['<Alice>'],
+        productsUsed: [],
+        requiredReferences: ['<MissingTag>'],
+      },
+      references
+    );
+
+    expect(matched).toHaveLength(0);
   });
 });

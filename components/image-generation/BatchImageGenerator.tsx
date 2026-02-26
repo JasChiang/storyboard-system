@@ -5,12 +5,16 @@ import { Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription } from '@/lib/prompts/image-static';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
+import { buildSceneDirectiveLines } from '@/lib/prompts/scene-directives';
 import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
-import { getSceneRelevantReferences } from '@/lib/references/scene-references';
+import { getReferenceTag, getSceneRelevantReferences, getSceneRequiredTags } from '@/lib/references/scene-references';
+import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
+import { resolveContinuationSource } from '@/lib/utils/transition';
 
 interface BatchImageGeneratorProps {
+    projectId: string;
     scenes: Scene[];
     projectReferences?: ProjectReference[];
     styleProfile?: StyleProfile;
@@ -31,7 +35,13 @@ interface GenerationStatus {
     error?: string;
 }
 
+interface ContinuationContext {
+    url: string;
+    source: 'end' | 'start';
+}
+
 export function BatchImageGenerator({
+    projectId,
     scenes,
     projectReferences = [],
     styleProfile,
@@ -79,6 +89,7 @@ export function BatchImageGenerator({
         ];
 
         parts.push(...buildStyleDirectiveLines(styleProfile));
+        parts.push(...buildSceneDirectiveLines(scene));
 
         // 1. 加入專案參考圖的描述作為上下文
         if (selectedStyleReferenceUrls.length > 0) {
@@ -182,13 +193,21 @@ export function BatchImageGenerator({
         options?: { primaryReferenceUrl?: string; continuityReferenceUrl?: string }
     ) => {
         const sceneScopedContentRefs = getSceneRelevantReferences(scene, contentProjectReferences);
-        const referenceImages = [
-            ...(options?.continuityReferenceUrl ? [options.continuityReferenceUrl] : []),
-            ...(options?.primaryReferenceUrl ? [options.primaryReferenceUrl] : []),
-            ...selectedStyleReferenceUrls,
-            ...(scene.referenceImage ? [scene.referenceImage] : []),
-            ...sceneScopedContentRefs.map(r => r.url)
-        ];
+        const requiredTags = getSceneRequiredTags(scene);
+        const requiredContentRefs = sceneScopedContentRefs.filter((ref) => {
+            const tag = getReferenceTag(ref);
+            return tag ? requiredTags.has(tag) : false;
+        });
+        const optionalContentRefs = sceneScopedContentRefs.filter((ref) => !requiredContentRefs.some((item) => item.id === ref.id));
+        const referenceImages = buildPrioritizedReferenceUrls({
+            model: imageModel,
+            continuityReferenceUrl: options?.continuityReferenceUrl,
+            startFrameReferenceUrl: options?.primaryReferenceUrl,
+            sceneReferenceUrl: scene.referenceImage,
+            requiredContentRefs,
+            optionalContentRefs,
+            styleReferenceUrls: selectedStyleReferenceUrls,
+        });
         const prompt = normalizePromptParts([
             buildImagePrompt(scene, isEndFrame),
             isEndFrame && options?.primaryReferenceUrl
@@ -201,6 +220,31 @@ export function BatchImageGenerator({
                 ? 'This scene should continue naturally from the previous scene end frame while preserving identity. Keep everything the same as the previous scene end frame unless this prompt explicitly changes it.'
                 : '',
         ], 5000);
+        const stage = isEndFrame ? 'image_end' : 'image_start';
+        const taskId = crypto.randomUUID();
+        const taskMetadata = {
+            aspectRatio,
+            resolution,
+            referenceImageCount: referenceImages.length,
+            referenceImages,
+            isBatch: true,
+        };
+
+        await fetch('/api/workflow/tasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: taskId,
+                projectId,
+                sceneId: scene.id,
+                stage,
+                status: 'running',
+                model: imageModel,
+                prompt,
+                inputUrl: referenceImages[0] || scene.referenceImage,
+                metadata: taskMetadata,
+            }),
+        });
 
         // 呼叫生成 API
         const response = await fetch('/api/fal/generate-image', {
@@ -218,25 +262,53 @@ export function BatchImageGenerator({
         const data = await response.json();
 
         if (!response.ok) {
+            await fetch(`/api/workflow/tasks/${taskId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    status: 'failed',
+                    error: data.error || 'Generation failed',
+                }),
+            });
             throw new Error(data.error || 'Generation failed');
         }
         if (!data.endpoint) {
+            await fetch(`/api/workflow/tasks/${taskId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    status: 'failed',
+                    error: 'Missing endpoint from server',
+                }),
+            });
             throw new Error('Missing endpoint from server');
         }
 
         // 輪詢狀態 - 使用 API 回傳的 endpoint
         const requestId = data.request_id;
         const endpoint = data.endpoint;
+        await fetch(`/api/workflow/tasks/${taskId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                metadata: {
+                    ...taskMetadata,
+                    requestId,
+                    endpoint,
+                },
+            }),
+        });
 
-        const { imageUrl, seed } = await pollStatus(requestId, endpoint);
+        const { imageUrl, seed } = await pollStatus(requestId, endpoint, taskId, taskMetadata);
 
         return { url: imageUrl, prompt, seed };
     };
 
-    const generateSceneImages = async (scene: Scene, previousContinuationEndFrameUrl?: string) => {
+    const generateSceneImages = async (scene: Scene, continuationContext?: ContinuationContext) => {
         const wantsEndFrame = scene.requiresEndFrame || !!scene.endFrameDescription;
-        // Continuation scenes always need their start frame refreshed with the latest previous end frame
-        const needsStartFrame = !scene.generatedImage?.url || Boolean(previousContinuationEndFrameUrl);
+        const continuationUrl = continuationContext?.url;
+        // Continuation scenes always need their start frame refreshed with the latest previous scene source.
+        const needsStartFrame = !scene.generatedImage?.url || Boolean(continuationUrl);
         const needsEndFrame = wantsEndFrame && !scene.generatedEndFrame?.url;
 
         updateStatus(scene.id, { status: needsStartFrame ? 'generating' : 'generating_end_frame' });
@@ -246,14 +318,14 @@ export function BatchImageGenerator({
             // 1. 生成或沿用首幀
             const startFrame: GeneratedFrame = needsStartFrame
                 ? (
-                    previousContinuationEndFrameUrl
+                    continuationUrl
                         ? {
-                            url: previousContinuationEndFrameUrl,
-                            prompt: `${buildImagePrompt(scene, false)}. Start frame reused from previous scene end frame due to continuation transition.`,
+                            url: continuationUrl,
+                            prompt: `${buildImagePrompt(scene, false)}. Start frame reused from previous scene ${continuationContext?.source === 'start' ? 'start frame' : 'end frame'} due to continuation transition.`,
                             seed: undefined,
                         }
                         : await generateSingleImage(scene, false, {
-                            continuityReferenceUrl: previousContinuationEndFrameUrl,
+                            continuityReferenceUrl: continuationUrl,
                         })
                 )
                 : {
@@ -315,7 +387,9 @@ export function BatchImageGenerator({
 
     const pollStatus = async (
         requestId: string,
-        endpoint: string
+        endpoint: string,
+        taskId: string,
+        taskMetadata: Record<string, unknown>
     ): Promise<{ imageUrl: string; seed?: number }> => {
         const maxAttempts = 60;
         let attempts = 0;
@@ -337,8 +411,30 @@ export function BatchImageGenerator({
                 const imageUrl = data.result.images[0]?.url;
                 if (!imageUrl) throw new Error('No image URL in response');
                 const seed = typeof data.result?.seed === 'number' ? data.result.seed : undefined;
+                await fetch(`/api/workflow/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status: 'completed',
+                        outputUrl: imageUrl,
+                        metadata: {
+                            ...taskMetadata,
+                            requestId,
+                            endpoint,
+                            seed,
+                        },
+                    }),
+                });
                 return { imageUrl, seed };
             } else if (data.status === 'FAILED') {
+                await fetch(`/api/workflow/tasks/${taskId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status: 'failed',
+                        error: data.error || 'Generation failed',
+                    }),
+                });
                 throw new Error(data.error || 'Generation failed');
             }
 
@@ -348,6 +444,15 @@ export function BatchImageGenerator({
             attempts++;
         }
 
+        await fetch(`/api/workflow/tasks/${taskId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                status: 'failed',
+                error: 'Generation timeout',
+                attempts,
+            }),
+        });
         throw new Error('Generation timeout');
     };
 
@@ -368,11 +473,22 @@ export function BatchImageGenerator({
                     const sceneIndex = scenes.findIndex(s => s.id === scene.id);
                     const previousScene = sceneIndex > 0 ? scenes[sceneIndex - 1] : null;
                     const previousResult = previousScene ? results.get(previousScene.id) : undefined;
-                    const previousContinuationEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
-                        ? (previousResult?.endFrameUrl || previousScene.generatedEndFrame?.url)
+                    const previousContinuation = resolveContinuationSource(previousScene);
+                    const continuationUrl = previousContinuation.url
+                        ? (
+                            previousContinuation.source === 'start'
+                                ? (previousResult?.url || previousContinuation.url)
+                                : (previousResult?.endFrameUrl || previousContinuation.url)
+                        )
+                        : undefined;
+                    const continuationContext = continuationUrl
+                        ? {
+                            url: continuationUrl,
+                            source: previousContinuation.source || 'end',
+                        }
                         : undefined;
 
-                    const result = await generateSceneImages(scene, previousContinuationEndFrameUrl);
+                    const result = await generateSceneImages(scene, continuationContext);
                     results.set(scene.id, result);
                 } catch (error) {
                     console.error(`Failed to generate image for scene ${scene.sceneNumber}:`, error);

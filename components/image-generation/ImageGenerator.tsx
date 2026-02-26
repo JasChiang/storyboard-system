@@ -8,8 +8,10 @@ import { Button } from '@/components/ui/button';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/lib/prompts/image-static';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
+import { buildSceneDirectiveLines } from '@/lib/prompts/scene-directives';
 import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
-import { getSceneRelevantReferences } from '@/lib/references/scene-references';
+import { getReferenceTag, getSceneRelevantReferences, getSceneRequiredTags } from '@/lib/references/scene-references';
+import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
 
@@ -28,6 +30,7 @@ interface ImageGeneratorProps {
     projectReferences?: ProjectReference[];
     styleProfile?: StyleProfile;
     previousEndFrameUrl?: string;
+    previousContinuationSource?: 'end' | 'start';
     previousSceneDescription?: string;
     nextSceneDescription?: string;
     externalGeneratingStart?: boolean;
@@ -42,6 +45,7 @@ export function ImageGenerator({
     projectReferences = [],
     styleProfile,
     previousEndFrameUrl,
+    previousContinuationSource,
     previousSceneDescription,
     nextSceneDescription,
     externalGeneratingStart = false,
@@ -57,7 +61,7 @@ export function ImageGenerator({
     const [aspectRatio, setAspectRatio] = useState<string>('16:9');
     const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('2K');
     const [imageModel, setImageModel] = useState<ImageGenerationModel>('nano-banana-pro');
-    const [seedMode, setSeedMode] = useState<'auto' | 'fixed' | 'end_from_start'>('auto');
+    const [seedMode, setSeedMode] = useState<'auto' | 'fixed' | 'end_from_start'>('end_from_start');
     const [manualSeedInput, setManualSeedInput] = useState('');
     const [customPrompt, setCustomPrompt] = useState('');
     const [promptMode, setPromptMode] = useState<'append' | 'replace' | 'prepend'>('append');
@@ -80,12 +84,37 @@ export function ImageGenerator({
             .filter(ref => styleProfile.styleReferenceIds!.includes(ref.id))
             .map(ref => ref.url)
         : styleProjectReferences.map(ref => ref.url);
+    const requiredReferenceTags = useMemo(
+        () => getSceneRequiredTags({ requiredReferences: scene.requiredReferences }),
+        [scene.requiredReferences]
+    );
+    const requiredProjectRefIds = useMemo(() => {
+        if (requiredReferenceTags.size === 0) return new Set<string>();
+        const ids = contentProjectReferences
+            .filter((ref) => {
+                const tag = getReferenceTag(ref);
+                return tag ? requiredReferenceTags.has(tag) : false;
+            })
+            .map((ref) => ref.id);
+        return new Set(ids);
+    }, [contentProjectReferences, requiredReferenceTags]);
     const selectedContentRefs = contentProjectReferences.filter(ref => selectedProjectRefs.includes(ref.id));
     const sceneScopedContentRefs = getSceneRelevantReferences(scene, selectedContentRefs);
+    const requiredScopedRefs = sceneScopedContentRefs.filter((ref) => requiredProjectRefIds.has(ref.id));
+    const optionalScopedRefs = sceneScopedContentRefs.filter((ref) => !requiredProjectRefIds.has(ref.id));
     const scenePreferredAspectRatio = useMemo(() => {
         const withDefault = sceneScopedContentRefs.find((ref) => ref.ipProfile?.generationDefaults?.preferredOutputAspectRatio);
         return withDefault?.ipProfile?.generationDefaults?.preferredOutputAspectRatio;
     }, [sceneScopedContentRefs]);
+
+    useEffect(() => {
+        if (requiredProjectRefIds.size === 0) return;
+        setSelectedProjectRefs((prev) => {
+            const merged = new Set(prev);
+            requiredProjectRefIds.forEach((id) => merged.add(id));
+            return merged.size === prev.length ? prev : Array.from(merged);
+        });
+    }, [requiredProjectRefIds, scene.id]);
 
     useEffect(() => {
         if (scenePreferredAspectRatio) {
@@ -113,21 +142,18 @@ export function ImageGenerator({
     const isAnyGenerationLoading = startGenerationLoading || endGenerationLoading;
 
     // 取得選中的專案參考圖 URL
-    const getSelectedReferenceUrls = (options?: { includeStartFrameForEnd?: boolean; includePreviousSceneEnd?: boolean }): string[] => {
-        const urls: string[] = [];
-        if (options?.includePreviousSceneEnd && previousEndFrameUrl) {
-            urls.push(previousEndFrameUrl);
-        }
-        if (options?.includeStartFrameForEnd) {
-            const effectiveStart = previousEndFrameUrl || scene.generatedImage?.url;
-            if (effectiveStart) urls.push(effectiveStart);
-        }
-        urls.push(...selectedStyleReferenceUrls);
-        sceneScopedContentRefs.forEach(ref => urls.push(ref.url));
-        if (referenceImage) {
-            urls.push(referenceImage);
-        }
-        return urls;
+    const getSelectedReferenceUrls = (options?: { includeStartFrameForEnd?: boolean; includePreviousSceneContinuation?: boolean }): string[] => {
+        return buildPrioritizedReferenceUrls({
+            model: imageModel,
+            continuityReferenceUrl: options?.includePreviousSceneContinuation ? previousEndFrameUrl : undefined,
+            startFrameReferenceUrl: options?.includeStartFrameForEnd
+                ? (previousEndFrameUrl || scene.generatedImage?.url)
+                : undefined,
+            sceneReferenceUrl: referenceImage,
+            requiredContentRefs: requiredScopedRefs,
+            optionalContentRefs: optionalScopedRefs,
+            styleReferenceUrls: selectedStyleReferenceUrls,
+        });
     };
 
     // 構建圖片生成 prompt（支援首幀/尾幀）
@@ -171,7 +197,10 @@ export function ImageGenerator({
                 }
             }
 
-            const minimalParts: string[] = [...buildStyleDirectiveLines(styleProfile)];
+            const minimalParts: string[] = [
+                ...buildStyleDirectiveLines(styleProfile),
+                ...buildSceneDirectiveLines(scene),
+            ];
 
             minimalParts.push('Use the generated start frame as the single source of truth.');
             minimalParts.push('Camera movement/reframing is allowed, but keep scene geometry and object continuity physically consistent.');
@@ -227,6 +256,7 @@ export function ImageGenerator({
         ];
 
         parts.push(...buildStyleDirectiveLines(styleProfile));
+        parts.push(...buildSceneDirectiveLines(scene));
 
         // 1. 加入專案參考圖的描述作為上下文
         const selectedStyleRefs = styleProjectReferences.filter((ref) =>
@@ -403,8 +433,9 @@ export function ImageGenerator({
             return;
         }
 
-        if (!isEndFrame && hasContinuationStart && previousEndFrameUrl) {
-            const reusedPrompt = `${buildImagePrompt(false)}. Start frame reused from previous scene end frame due to continuation transition.`;
+        const shouldReuseContinuationStart = !isEndFrame && hasContinuationStart && previousEndFrameUrl && !scene.generatedImage?.url;
+        if (shouldReuseContinuationStart) {
+            const reusedPrompt = `${buildImagePrompt(false)}. Start frame reused from previous scene ${previousContinuationSource === 'start' ? 'start frame' : 'end frame'} due to continuation transition.`;
             onImageGenerated(
                 previousEndFrameUrl,
                 reusedPrompt,
@@ -426,6 +457,24 @@ export function ImageGenerator({
 
         try {
             const prompt = buildImagePrompt(isEndFrame);
+            const referenceImages = getSelectedReferenceUrls({
+                includeStartFrameForEnd: isEndFrame,
+                includePreviousSceneContinuation: !isEndFrame,
+            });
+            const requestedSeed = getRequestedSeed(isEndFrame);
+            if (seedMode === 'fixed' && typeof requestedSeed !== 'number') {
+                throw new Error('請輸入有效的固定 Seed（整數）');
+            }
+            const taskMetadata = {
+                aspectRatio,
+                resolution,
+                seedMode,
+                requestedSeed,
+                referenceImageCount: referenceImages.length,
+                requiredReferenceTags: Array.from(requiredReferenceTags),
+                referenceImages,
+            };
+
             taskId = crypto.randomUUID();
             await fetch('/api/workflow/tasks', {
                 method: 'POST',
@@ -438,22 +487,10 @@ export function ImageGenerator({
                     status: 'running',
                     model: imageModel,
                     prompt,
-                    inputUrl: referenceImage || previousEndFrameUrl || scene.generatedImage?.url,
-                    metadata: {
-                        aspectRatio,
-                        resolution,
-                    },
+                    inputUrl: referenceImages[0] || referenceImage || previousEndFrameUrl || scene.generatedImage?.url,
+                    metadata: taskMetadata,
                 }),
             });
-
-            const referenceImages = getSelectedReferenceUrls({
-                includeStartFrameForEnd: isEndFrame,
-                includePreviousSceneEnd: !isEndFrame,
-            });
-            const requestedSeed = getRequestedSeed(isEndFrame);
-            if (seedMode === 'fixed' && typeof requestedSeed !== 'number') {
-                throw new Error('請輸入有效的固定 Seed（整數）');
-            }
 
             // 呼叫生成 API
             const response = await fetch('/api/fal/generate-image', {
@@ -489,8 +526,15 @@ export function ImageGenerator({
             // 輪詢檢查狀態 - 使用 API 回傳的 endpoint
             const requestId = data.request_id;
             const endpoint = data.endpoint; // 從後端回傳的正確 endpoint
+            await updateTaskStatus(taskId, {
+                metadata: {
+                    ...taskMetadata,
+                    requestId,
+                    endpoint,
+                },
+            });
 
-            await pollStatus(requestId, endpoint, prompt, isEndFrame, taskId);
+            await pollStatus(requestId, endpoint, prompt, isEndFrame, taskId, taskMetadata);
         } catch (error) {
             if (taskId) {
                 await updateTaskStatus(taskId, {
@@ -571,7 +615,8 @@ export function ImageGenerator({
         endpoint: string,
         prompt: string,
         isEndFrame: boolean = false,
-        taskId: string
+        taskId: string,
+        taskMetadata: Record<string, unknown>
     ) => {
         const maxAttempts = 60; // 最多等 5 分鐘
         let attempts = 0;
@@ -597,6 +642,9 @@ export function ImageGenerator({
                         status: 'completed',
                         outputUrl: imageUrl,
                         metadata: {
+                            ...taskMetadata,
+                            requestId,
+                            endpoint,
                             seed: resultSeed,
                         },
                     });
@@ -605,7 +653,7 @@ export function ImageGenerator({
                         const startFrameUrlForSave = scene.generatedImage?.url || previousEndFrameUrl || '';
                         const startFramePromptForSave = scene.generatedImage?.prompt
                             || (previousEndFrameUrl
-                                ? `${buildImagePrompt(false)}. Start frame reused from previous scene end frame due to continuation transition.`
+                                ? `${buildImagePrompt(false)}. Start frame reused from previous scene ${previousContinuationSource === 'start' ? 'start frame' : 'end frame'} due to continuation transition.`
                                 : '');
                         onImageGenerated(
                             startFrameUrlForSave,
@@ -712,7 +760,7 @@ export function ImageGenerator({
                     <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">首幀 (Start Frame)</h4>
                     {previousEndFrameUrl && (
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                            沿用前場景尾幀
+                            沿用前場景{previousContinuationSource === 'start' ? '首幀' : '尾幀'}
                         </span>
                     )}
                 </div>
@@ -899,7 +947,7 @@ export function ImageGenerator({
                                 全選
                             </button>
                             <button
-                                onClick={() => setSelectedProjectRefs([])}
+                                onClick={() => setSelectedProjectRefs(Array.from(requiredProjectRefIds))}
                                 disabled={isAnyGenerationLoading}
                                 className="rounded-full border border-border/70 bg-white/70 px-2.5 py-1 text-xs text-slate-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900/60 dark:text-slate-200"
                             >
@@ -908,43 +956,55 @@ export function ImageGenerator({
                         </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                        {contentProjectReferences.map((ref) => (
-                            <button
-                                key={ref.id}
-                                onClick={() => {
-                                    if (selectedProjectRefs.includes(ref.id)) {
-                                        setSelectedProjectRefs((prev) => prev.filter((id) => id !== ref.id));
-                                    } else {
-                                        setSelectedProjectRefs((prev) => [...prev, ref.id]);
-                                    }
-                                }}
-                                disabled={isAnyGenerationLoading}
-                                className={`relative overflow-hidden rounded-lg border-2 transition-all disabled:cursor-not-allowed ${
-                                    selectedProjectRefs.includes(ref.id)
-                                        ? 'border-primary ring-2 ring-primary/25'
-                                        : 'border-slate-200 opacity-60 hover:opacity-85 dark:border-slate-700'
-                                }`}
-                            >
-                                <img
-                                    src={ref.url}
-                                    alt={ref.description}
-                                    className="h-16 w-full object-cover"
-                                />
-                                <div className="absolute bottom-0 left-0 right-0 bg-black/70 p-1">
-                                    <p className="truncate text-[10px] text-white">
-                                        {ref.name ? `<${ref.name}>` : ref.type}
-                                    </p>
-                                </div>
-                                {selectedProjectRefs.includes(ref.id) && (
-                                    <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                                        ✓
+                        {contentProjectReferences.map((ref) => {
+                            const isSelected = selectedProjectRefs.includes(ref.id);
+                            const isRequired = requiredProjectRefIds.has(ref.id);
+
+                            return (
+                                <button
+                                    key={ref.id}
+                                    onClick={() => {
+                                        if (isSelected) {
+                                            if (isRequired) return;
+                                            setSelectedProjectRefs((prev) => prev.filter((id) => id !== ref.id));
+                                        } else {
+                                            setSelectedProjectRefs((prev) => [...prev, ref.id]);
+                                        }
+                                    }}
+                                    disabled={isAnyGenerationLoading}
+                                    className={`relative overflow-hidden rounded-lg border-2 transition-all disabled:cursor-not-allowed ${
+                                        isSelected
+                                            ? 'border-primary ring-2 ring-primary/25'
+                                            : 'border-slate-200 opacity-60 hover:opacity-85 dark:border-slate-700'
+                                    }`}
+                                >
+                                    <img
+                                        src={ref.url}
+                                        alt={ref.description}
+                                        className="h-16 w-full object-cover"
+                                    />
+                                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 p-1">
+                                        <p className="truncate text-[10px] text-white">
+                                            {ref.name ? `<${ref.name}>` : ref.type}
+                                        </p>
                                     </div>
-                                )}
-                            </button>
-                        ))}
+                                    {isRequired && (
+                                        <div className="absolute left-1 top-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                                            必用
+                                        </div>
+                                    )}
+                                    {isSelected && (
+                                        <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                                            ✓
+                                        </div>
+                                    )}
+                                </button>
+                            );
+                        })}
                     </div>
                     <p className="text-xs text-slate-500">
                         已選 {selectedProjectRefs.length}/{contentProjectReferences.length} 張
+                        {requiredProjectRefIds.size > 0 ? `（含 ${requiredProjectRefIds.size} 張必用參考）` : ''}
                     </p>
                 </div>
             )}

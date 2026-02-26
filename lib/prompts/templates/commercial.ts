@@ -52,7 +52,7 @@ Hook Design Rules（第一場景必選其一 Pattern Interrupt）：
       - 商品發生「物理狀態改變」：打開/關閉、倒出液體、撕開包裝、按壓變形
       - 鏡頭從「完全不同的場景」切換：室內→戶外、產品 A→產品 B
       - 大幅度景深變化：特寫→全景（>50% 構圖改變）
-      - 與下一幕屬於連續動作，且 transitionToNext.type = "continuation"
+      - 與下一幕屬於連續動作且需要明確終態畫面，transitionToNext.type = "continuation"
    
    c) 💡 範例：
       - ❌ requiresEndFrame = false: "可樂罐 360° 旋轉"、"手機環繞展示"、"推近 Logo"
@@ -100,7 +100,7 @@ Hook Design Rules（第一場景必選其一 Pattern Interrupt）：
    d) 產品動作連續（如：開瓶、倒飲料、喝下）：
       → type = "continuation"
       → useEndFrameAsNextStart = true
-      → requiresEndFrame = true
+      → requiresEndFrame 視是否需要尾幀決定（無尾幀時可沿用首幀）
       
    e) 最後一個場景（CTA 或品牌 Logo）：
       → type = "fade_black" 或 "fade_white"
@@ -148,6 +148,14 @@ Hook Design Rules（第一場景必選其一 Pattern Interrupt）：
                         continuityLock: {
                             type: 'string',
                             description: '品牌與空間連續性硬約束'
+                        },
+                        shotIntent: {
+                            type: 'string',
+                            description: '鏡頭在整體敘事中的任務（一句話）'
+                        },
+                        continuityAnchor: {
+                            type: 'string',
+                            description: '跨鏡頭必須維持的一個關鍵連續性錨點'
                         },
                         requiresEndFrame: {
                             type: 'boolean',
@@ -197,6 +205,11 @@ Hook Design Rules（第一場景必選其一 Pattern Interrupt）：
                             type: 'string',
                             description: '相對前一場景的變化摘要（第一場景填 N/A）'
                         },
+                        requiredReferences: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: '本鏡頭必須使用的參考標記（如 ["<Alice>", "<iPhone>"]）'
+                        },
                         transitionToNext: {
                             type: 'object',
                             description: '與下一場景的轉場設定',
@@ -222,7 +235,7 @@ Hook Design Rules（第一場景必選其一 Pattern Interrupt）：
                             required: ['type', 'reason']
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'shotIntent', 'continuityAnchor', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'requiredReferences', 'transitionToNext']
                 }
             }
         },

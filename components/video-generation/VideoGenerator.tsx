@@ -19,7 +19,8 @@ type KlingVariant = 'v26' | 'o3';
 interface VideoGeneratorProps {
     projectId: string;
     scene: Scene;
-    previousEndFrameUrl?: string; // 當前一場景的 continuation 轉場時，傳入其 endFrame URL
+    previousEndFrameUrl?: string; // 當前一場景為 continuation 時，傳入其延續來源幀 URL（尾幀或首幀）
+    externalGenerating?: boolean;
     projectReferences?: ProjectReference[];
     onPromptDraftChanged?: (draftPrompt: string, notes?: string) => void;
     onVideoGenerated: (
@@ -55,6 +56,7 @@ export function VideoGenerator({
     projectId,
     scene,
     previousEndFrameUrl,
+    externalGenerating = false,
     projectReferences = [],
     onPromptDraftChanged,
     onVideoGenerated
@@ -85,6 +87,7 @@ export function VideoGenerator({
     const [seedanceAspectRatio, setSeedanceAspectRatio] = useState<'21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16'>('16:9');
     const [seedanceResolution, setSeedanceResolution] = useState<'480p' | '720p' | '1080p'>('720p');
     const [seedanceEnableAudio, setSeedanceEnableAudio] = useState(false);
+    const isGenerationLocked = isGenerating || externalGenerating;
     const endFrameUrl = scene.generatedEndFrame?.url;
     const shouldUseEndFrameForVideo = Boolean(
         endFrameUrl && (scene.requiresEndFrame || scene.endFrameDelta || scene.endFrameDescription)
@@ -130,14 +133,14 @@ export function VideoGenerator({
         }
     }, [scene.id, scopedRefs]);
 
-    const buildVideoPrompt = () => {
+    const buildVideoPrompt = (activeMotionPrompt: string) => {
         if (model === 'kling') {
-            return buildKlingPrompt({ scene, motionPrompt, scopedRefs });
+            return buildKlingPrompt({ scene, motionPrompt: activeMotionPrompt, scopedRefs });
         }
-        return buildSeedancePrompt({ scene, motionPrompt, scopedRefs });
+        return buildSeedancePrompt({ scene, motionPrompt: activeMotionPrompt, scopedRefs });
     };
 
-    const composePromptWithAI = async (): Promise<string> => {
+    const composePromptWithAI = async (activeMotionPrompt: string): Promise<string> => {
         setIsComposingPrompt(true);
         try {
             const response = await fetch('/api/gemini/compose-video-prompt', {
@@ -150,10 +153,17 @@ export function VideoGenerator({
                         sceneNumber: scene.sceneNumber,
                         description: scene.description,
                         cameraMovement: scene.cameraMovement,
+                        sceneIntent: scene.sceneIntent,
+                        startComposition: scene.startComposition,
+                        subjectMotion: scene.subjectMotion,
+                        continuityLock: scene.continuityLock,
+                        shotIntent: scene.shotIntent,
+                        continuityAnchor: scene.continuityAnchor,
+                        changeFromPrev: scene.changeFromPrev,
                         requiresEndFrame: scene.requiresEndFrame,
                         endFrameDescription: scene.endFrameDescription,
                     },
-                    motionPrompt,
+                    motionPrompt: activeMotionPrompt,
                     references: scopedRefs,
                     hasPreviousEndFrame: Boolean(previousEndFrameUrl),
                 }),
@@ -169,8 +179,8 @@ export function VideoGenerator({
             setAiComposedPrompt(composed);
             setAiComposeNotes(typeof data.notes === 'string' ? data.notes : '');
             onPromptDraftChanged?.(composed, typeof data.notes === 'string' ? data.notes : '');
-            if (!motionPrompt.trim() && typeof data.suggestedMotionPrompt === 'string') {
-                setMotionPrompt(data.suggestedMotionPrompt);
+            if ((!motionPrompt.trim() || motionPrompt.trim() === activeMotionPrompt) && typeof data.suggestedMotionPrompt === 'string') {
+                setMotionPrompt(data.suggestedMotionPrompt.trim());
             }
             return composed;
         } finally {
@@ -190,18 +200,20 @@ export function VideoGenerator({
             return;
         }
 
-        if (!motionPrompt.trim()) {
-            alert('請輸入動作提示詞');
-            return;
-        }
-
         setIsGenerating(true);
 
         try {
             const requestedDurationSeconds = model === 'kling' ? klingDuration : seedanceDuration;
+            const resolvedMotionPrompt = motionPrompt.trim()
+                || scene.cameraMovement?.trim()
+                || scene.description?.trim()
+                || 'Keep camera motion smooth and physically plausible.';
+            if (!motionPrompt.trim()) {
+                setMotionPrompt(resolvedMotionPrompt);
+            }
             const rawPrompt = promptMode === 'ai_composer'
-                ? (aiComposedPrompt.trim() || await composePromptWithAI())
-                : buildVideoPrompt();
+                ? (aiComposedPrompt.trim() || await composePromptWithAI(resolvedMotionPrompt))
+                : buildVideoPrompt(resolvedMotionPrompt);
             const promptPolicy = enforceVideoPromptPolicy(rawPrompt, model);
             const composedPrompt = promptPolicy.prompt;
             const taskId = crypto.randomUUID();
@@ -219,6 +231,8 @@ export function VideoGenerator({
                     inputUrl: effectiveStartFrameUrl,
                     metadata: {
                         promptPolicy,
+                        durationSeconds: requestedDurationSeconds,
+                        motionPrompt: resolvedMotionPrompt,
                     },
                 }),
             });
@@ -270,8 +284,21 @@ export function VideoGenerator({
             // 輪詢檢查狀態
             const requestId = data.request_id;
             const endpoint = data.endpoint;
+            await fetch(`/api/workflow/tasks/${taskId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    metadata: {
+                        promptPolicy,
+                        durationSeconds: requestedDurationSeconds,
+                        motionPrompt: resolvedMotionPrompt,
+                        requestId,
+                        endpoint,
+                    },
+                }),
+            });
 
-            await pollStatus(requestId, endpoint, composedPrompt, taskId, requestedDurationSeconds);
+            await pollStatus(requestId, endpoint, composedPrompt, taskId, requestedDurationSeconds, resolvedMotionPrompt);
         } catch (error) {
             console.error('Generate error:', error);
             alert(error instanceof Error ? error.message : '生成失敗');
@@ -285,7 +312,8 @@ export function VideoGenerator({
         endpoint: string,
         composedPrompt: string,
         taskId: string,
-        durationSeconds: number
+        durationSeconds: number,
+        usedMotionPrompt: string
     ) => {
         const maxAttempts = 120; // 最多等 10 分鐘（影片生成較慢）
         let attempts = 0;
@@ -315,9 +343,15 @@ export function VideoGenerator({
                         body: JSON.stringify({
                             status: 'completed',
                             outputUrl: videoUrl,
+                            metadata: {
+                                durationSeconds,
+                                motionPrompt: usedMotionPrompt,
+                                requestId,
+                                endpoint,
+                            },
                         }),
                     });
-                    onVideoGenerated(videoUrl, motionPrompt, composedPrompt, model, durationSeconds);
+                    onVideoGenerated(videoUrl, usedMotionPrompt, composedPrompt, model, durationSeconds);
                 } else {
                     await fetch(`/api/workflow/tasks/${taskId}`, {
                         method: 'PATCH',
@@ -350,13 +384,22 @@ export function VideoGenerator({
             attempts++;
         }
 
+        await fetch(`/api/workflow/tasks/${taskId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                status: 'failed',
+                error: 'Generation timeout',
+                attempts,
+            }),
+        });
         throw new Error('Generation timeout');
     };
 
     const hasStartFrame = Boolean(effectiveStartFrameUrl);
     const hasEndFrame = Boolean(endFrameUrl);
     const hasGeneratedVideo = Boolean(scene.generatedVideo?.url);
-    const canGenerateVideo = Boolean(effectiveStartFrameUrl && motionPrompt.trim());
+    const canGenerateVideo = Boolean(effectiveStartFrameUrl);
 
     return (
         <div className="space-y-5">
@@ -392,7 +435,7 @@ export function VideoGenerator({
                     <div className="surface-inset px-3 py-2">
                         <p className="text-xs text-slate-500">影片輸出</p>
                         <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                            {isGenerating ? '生成中' : hasGeneratedVideo ? '已完成' : '尚未生成'}
+                            {isGenerationLocked ? '生成中' : hasGeneratedVideo ? '已完成' : '尚未生成'}
                         </p>
                     </div>
                 </div>
@@ -443,7 +486,7 @@ export function VideoGenerator({
                     videoUrl={scene.generatedVideo?.url || null}
                     prompt={scene.generatedVideo?.prompt}
                     model={scene.generatedVideo?.model}
-                    isLoading={isGenerating}
+                    isLoading={isGenerationLocked}
                     onRegenerate={handleGenerate}
                 />
             </div>
@@ -452,7 +495,7 @@ export function VideoGenerator({
                 <ModelSelector
                     value={model}
                     onChange={setModel}
-                    disabled={isGenerating}
+                    disabled={isGenerationLocked}
                 />
             </div>
 
@@ -463,7 +506,7 @@ export function VideoGenerator({
                         <button
                             type="button"
                             onClick={() => setPromptMode('deterministic')}
-                            disabled={isGenerating || isComposingPrompt}
+                            disabled={isGenerationLocked || isComposingPrompt}
                             className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
                                 promptMode === 'deterministic'
                                     ? 'bg-primary text-primary-foreground'
@@ -475,7 +518,7 @@ export function VideoGenerator({
                         <button
                             type="button"
                             onClick={() => setPromptMode('ai_composer')}
-                            disabled={isGenerating || isComposingPrompt}
+                            disabled={isGenerationLocked || isComposingPrompt}
                             className={`rounded-full px-3 py-1.5 text-xs transition-colors ${
                                 promptMode === 'ai_composer'
                                     ? 'bg-primary text-primary-foreground'
@@ -491,8 +534,16 @@ export function VideoGenerator({
                     <div className="space-y-3">
                         <Button
                             type="button"
-                            onClick={composePromptWithAI}
-                            disabled={isGenerating || isComposingPrompt || !motionPrompt.trim()}
+                            onClick={() => {
+                                const fallbackMotionPrompt = motionPrompt.trim()
+                                    || scene.cameraMovement?.trim()
+                                    || scene.description?.trim()
+                                    || 'Keep camera motion smooth and physically plausible.';
+                                void composePromptWithAI(fallbackMotionPrompt).catch((error) => {
+                                    alert(error instanceof Error ? error.message : 'AI 組合失敗');
+                                });
+                            }}
+                            disabled={isGenerationLocked || isComposingPrompt}
                             className="w-fit rounded-xl"
                         >
                             {isComposingPrompt ? (
@@ -513,7 +564,7 @@ export function VideoGenerator({
                             placeholder="點擊上方按鈕，讓 AI 根據場景與參考規則組合可直接送 Kling/Seedance 的提示詞"
                             className="w-full resize-none rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground placeholder:text-slate-400 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                             rows={6}
-                            disabled={isGenerating || isComposingPrompt}
+                            disabled={isGenerationLocked || isComposingPrompt}
                         />
                         {aiComposeNotes && (
                             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -528,7 +579,7 @@ export function VideoGenerator({
                 <MotionPromptEditor
                     value={motionPrompt}
                     onChange={setMotionPrompt}
-                    disabled={isGenerating}
+                    disabled={isGenerationLocked}
                     sceneDescription={scene.description}
                 />
             </div>
@@ -554,7 +605,7 @@ export function VideoGenerator({
                                         <select
                                             value={klingVariant}
                                             onChange={(event) => setKlingVariant(event.target.value as KlingVariant)}
-                                            disabled={isGenerating}
+                                            disabled={isGenerationLocked}
                                             className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
                                             <option value="v26">Kling 2.6 Pro</option>
@@ -569,7 +620,7 @@ export function VideoGenerator({
                                         <select
                                             value={klingDuration}
                                             onChange={(event) => setKlingDuration(Number(event.target.value) as 5 | 10)}
-                                            disabled={isGenerating}
+                                            disabled={isGenerationLocked}
                                             className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
                                             <option value={5}>5 秒</option>
@@ -584,7 +635,7 @@ export function VideoGenerator({
                                         <select
                                             value={klingAspectRatio}
                                             onChange={(event) => setKlingAspectRatio(event.target.value as '16:9' | '9:16' | '1:1')}
-                                            disabled={isGenerating}
+                                            disabled={isGenerationLocked}
                                             className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
                                             <option value="16:9">16:9 (橫向)</option>
@@ -599,7 +650,7 @@ export function VideoGenerator({
                                         type="checkbox"
                                         checked={klingEnableSound}
                                         onChange={(event) => setKlingEnableSound(event.target.checked)}
-                                        disabled={isGenerating}
+                                        disabled={isGenerationLocked}
                                         className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
                                     />
                                     啟用音效
@@ -615,7 +666,7 @@ export function VideoGenerator({
                                         <select
                                             value={seedanceAspectRatio}
                                             onChange={(event) => setSeedanceAspectRatio(event.target.value as '21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16')}
-                                            disabled={isGenerating}
+                                            disabled={isGenerationLocked}
                                             className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
                                             <option value="21:9">21:9 (電影)</option>
@@ -634,7 +685,7 @@ export function VideoGenerator({
                                         <select
                                             value={seedanceResolution}
                                             onChange={(event) => setSeedanceResolution(event.target.value as '480p' | '720p' | '1080p')}
-                                            disabled={isGenerating}
+                                            disabled={isGenerationLocked}
                                             className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
                                             <option value="480p">480p (快速)</option>
@@ -655,7 +706,7 @@ export function VideoGenerator({
                                             max={12}
                                             value={seedanceDuration}
                                             onChange={(event) => setSeedanceDuration(Number(event.target.value))}
-                                            disabled={isGenerating}
+                                            disabled={isGenerationLocked}
                                             className="flex-1"
                                         />
                                         <span className="w-12 text-right text-sm text-slate-700 dark:text-slate-300">
@@ -669,7 +720,7 @@ export function VideoGenerator({
                                         type="checkbox"
                                         checked={seedanceEnableAudio}
                                         onChange={(event) => setSeedanceEnableAudio(event.target.checked)}
-                                        disabled={isGenerating}
+                                        disabled={isGenerationLocked}
                                         className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
                                     />
                                     啟用音訊
@@ -683,10 +734,10 @@ export function VideoGenerator({
             <Button
                 type="button"
                 onClick={handleGenerate}
-                disabled={isGenerating || !canGenerateVideo}
+                disabled={isGenerationLocked || !canGenerateVideo}
                 className="h-11 w-full rounded-xl"
             >
-                {isGenerating ? (
+                {isGenerationLocked ? (
                     <>
                         <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white" />
                         生成中...
@@ -701,7 +752,7 @@ export function VideoGenerator({
 
             {!canGenerateVideo && (
                 <p className="text-center text-xs text-amber-600 dark:text-amber-400">
-                    {!hasStartFrame ? '請先在「圖片」頁面生成場景圖片' : '請先填寫動作提示詞'}
+                    {!hasStartFrame ? '請先在「圖片」頁面生成場景圖片' : '目前無法生成影片'}
                 </p>
             )}
         </div>

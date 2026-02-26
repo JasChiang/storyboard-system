@@ -19,6 +19,6 @@ describe('video prompt policy', () => {
 
     expect(result.wasTruncated).toBe(true);
     expect(result.finalLength).toBeLessThanOrEqual(result.hardLimit);
-    expect(result.prompt).toContain('Keep identity, geometry, logos, and visible text unchanged.');
+    expect(result.prompt).toContain('Keep identity, geometry, logos, and visible text exact and unchanged.');
   });
 });

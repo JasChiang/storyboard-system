@@ -13,10 +13,11 @@ export async function POST(request: NextRequest) {
 
     const { name, type, views } = body;
     const apiKey = process.env.OPENROUTER_API_KEY;
+    const normalizedViews = Array.isArray(views) ? views : [];
 
-    if (!name || !type || !Array.isArray(views) || views.length === 0) {
+    if (!name || !type) {
       return NextResponse.json(
-        { error: '缺少必要欄位（name, type, views）' },
+        { error: '缺少必要欄位（name, type）' },
         { status: 400 }
       );
     }
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
       {
         name,
         type,
-        views,
+        views: normalizedViews,
       },
       { apiKey }
     );

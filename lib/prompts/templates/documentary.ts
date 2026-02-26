@@ -68,6 +68,14 @@ export const DOCUMENTARY_TEMPLATE: PromptTemplate = {
                             type: 'string',
                             description: '需要維持不變的連續性約束'
                         },
+                        shotIntent: {
+                            type: 'string',
+                            description: '鏡頭在整體敘事中的任務（一句話）'
+                        },
+                        continuityAnchor: {
+                            type: 'string',
+                            description: '跨鏡頭必須維持的一個關鍵連續性錨點'
+                        },
                         requiresEndFrame: {
                             type: 'boolean',
                             description: 'AI 判斷是否需要生成尾幀'
@@ -115,9 +123,38 @@ export const DOCUMENTARY_TEMPLATE: PromptTemplate = {
                         changeFromPrev: {
                             type: 'string',
                             description: '相對前一場景的變化摘要（第一場景填 N/A）'
+                        },
+                        requiredReferences: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            description: '本鏡頭必須使用的參考標記（如 ["<Host>", "<ProductA>"]）'
+                        },
+                        transitionToNext: {
+                            type: 'object',
+                            description: '與下一場景的轉場設定',
+                            properties: {
+                                type: {
+                                    type: 'string',
+                                    enum: ['cut', 'dissolve', 'fade_black', 'fade_white', 'continuation', 'match_cut', 'wipe', 'push'],
+                                    description: '轉場類型'
+                                },
+                                reason: {
+                                    type: 'string',
+                                    description: 'AI 選擇此轉場的原因'
+                                },
+                                duration: {
+                                    type: 'number',
+                                    description: '轉場時長（秒），預設 0.5'
+                                },
+                                useEndFrameAsNextStart: {
+                                    type: 'boolean',
+                                    description: '是否讓下一場景使用此場景的 endFrame 作為開始幀'
+                                }
+                            },
+                            required: ['type', 'reason']
                         }
                     },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev']
+                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'shotIntent', 'continuityAnchor', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'requiredReferences', 'transitionToNext']
                 }
             }
         },

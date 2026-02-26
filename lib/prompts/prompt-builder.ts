@@ -145,10 +145,21 @@ ${productRefs.map(r => `   - 使用 \`<${r.name || '商品'}>\` 指代該商品`
    - 若同角色/商品有多視角或多份參考，請以「合併後一致性規則」為最高準則
    - 不可在 description 重新定義已合併的核心外觀特徵
 
+8. **文字與 Logo 可讀性規則**：
+   - 若畫面中需出現可見文字 / Logo，必須保持拼寫與位置一致，不可新增變體
+   - 若該鏡頭不需要文字，請避免描述任何新字樣或浮水印
+
 ✅ 正確範例：「Medium shot. <Alice> 在畫面左側，手持 <iPhone>，面向右方。柔和側光照射在 <iPhone> 的金屬邊框上。」
 ❌ 錯誤範例：「Alice（短髮女性）拿著黑色的 iPhone 16 Pro」
 `;
     }
+
+    prompt += `\n\n## 輸出結構契約（所有模板皆適用）
+- 每個場景必須輸出 \`sceneIntent\`、\`startComposition\`、\`subjectMotion\`、\`continuityLock\`、\`shotIntent\`、\`continuityAnchor\`
+- 每個場景必須輸出 \`charactersUsed\`、\`productsUsed\`、\`changeFromPrev\`、\`requiredReferences\`
+- \`requiredReferences\` 僅可使用 \`<名稱>\` 標記；若本鏡頭沒有必用參考，請輸出空陣列 \`[]\`
+- 每個場景必須輸出 \`transitionToNext\` 物件（至少包含 \`type\` 與 \`reason\`）
+- 若 \`requiresEndFrame = false\`，\`endFrameDescription\` 與 \`endFrameDelta\` 必須為空字串`;
 
     return prompt;
 }

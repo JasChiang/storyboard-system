@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Scene, TransitionType } from '@/lib/types/storyboard';
-import { Pencil, Trash2, Check, X, Copy, Star, RotateCcw, MoreHorizontal, RefreshCw, Loader2 } from 'lucide-react';
+import { Scene, TransitionType, type TransitionToNext } from '@/lib/types/storyboard';
+import { Pencil, Trash2, Check, X, Copy, Star, RotateCcw, MoreHorizontal, RefreshCw, Loader2, Plus } from 'lucide-react';
 
 interface SceneRowProps {
   scene: Scene;
@@ -10,6 +10,7 @@ interface SceneRowProps {
   onDelete: () => void;
   onRegenerate?: () => void;
   onDuplicate?: () => void;
+  onInsertAfter?: () => void;
   onResetScene?: () => void;
   isRegenerating?: boolean;
   isDraggable?: boolean;
@@ -29,6 +30,23 @@ function inferShotType(description: string): string | null {
   if (/wide\s*shot|全景|大全景/i.test(lower)) return 'WS';
   if (/extreme\s*wide|超遠景|全場景/i.test(lower)) return 'EWS';
   return null;
+}
+
+function parseTagList(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => {
+      const normalized = value.replace(/^<|>$/g, '').trim();
+      return normalized ? `<${normalized}>` : '';
+    })
+    .filter(Boolean);
+}
+
+function stringifyTagList(values?: string[]): string {
+  if (!Array.isArray(values) || values.length === 0) return '';
+  return values.join(', ');
 }
 
 // 轉場類型顯示設定
@@ -56,6 +74,7 @@ export function SceneRow({
   onDelete,
   onRegenerate,
   onDuplicate,
+  onInsertAfter,
   onResetScene,
   isRegenerating = false,
   isDraggable,
@@ -82,6 +101,10 @@ export function SceneRow({
     return () => document.removeEventListener('mousedown', handler);
   }, [showMore]);
 
+  useEffect(() => {
+    setEditedScene(scene);
+  }, [scene]);
+
   const handleSave = () => {
     onUpdate(editedScene);
     setIsEditing(false);
@@ -93,17 +116,18 @@ export function SceneRow({
   };
 
   const handleTransitionChange = (type: TransitionType) => {
+    const nextTransition: TransitionToNext = {
+      ...editedScene.transitionToNext,
+      type,
+      useEndFrameAsNextStart: type === 'continuation',
+      continuitySourceMode: type === 'continuation'
+        ? (editedScene.transitionToNext?.continuitySourceMode || 'auto')
+        : 'none',
+    };
     const updates = {
       ...editedScene,
-      transitionToNext: {
-        ...editedScene.transitionToNext,
-        type,
-        useEndFrameAsNextStart: type === 'continuation',
-      },
+      transitionToNext: nextTransition,
     };
-    if (type === 'continuation') {
-      updates.requiresEndFrame = true;
-    }
     setEditedScene(updates);
   };
 
@@ -135,6 +159,78 @@ export function SceneRow({
             onChange={(e) => setEditedScene({ ...editedScene, description: e.target.value })}
             rows={3}
           />
+          <div className="mt-2 grid gap-2">
+            <textarea
+              className="w-full rounded-lg border border-border/60 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+              value={editedScene.sceneIntent || ''}
+              onChange={(e) => setEditedScene({ ...editedScene, sceneIntent: e.target.value })}
+              placeholder="sceneIntent：此鏡頭敘事目的"
+              rows={2}
+            />
+            <textarea
+              className="w-full rounded-lg border border-border/60 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+              value={editedScene.shotIntent || ''}
+              onChange={(e) => setEditedScene({ ...editedScene, shotIntent: e.target.value })}
+              placeholder="shotIntent：鏡頭任務"
+              rows={2}
+            />
+            <textarea
+              className="w-full rounded-lg border border-border/60 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+              value={editedScene.startComposition || ''}
+              onChange={(e) => setEditedScene({ ...editedScene, startComposition: e.target.value })}
+              placeholder="startComposition：首幀構圖錨點"
+              rows={2}
+            />
+            <textarea
+              className="w-full rounded-lg border border-border/60 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+              value={editedScene.subjectMotion || ''}
+              onChange={(e) => setEditedScene({ ...editedScene, subjectMotion: e.target.value })}
+              placeholder="subjectMotion：主體動作邊界"
+              rows={2}
+            />
+            <textarea
+              className="w-full rounded-lg border border-border/60 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+              value={editedScene.continuityLock || ''}
+              onChange={(e) => setEditedScene({ ...editedScene, continuityLock: e.target.value })}
+              placeholder="continuityLock：不可變連續性"
+              rows={2}
+            />
+            <textarea
+              className="w-full rounded-lg border border-border/60 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+              value={editedScene.continuityAnchor || ''}
+              onChange={(e) => setEditedScene({ ...editedScene, continuityAnchor: e.target.value })}
+              placeholder="continuityAnchor：跨鏡頭錨點"
+              rows={2}
+            />
+            <textarea
+              className="w-full rounded-lg border border-border/60 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+              value={editedScene.changeFromPrev || ''}
+              onChange={(e) => setEditedScene({ ...editedScene, changeFromPrev: e.target.value })}
+              placeholder="changeFromPrev：相對上一鏡差異"
+              rows={2}
+            />
+            <textarea
+              className="w-full rounded-lg border border-border/60 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+              value={stringifyTagList(editedScene.charactersUsed)}
+              onChange={(e) => setEditedScene({ ...editedScene, charactersUsed: parseTagList(e.target.value) })}
+              placeholder="charactersUsed：<Alice>, <Bob>"
+              rows={1}
+            />
+            <textarea
+              className="w-full rounded-lg border border-border/60 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+              value={stringifyTagList(editedScene.productsUsed)}
+              onChange={(e) => setEditedScene({ ...editedScene, productsUsed: parseTagList(e.target.value) })}
+              placeholder="productsUsed：<ProductX>"
+              rows={1}
+            />
+            <textarea
+              className="w-full rounded-lg border border-border/60 bg-white/75 px-3 py-2 text-xs shadow-[0_8px_18px_-14px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+              value={stringifyTagList(editedScene.requiredReferences)}
+              onChange={(e) => setEditedScene({ ...editedScene, requiredReferences: parseTagList(e.target.value) })}
+              placeholder="requiredReferences：<Alice>, <ProductX>"
+              rows={1}
+            />
+          </div>
         </td>
         <td className="px-4 py-3">
           <input
@@ -157,7 +253,10 @@ export function SceneRow({
             type="number"
             className="w-24 rounded-lg border border-border/80 bg-white/75 px-3 py-2 text-sm shadow-[0_10px_22px_-16px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
             value={editedScene.duration}
-            onChange={(e) => setEditedScene({ ...editedScene, duration: parseFloat(e.target.value) })}
+            onChange={(e) => {
+              const parsed = Number.parseFloat(e.target.value);
+              setEditedScene({ ...editedScene, duration: Number.isFinite(parsed) ? parsed : 0 });
+            }}
             step="0.1"
           />
         </td>
@@ -169,21 +268,11 @@ export function SceneRow({
                 checked={editedScene.requiresEndFrame || false}
                 onChange={(e) => {
                   const nextChecked = e.target.checked;
-                  const nextTransition = editedScene.transitionToNext?.type === 'continuation' && !nextChecked
-                    ? {
-                      ...editedScene.transitionToNext,
-                      type: 'dissolve' as TransitionType,
-                      useEndFrameAsNextStart: false,
-                      reason: 'Switched from continuation because end frame was disabled.',
-                    }
-                    : editedScene.transitionToNext;
-
                   setEditedScene({
                     ...editedScene,
                     requiresEndFrame: nextChecked,
                     endFrameDescription: nextChecked ? (editedScene.endFrameDescription || editedScene.description) : '',
                     endFrameDelta: nextChecked ? (editedScene.endFrameDelta || '') : '',
-                    transitionToNext: nextTransition,
                   });
                 }}
                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
@@ -211,17 +300,39 @@ export function SceneRow({
           </div>
         </td>
         <td className="px-4 py-3">
-          <select
-            className="w-full rounded-lg border border-border/80 bg-white/75 px-3 py-2 text-sm shadow-[0_10px_22px_-16px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
-            value={editedScene.transitionToNext?.type || 'dissolve'}
-            onChange={(e) => handleTransitionChange(e.target.value as TransitionType)}
-          >
-            {Object.entries(TRANSITION_LABELS).map(([type, { label, icon }]) => (
-              <option key={type} value={type}>
-                {icon} {label}
-              </option>
-            ))}
-          </select>
+          <div className="space-y-2">
+            <select
+              className="w-full rounded-lg border border-border/80 bg-white/75 px-3 py-2 text-sm shadow-[0_10px_22px_-16px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+              value={editedScene.transitionToNext?.type || 'dissolve'}
+              onChange={(e) => handleTransitionChange(e.target.value as TransitionType)}
+            >
+              {Object.entries(TRANSITION_LABELS).map(([type, { label, icon }]) => (
+                <option key={type} value={type}>
+                  {icon} {label}
+                </option>
+              ))}
+            </select>
+            {(editedScene.transitionToNext?.type === 'continuation') && (
+              <select
+                className="w-full rounded-lg border border-border/80 bg-white/75 px-3 py-2 text-xs shadow-[0_10px_22px_-16px_rgba(15,23,42,0.45)] outline-none transition focus:border-primary/35 focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/70"
+                value={editedScene.transitionToNext?.continuitySourceMode || 'auto'}
+                onChange={(e) => setEditedScene({
+                  ...editedScene,
+                  transitionToNext: {
+                    ...editedScene.transitionToNext,
+                    type: 'continuation',
+                    useEndFrameAsNextStart: true,
+                    continuitySourceMode: e.target.value as TransitionToNext['continuitySourceMode'],
+                  },
+                })}
+              >
+                <option value="auto">來源: 自動（尾優先，無尾改首）</option>
+                <option value="previous_end_only">來源: 只用上一景尾幀</option>
+                <option value="previous_start_only">來源: 只用上一景首幀</option>
+                <option value="none">來源: 不沿用（僅保留轉場語意）</option>
+              </select>
+            )}
+          </div>
           {editedScene.transitionToNext?.reason && (
             <div className="mt-1 line-clamp-2 text-xs text-slate-500">
               {editedScene.transitionToNext.reason}
@@ -328,6 +439,42 @@ export function SceneRow({
             ))}
           </div>
         )}
+        <div className="mt-2 space-y-1.5">
+          {scene.sceneIntent && (
+            <p className="line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
+              sceneIntent: {scene.sceneIntent}
+            </p>
+          )}
+          {scene.shotIntent && (
+            <p className="line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
+              shotIntent: {scene.shotIntent}
+            </p>
+          )}
+          {scene.startComposition && (
+            <p className="line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
+              startComposition: {scene.startComposition}
+            </p>
+          )}
+          {(scene.charactersUsed?.length || scene.productsUsed?.length || scene.requiredReferences?.length) && (
+            <div className="flex flex-wrap gap-1">
+              {(scene.charactersUsed || []).map((tag) => (
+                <span key={`c-${tag}`} className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                  {tag}
+                </span>
+              ))}
+              {(scene.productsUsed || []).map((tag) => (
+                <span key={`p-${tag}`} className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                  {tag}
+                </span>
+              ))}
+              {(scene.requiredReferences || []).map((tag) => (
+                <span key={`r-${tag}`} className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-300">
+                  必用 {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </td>
 
       <td className="px-4 py-3 align-top">
@@ -380,9 +527,18 @@ export function SceneRow({
               {scene.transitionToNext.reason}
             </div>
           )}
-          {scene.transitionToNext?.useEndFrameAsNextStart && (
+          {(scene.transitionToNext?.useEndFrameAsNextStart || scene.transitionToNext?.type === 'continuation') && (
             <div className="text-xs font-medium text-green-600 dark:text-green-400">
               → 延續至下一幕
+            </div>
+          )}
+          {scene.transitionToNext?.type === 'continuation' && scene.transitionToNext?.continuitySourceMode && (
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">
+              來源模式：
+              {scene.transitionToNext.continuitySourceMode === 'auto' && '自動（尾優先）'}
+              {scene.transitionToNext.continuitySourceMode === 'previous_end_only' && '只用尾幀'}
+              {scene.transitionToNext.continuitySourceMode === 'previous_start_only' && '只用首幀'}
+              {scene.transitionToNext.continuitySourceMode === 'none' && '不沿用'}
             </div>
           )}
         </div>
@@ -443,6 +599,15 @@ export function SceneRow({
                   >
                     <Copy className="h-3.5 w-3.5" />
                     複製場景
+                  </button>
+                )}
+                {onInsertAfter && (
+                  <button
+                    onClick={() => { onInsertAfter(); setShowMore(false); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    下方插入場景
                   </button>
                 )}
                 <button

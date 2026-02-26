@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Sparkles, Grid3x3, List, Loader2, Search, Play } from 'lucide-react';
 import { QuickPreviewPlayer } from '@/components/images/QuickPreviewPlayer';
 import Link from 'next/link';
@@ -14,6 +14,7 @@ import { StyleProfileSelector } from '@/components/image-generation/StyleProfile
 import { Button } from '@/components/ui/button';
 import { DEFAULT_STYLE_PROFILE_ID, findStyleProfileById } from '@/lib/constants/style-profiles';
 import { getWorkflowProgress } from '@/lib/project/workflow';
+import { resolveContinuationSource } from '@/lib/utils/transition';
 import type { StyleProfile } from '@/lib/types/storyboard';
 
 type WorkflowTaskStage = 'image_start' | 'image_end' | 'video';
@@ -24,14 +25,28 @@ interface WorkflowTask {
   sceneId?: string;
   stage: WorkflowTaskStage;
   status: WorkflowTaskStatus;
+  prompt?: string;
+  outputUrl?: string;
+  metadata?: Record<string, unknown>;
   updatedAt: string;
 }
+
+interface CheckStatusResponse {
+  status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  error?: string;
+  result?: {
+    images?: Array<{ url?: string }>;
+    seed?: number;
+  };
+}
+
+const MISSING_RECOVERY_METADATA_TIMEOUT_MS = 45_000;
 
 export default function ImagesPage() {
   const params = useParams();
   const projectId = params.projectId as string;
 
-  const { currentProject, setCurrentProject, updateProject } = useProjectStore();
+  const { currentProject, isCurrentProjectLoading, setCurrentProject, updateProject } = useProjectStore();
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'individual' | 'batch'>('individual');
   const [showStylePanel, setShowStylePanel] = useState(false);
@@ -40,6 +55,8 @@ export default function ImagesPage() {
   const [generationTasks, setGenerationTasks] = useState<WorkflowTask[]>([]);
   const [sceneQuery, setSceneQuery] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const recoveringTaskIdsRef = useRef<Set<string>>(new Set());
+  const appliedRecoveredKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     setCurrentProject(projectId);
@@ -104,6 +121,10 @@ export default function ImagesPage() {
     });
   }, [sceneQuery, scenes]);
   const selectedScene = scenes.find(s => s.id === selectedSceneId);
+  const sceneByNumber = useMemo(
+    () => new Map(scenes.map((scene) => [scene.sceneNumber, scene] as const)),
+    [scenes]
+  );
   const latestImageTaskMap = useMemo(() => {
     const map = new Map<string, WorkflowTask>();
     const sortedTasks = [...generationTasks].sort(
@@ -143,15 +164,78 @@ export default function ImagesPage() {
   }).length;
 
   const selectedSceneIndex = scenes.findIndex(s => s.id === selectedSceneId);
-  const previousScene = selectedSceneIndex > 0 ? scenes[selectedSceneIndex - 1] : null;
+  const previousScene = selectedScene
+    ? (sceneByNumber.get(selectedScene.sceneNumber - 1) || (selectedSceneIndex > 0 ? scenes[selectedSceneIndex - 1] : null))
+    : null;
   const nextScene = selectedSceneIndex >= 0 && selectedSceneIndex < scenes.length - 1
     ? scenes[selectedSceneIndex + 1]
     : null;
-  const previousEndFrameUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
-    ? previousScene.generatedEndFrame?.url
-    : undefined;
+  const previousContinuation = resolveContinuationSource(previousScene);
+  const previousEndFrameUrl = previousContinuation.url;
+  const previousContinuationSource = previousContinuation.source;
   const selectedEffectiveStartFrameUrl = previousEndFrameUrl || selectedScene?.generatedImage?.url;
   const activeStyleProfile = findStyleProfileById(selectedStyleProfileId, customStyleProfiles);
+
+  const applyRecoveredImageTask = useCallback((
+    task: Pick<WorkflowTask, 'sceneId' | 'stage' | 'prompt'>,
+    imageUrl: string,
+    seed?: number
+  ) => {
+    if (!currentProject?.storyboard || !task.sceneId || !imageUrl.trim()) return;
+
+    const trimmedUrl = imageUrl.trim();
+    const nextScenes = currentProject.storyboard.scenes.map((scene) => {
+      if (scene.id !== task.sceneId) return scene;
+
+      if (task.stage === 'image_start') {
+        const sameUrl = scene.generatedImage?.url === trimmedUrl;
+        const samePrompt = (scene.generatedImage?.prompt || '') === (task.prompt || scene.generatedImage?.prompt || '');
+        const sameSeed = typeof seed === 'number' ? scene.generatedImage?.seed === seed : true;
+        if (sameUrl && samePrompt && sameSeed) {
+          return scene;
+        }
+
+        return {
+          ...scene,
+          generatedImage: {
+            url: trimmedUrl,
+            prompt: task.prompt || scene.generatedImage?.prompt || '',
+            seed: typeof seed === 'number' ? seed : scene.generatedImage?.seed,
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }
+
+      const sameUrl = scene.generatedEndFrame?.url === trimmedUrl;
+      const samePrompt = (scene.generatedEndFrame?.prompt || '') === (task.prompt || scene.generatedEndFrame?.prompt || '');
+      const sameSeed = typeof seed === 'number' ? scene.generatedEndFrame?.seed === seed : true;
+      if (sameUrl && samePrompt && sameSeed) {
+        return scene;
+      }
+
+      return {
+        ...scene,
+        generatedEndFrame: {
+          url: trimmedUrl,
+          prompt: task.prompt || scene.generatedEndFrame?.prompt || '',
+          seed: typeof seed === 'number' ? seed : scene.generatedEndFrame?.seed,
+          timestamp: new Date().toISOString(),
+        },
+      };
+    });
+
+    const changed = nextScenes.some((scene, index) => scene !== currentProject.storyboard!.scenes[index]);
+    if (!changed) return;
+
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        scenes: nextScenes,
+        updatedAt: new Date().toISOString(),
+      },
+      status: 'images',
+    });
+  }, [currentProject, projectId, updateProject]);
 
   const moveSelectedScene = useCallback((offset: -1 | 1) => {
     if (filteredScenes.length === 0 || selectedSceneInFilterIndex === -1) return;
@@ -205,6 +289,122 @@ export default function ImagesPage() {
     const firstProcessableScene = scenes.find((scene) => scene.qaStatus !== 'block');
     setSelectedSceneId(firstProcessableScene?.id || scenes[0].id);
   }, [scenes, selectedSceneId]);
+
+  useEffect(() => {
+    if (!currentProject?.storyboard) return;
+
+    generationTasks.forEach((task) => {
+      if (!task.sceneId) return;
+      if (task.status !== 'completed') return;
+      if (task.stage !== 'image_start' && task.stage !== 'image_end') return;
+      if (!task.outputUrl || !task.outputUrl.trim()) return;
+
+      const key = `${task.id}:${task.outputUrl}`;
+      if (appliedRecoveredKeysRef.current.has(key)) return;
+      appliedRecoveredKeysRef.current.add(key);
+
+      const seedValue = task.metadata?.seed;
+      const seed = typeof seedValue === 'number' ? seedValue : undefined;
+      applyRecoveredImageTask(task, task.outputUrl, seed);
+    });
+  }, [applyRecoveredImageTask, currentProject?.storyboard, generationTasks]);
+
+  useEffect(() => {
+    if (!currentProject?.storyboard) return;
+
+    generationTasks.forEach((task) => {
+      if (!task.sceneId) return;
+      if (task.status !== 'running') return;
+      if (task.stage !== 'image_start' && task.stage !== 'image_end') return;
+      if (recoveringTaskIdsRef.current.has(task.id)) return;
+
+      const requestId = typeof task.metadata?.requestId === 'string' ? task.metadata.requestId.trim() : '';
+      const endpoint = typeof task.metadata?.endpoint === 'string' ? task.metadata.endpoint.trim() : '';
+      if (!requestId || !endpoint) {
+        const updatedAt = Date.parse(task.updatedAt);
+        if (!Number.isFinite(updatedAt)) return;
+        if (Date.now() - updatedAt <= MISSING_RECOVERY_METADATA_TIMEOUT_MS) return;
+
+        recoveringTaskIdsRef.current.add(task.id);
+        void (async () => {
+          try {
+            await fetch(`/api/workflow/tasks/${task.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'failed',
+                error: 'Task recovery metadata missing (requestId/endpoint). Please regenerate this frame.',
+              }),
+            });
+          } catch (error) {
+            console.error('Failed to fail stale image task without recovery metadata', task.id, error);
+          } finally {
+            recoveringTaskIdsRef.current.delete(task.id);
+          }
+        })();
+        return;
+      }
+
+      recoveringTaskIdsRef.current.add(task.id);
+      void (async () => {
+        try {
+          const response = await fetch('/api/fal/check-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              requestId,
+              endpoint,
+              type: 'image',
+            }),
+          });
+          if (!response.ok) return;
+
+          const payload = await response.json() as CheckStatusResponse;
+          if (payload.status === 'FAILED') {
+            await fetch(`/api/workflow/tasks/${task.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'failed',
+                error: payload.error || 'Generation failed during recovery',
+              }),
+            });
+            return;
+          }
+
+          if (payload.status !== 'COMPLETED') return;
+
+          const imageUrl = typeof payload.result?.images?.[0]?.url === 'string'
+            ? payload.result.images[0].url.trim()
+            : '';
+          if (!imageUrl) return;
+          const seed = typeof payload.result?.seed === 'number' ? payload.result.seed : undefined;
+          const nextMetadata = {
+            ...(task.metadata || {}),
+            requestId,
+            endpoint,
+            seed,
+            recoveredAt: new Date().toISOString(),
+          };
+
+          await fetch(`/api/workflow/tasks/${task.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: 'completed',
+              outputUrl: imageUrl,
+              metadata: nextMetadata,
+            }),
+          });
+          applyRecoveredImageTask(task, imageUrl, seed);
+        } catch (error) {
+          console.error('Failed to recover running image task', task.id, error);
+        } finally {
+          recoveringTaskIdsRef.current.delete(task.id);
+        }
+      })();
+    });
+  }, [applyRecoveredImageTask, currentProject?.storyboard, generationTasks]);
 
   const persistStyleSettings = (nextId: string, nextCustomProfiles: StyleProfile[]) => {
     if (!currentProject?.storyboard) return;
@@ -335,7 +535,34 @@ export default function ImagesPage() {
     });
   };
 
-  if (!currentProject?.storyboard) {
+  if (isCurrentProjectLoading && !currentProject) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-lg text-muted-foreground font-medium">載入專案中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <p className="text-muted-foreground">找不到專案或已被刪除</p>
+          <Link
+            href="/"
+            className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            返回首頁
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentProject.storyboard) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -509,10 +736,8 @@ export default function ImagesPage() {
                 )}
                 {filteredScenes.map((scene) => {
                   const sourceIndex = scenes.findIndex((s) => s.id === scene.id);
-                  const prev = sourceIndex > 0 ? scenes[sourceIndex - 1] : null;
-                  const inheritedStartUrl = prev?.transitionToNext?.useEndFrameAsNextStart
-                    ? prev.generatedEndFrame?.url
-                    : undefined;
+                  const prev = sceneByNumber.get(scene.sceneNumber - 1) || (sourceIndex > 0 ? scenes[sourceIndex - 1] : null);
+                  const inheritedStartUrl = resolveContinuationSource(prev).url;
                   const sceneStartPreviewUrl = inheritedStartUrl || scene.generatedImage?.url;
                   const sceneGenerationState = getSceneGenerationState(scene.id);
                   const isSceneGenerating = sceneGenerationState.isGeneratingStart || sceneGenerationState.isGeneratingEnd;
@@ -666,7 +891,9 @@ export default function ImagesPage() {
                       </div>
                       {previousEndFrameUrl && (
                         <p className="text-[11px] text-purple-600 dark:text-purple-400">
-                          起始幀來源：場景 {previousScene?.sceneNumber} 尾幀（Continuation）
+                          起始幀來源：場景 {previousScene?.sceneNumber}
+                          {previousContinuationSource === 'end' ? ' 尾幀' : ' 首幀'}
+                          （Continuation）
                         </p>
                       )}
                     </div>
@@ -707,6 +934,7 @@ export default function ImagesPage() {
                         projectReferences={currentProject.storyboard?.projectReferences}
                         styleProfile={activeStyleProfile}
                         previousEndFrameUrl={previousEndFrameUrl}
+                        previousContinuationSource={previousContinuationSource}
                         previousSceneDescription={previousScene?.description}
                         nextSceneDescription={nextScene?.description}
                         externalGeneratingStart={selectedSceneGenerationState.isGeneratingStart}
@@ -733,6 +961,7 @@ export default function ImagesPage() {
               </div>
             )}
             <BatchImageGenerator
+              projectId={projectId}
               scenes={processableScenes}
               projectReferences={currentProject.storyboard?.projectReferences}
               styleProfile={activeStyleProfile}

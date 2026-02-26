@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { X, Play, Pause, Square } from 'lucide-react';
 import type { Scene } from '@/lib/types/storyboard';
+import { resolveContinuationSource } from '@/lib/utils/transition';
 
 interface QuickPreviewPlayerProps {
   scenes: Scene[];
@@ -14,9 +15,7 @@ export function QuickPreviewPlayer({ scenes, onClose }: QuickPreviewPlayerProps)
   // For continuation scenes, the effective start frame is the previous scene's end frame
   const playableScenesWithUrls = scenes.map((scene, index) => {
     const prevScene = index > 0 ? scenes[index - 1] : null;
-    const continuationUrl = prevScene?.transitionToNext?.useEndFrameAsNextStart
-      ? prevScene.generatedEndFrame?.url
-      : undefined;
+    const continuationUrl = resolveContinuationSource(prevScene).url;
     const effectiveUrl = continuationUrl || scene.generatedImage?.url;
     return { scene, effectiveUrl };
   }).filter(({ effectiveUrl }) => Boolean(effectiveUrl));

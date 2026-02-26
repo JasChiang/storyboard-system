@@ -3,6 +3,8 @@
 import { useRef, useState } from 'react';
 import { Scene } from '@/lib/types/storyboard';
 import { SceneRow } from './SceneRow';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
 
 interface StoryboardTableProps {
   scenes: Scene[];
@@ -10,6 +12,8 @@ interface StoryboardTableProps {
   onDeleteScene: (sceneId: string) => void;
   onRegenerateScene?: (sceneId: string) => void;
   onDuplicateScene?: (sceneId: string) => void;
+  onInsertSceneAfter?: (sceneId: string) => void;
+  onAppendScene?: () => void;
   onResetScene?: (sceneId: string) => void;
   onReorderScenes?: (orderedIds: string[]) => void;
   isRegeneratingSceneId?: string | null;
@@ -21,6 +25,8 @@ export function StoryboardTable({
   onDeleteScene,
   onRegenerateScene,
   onDuplicateScene,
+  onInsertSceneAfter,
+  onAppendScene,
   onResetScene,
   onReorderScenes,
   isRegeneratingSceneId,
@@ -83,8 +89,16 @@ export function StoryboardTable({
               已生成 {scenes.length} 個場景，可逐場編輯內容與轉場設定{onReorderScenes ? '，可拖拉排序' : ''}
             </p>
           </div>
-          <div className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
-            {scenes.length} Scenes
+          <div className="flex items-center gap-2">
+            {onAppendScene && (
+              <Button type="button" variant="outline" size="sm" onClick={onAppendScene}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                新增場景
+              </Button>
+            )}
+            <div className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
+              {scenes.length} Scenes
+            </div>
           </div>
         </div>
       </div>
@@ -128,6 +142,7 @@ export function StoryboardTable({
                 onDelete={() => onDeleteScene(scene.id)}
                 onRegenerate={onRegenerateScene ? () => onRegenerateScene(scene.id) : undefined}
                 onDuplicate={onDuplicateScene ? () => onDuplicateScene(scene.id) : undefined}
+                onInsertAfter={onInsertSceneAfter ? () => onInsertSceneAfter(scene.id) : undefined}
                 onResetScene={onResetScene ? () => onResetScene(scene.id) : undefined}
                 isRegenerating={isRegeneratingSceneId === scene.id}
                 isDragOver={dragOverId === scene.id}

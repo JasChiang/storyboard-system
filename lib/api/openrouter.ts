@@ -13,12 +13,121 @@ import type {
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_APP_ORIGIN = 'http://localhost:3000';
+const JSON_SCHEMA_UNSUPPORTED_PATTERN = /(json_schema|response_format|strict|unsupported|not supported|invalid schema)/i;
+
+type OpenRouterMessage = { role: 'system' | 'user'; content: string };
+type OpenRouterJsonSchema = Record<string, unknown>;
 
 function getAppOrigin() {
   if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin;
   }
   return process.env.APP_ORIGIN || process.env.NEXT_PUBLIC_APP_ORIGIN || DEFAULT_APP_ORIGIN;
+}
+
+function cleanJsonText(content: string): string {
+  return content
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+}
+
+function createOpenRouterHeaders(apiKey: string) {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    'HTTP-Referer': getAppOrigin(),
+    'X-Title': 'Storyboard System',
+  };
+}
+
+function parseOpenRouterErrorDetails(raw: unknown): string {
+  if (!raw || typeof raw !== 'object') return '';
+  const record = raw as Record<string, unknown>;
+  const error = record.error;
+  if (error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+    return (error as { message: string }).message;
+  }
+  return JSON.stringify(raw);
+}
+
+async function readOpenRouterError(response: Response): Promise<string> {
+  try {
+    return parseOpenRouterErrorDetails(await response.json());
+  } catch {
+    return await response.text();
+  }
+}
+
+function buildStrictJsonResponseFormat(schemaName: string, schema: OpenRouterJsonSchema) {
+  return {
+    type: 'json_schema' as const,
+    json_schema: {
+      name: schemaName,
+      strict: true,
+      schema,
+    },
+  };
+}
+
+async function callOpenRouterJson<T>({
+  apiKey,
+  model,
+  messages,
+  schemaName,
+  schema,
+}: {
+  apiKey: string;
+  model: string;
+  messages: OpenRouterMessage[];
+  schemaName: string;
+  schema: OpenRouterJsonSchema;
+}): Promise<T> {
+  const responseFormats = [
+    buildStrictJsonResponseFormat(schemaName, schema),
+    { type: 'json_object' as const },
+  ];
+  let fallbackReason = '';
+
+  for (let index = 0; index < responseFormats.length; index += 1) {
+    const format = responseFormats[index];
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: createOpenRouterHeaders(apiKey),
+      body: JSON.stringify({
+        model,
+        messages,
+        response_format: format,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorDetails = await readOpenRouterError(response);
+      if (index === 0 && JSON_SCHEMA_UNSUPPORTED_PATTERN.test(errorDetails)) {
+        fallbackReason = errorDetails;
+        continue;
+      }
+      throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
+    }
+
+    if (index === 1 && fallbackReason) {
+      console.warn('[OpenRouter] json_schema unsupported; fallback to json_object:', fallbackReason);
+    }
+
+    const data: OpenRouterResponse = await response.json();
+    const content = data.choices[0]?.message?.content;
+    if (!content) throw new Error('OpenRouter 沒有回傳任何內容');
+
+    try {
+      return JSON.parse(cleanJsonText(content)) as T;
+    } catch (error) {
+      throw new Error(`OpenRouter 回傳格式錯誤，無法解析 JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  throw new Error('OpenRouter JSON schema 與 json_object 都不可用。');
 }
 
 export interface OpenRouterConfig {
@@ -50,15 +159,6 @@ export async function generateStoryboardScript(
   ];
   const isTransitionType = (value: string): value is TransitionType => TRANSITION_TYPES.includes(value as TransitionType);
 
-  const stripMarkdownFence = (text: string) => {
-    let cleaned = text.trim();
-    if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json\s*/i, '');
-    else if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```\s*/i, '');
-    if (cleaned.endsWith('```')) cleaned = cleaned.replace(/\s*```$/, '');
-    return cleaned.trim();
-  };
-
-  const parseJsonContent = (content: string) => JSON.parse(stripMarkdownFence(content));
   const stringValue = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
   const hasKeywords = (value: string, regex: RegExp) => regex.test(value);
   const hasTerminalCameraTarget = (cameraMovement: string) =>
@@ -109,21 +209,17 @@ export async function generateStoryboardScript(
 
   const shouldRequireEndFrame = ({
     explicitRequiresEndFrame,
-    transitionType,
     cameraMovement,
     endFrameDescription,
     endFrameDelta,
     description,
   }: {
     explicitRequiresEndFrame?: boolean;
-    transitionType: TransitionType;
     cameraMovement: string;
     endFrameDescription: string;
     endFrameDelta: string;
     description: string;
   }) => {
-    if (transitionType === 'continuation') return true;
-
     const hasExplicitDelta = Boolean(endFrameDelta);
     const hasExplicitEndFrame = Boolean(endFrameDescription && endFrameDescription !== description);
     const stateChangeDetected = hasStateChangeSignal(`${cameraMovement} ${endFrameDelta} ${endFrameDescription}`);
@@ -269,7 +365,6 @@ export async function generateStoryboardScript(
         : undefined;
       const requiresEndFrame = shouldRequireEndFrame({
         explicitRequiresEndFrame,
-        transitionType,
         cameraMovement: stringValue(scene.cameraMovement),
         endFrameDescription: endFrameDescriptionRaw,
         endFrameDelta: endFrameDeltaRaw,
@@ -387,43 +482,21 @@ export async function generateStoryboardScript(
     };
   };
 
-  const callJsonCompletion = async (messages: Array<{ role: 'system' | 'user'; content: string }>) => {
-    const response = await fetch(OPENROUTER_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': getAppOrigin(),
-        'X-Title': 'Storyboard System',
-      },
-      body: JSON.stringify({
-        model: config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet',
-        messages,
-        response_format: { type: 'json_object' },
-      }),
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+  const responseSchema = template.outputSchema as OpenRouterJsonSchema;
+  const callJsonCompletion = (messages: OpenRouterMessage[]) =>
+    callOpenRouterJson<unknown>({
+      apiKey: config.apiKey,
+      model,
+      messages,
+      schemaName: 'storyboard_generation_response',
+      schema: responseSchema,
     });
-
-    if (!response.ok) {
-      let errorDetails = '';
-      try {
-        const errorData = await response.json();
-        errorDetails = errorData.error?.message || JSON.stringify(errorData);
-      } catch {
-        errorDetails = await response.text();
-      }
-      throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
-    }
-
-    const data: OpenRouterResponse = await response.json();
-    const content = data.choices[0]?.message?.content;
-    if (!content) throw new Error('OpenRouter 沒有回傳任何內容');
-    return content;
-  };
 
   // 使用 prompt builder 構建包含參考圖資訊的系統提示詞
   const systemPrompt = buildSystemPrompt(template, references);
   const outputSchemaText = JSON.stringify(template.outputSchema, null, 2);
-  const firstPassContent = await callJsonCompletion([
+  const firstPassParsed = await callJsonCompletion([
     {
       role: 'system',
       content: `${systemPrompt}\n\n你必須以 JSON 格式回應，遵循以下結構：${outputSchemaText}`,
@@ -441,15 +514,7 @@ export async function generateStoryboardScript(
     },
   ]);
 
-  console.log('第一輪分鏡回應（前 200 字）:', firstPassContent.substring(0, 200));
-
-  let firstPassParsed: unknown;
-  try {
-    firstPassParsed = parseJsonContent(firstPassContent);
-  } catch {
-    console.error('第一輪 JSON 解析失敗，完整內容:', firstPassContent);
-    throw new Error('AI 第一輪回傳格式錯誤，無法解析 JSON。');
-  }
+  console.log('第一輪分鏡回應（前 200 字）:', JSON.stringify(firstPassParsed).substring(0, 200));
 
   const secondPassSystemPrompt = `你是分鏡腳本品質審核器。請修正既有 JSON，不要改變原始企劃核心。
 
@@ -461,10 +526,11 @@ export async function generateStoryboardScript(
 規則：
 - ${targetDurationSecondPassRule}
 - ${hasManualSceneCount ? `場景數需維持在 ${targetSceneCount} 場（使用者指定）。` : '未收到使用者指定時，不得自動擴張到超過 6 場。'}
-- 若 transitionToNext.type = "continuation"，requiresEndFrame 必須為 true。
+- 若 transitionToNext.type = "continuation"，requiresEndFrame 可為 true 或 false；若為 false，需保持 endFrameDescription/endFrameDelta 為空字串。
 - 若 requiresEndFrame = false，endFrameDescription 必須是空字串 ""。
 - 若 requiresEndFrame = false，endFrameDelta 也必須是空字串 ""。
 - 每個場景都要有 sceneIntent/startComposition/subjectMotion/continuityLock。
+- 每個場景都要有 shotIntent/continuityAnchor/requiredReferences（若無必用參考則 requiredReferences=[]）。
 - endFrameDelta 必須用「相對首幀差異」描述，不可重寫整個場景。
 - 若 description 內使用 <角色>/<商品> 標記，charactersUsed/productsUsed 必須同步列出。
 - 不可在 description 重新定義角色/商品外觀（髮型、服裝、顏色、材質、Logo 細節）。
@@ -473,7 +539,7 @@ export async function generateStoryboardScript(
   let finalParsed: unknown = firstPassParsed;
   try {
     const violations = buildConsistencyViolations(firstPassParsed);
-    const secondPassContent = await callJsonCompletion([
+    finalParsed = await callJsonCompletion([
       {
         role: 'system',
         content: `${secondPassSystemPrompt}\n\n請遵循以下 JSON 結構：${outputSchemaText}`,
@@ -490,8 +556,7 @@ ${violations.length ? violations.map(v => `- Scene ${v.sceneNumber}: ${v.message
 ${JSON.stringify(firstPassParsed, null, 2)}`,
       },
     ]);
-    console.log('第二輪修正回應（前 200 字）:', secondPassContent.substring(0, 200));
-    finalParsed = parseJsonContent(secondPassContent);
+    console.log('第二輪修正回應（前 200 字）:', JSON.stringify(finalParsed).substring(0, 200));
   } catch (error) {
     console.warn('第二輪修正失敗，改用第一輪結果:', error);
   }
@@ -534,12 +599,24 @@ export async function regenerateStoryboardScene(
       startComposition: { type: 'string' },
       subjectMotion: { type: 'string' },
       continuityLock: { type: 'string' },
+      shotIntent: { type: 'string' },
+      continuityAnchor: { type: 'string' },
       requiresEndFrame: { type: 'boolean' },
       endFrameDescription: { type: 'string' },
       endFrameDelta: { type: 'string' },
+      endFrameDeltaSpec: {
+        type: 'object',
+        properties: {
+          reframingGoal: { type: 'string' },
+          subjectScaleChangePct: { type: 'string' },
+          newVisibleArea: { type: 'string' },
+          mustNotChange: { type: 'array', items: { type: 'string' } },
+        },
+      },
       dialogue: { type: 'string' },
       duration: { type: 'number' },
       notes: { type: 'string' },
+      requiredReferences: { type: 'array', items: { type: 'string' } },
       charactersUsed: { type: 'array', items: { type: 'string' } },
       productsUsed: { type: 'array', items: { type: 'string' } },
       changeFromPrev: { type: 'string' },
@@ -557,24 +634,24 @@ export async function regenerateStoryboardScene(
         required: ['type', 'reason'],
       },
     },
-    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext'],
+    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'shotIntent', 'continuityAnchor', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'requiredReferences', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext'],
   };
 
-  const response = await fetch(OPENROUTER_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': getAppOrigin(),
-      'X-Title': 'Storyboard System',
+  const parsed = await callOpenRouterJson<{ scene?: Partial<Scene> }>({
+    apiKey: config.apiKey,
+    model,
+    schemaName: 'storyboard_scene_regeneration',
+    schema: {
+      type: 'object',
+      properties: {
+        scene: sceneSchema,
+      },
+      required: ['scene'],
     },
-    body: JSON.stringify({
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: `${systemPrompt}
+    messages: [
+      {
+        role: 'system',
+        content: `${systemPrompt}
 
 你現在是「單場景修復器」：只重寫指定場景，保持整體企劃不變。
 請輸出 JSON：{ "scene": <sceneObject> }，scene 必須符合 schema:
@@ -585,34 +662,18 @@ ${JSON.stringify(sceneSchema, null, 2)}
 - 優先修正：運鏡可執行性、endFrameDelta 可執行性、連續性約束清楚。
 - endFrameDelta 僅描述相對首幀差異，不可重寫整景。
 - 若運鏡有 pan/dolly/zoom 終態，requiresEndFrame 應為 true。`,
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            originalPrompt: userPrompt,
-            targetSceneNumber: targetScene.sceneNumber,
-            targetScene,
-            scenesContext,
-          }, null, 2),
-        },
-      ],
-    }),
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          originalPrompt: userPrompt,
+          targetSceneNumber: targetScene.sceneNumber,
+          targetScene,
+          scenesContext,
+        }, null, 2),
+      },
+    ],
   });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`OpenRouter API error (${response.status}): ${text}`);
-  }
-  const data: OpenRouterResponse = await response.json();
-  const content = data.choices[0]?.message?.content;
-  if (!content) throw new Error('OpenRouter 沒有回傳內容');
-
-  const cleaned = content
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/, '')
-    .trim();
-  const parsed = JSON.parse(cleaned) as { scene?: Partial<Scene> };
   if (!parsed.scene) throw new Error('回傳缺少 scene');
   return parsed.scene;
 }
@@ -719,63 +780,34 @@ export async function generateCharacterProfile(
 5) 若輸入是角色，優先保護臉部、髮型、服裝、代表配件。
 6) 若資訊不足，請依現有資料保守整理，不可杜撰不存在元素。`;
 
-  const response = await fetch(OPENROUTER_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': getAppOrigin(),
-      'X-Title': 'Storyboard System',
+  const parsed = await callOpenRouterJson<Partial<CharacterProfileGenerationResult>>({
+    apiKey: config.apiKey,
+    model,
+    schemaName: 'character_profile_generation',
+    schema: {
+      type: 'object',
+      properties: {
+        description: { type: 'string' },
+        guidelines: { type: 'string' },
+      },
+      required: ['description', 'guidelines'],
     },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
-        {
-          role: 'user',
-          content: `請整理以下素材資料：\n${JSON.stringify(input, null, 2)}\n\n請輸出 JSON：{"description":"...","guidelines":"..."}`,
-        },
-      ],
-      response_format: { type: 'json_object' },
-    }),
+    messages: [
+      {
+        role: 'system',
+        content: systemPrompt,
+      },
+      {
+        role: 'user',
+        content: `請整理以下素材資料：\n${JSON.stringify(input, null, 2)}\n\n請輸出 JSON：{"description":"...","guidelines":"..."}`,
+      },
+    ],
   });
 
-  if (!response.ok) {
-    let errorDetails = '';
-    try {
-      const errorData = await response.json();
-      errorDetails = errorData.error?.message || JSON.stringify(errorData);
-    } catch {
-      errorDetails = await response.text();
-    }
-    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
-  }
-
-  const data: OpenRouterResponse = await response.json();
-  const content = data.choices[0]?.message?.content;
-
-  if (!content) {
-    throw new Error('OpenRouter 沒有回傳任何內容');
-  }
-
-  const cleaned = content
-    .trim()
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/, '');
-
-  try {
-    const parsed = JSON.parse(cleaned) as Partial<CharacterProfileGenerationResult>;
-    return {
-      description: (parsed.description || '').trim(),
-      guidelines: (parsed.guidelines || '').trim(),
-    };
-  } catch {
-    throw new Error('角色設定生成回傳格式錯誤，無法解析 JSON');
-  }
+  return {
+    description: (parsed.description || '').trim(),
+    guidelines: (parsed.guidelines || '').trim(),
+  };
 }
 
 /**
@@ -805,67 +837,63 @@ export async function reviewStoryboardCreativity(
 
 只輸出 JSON，不要其他文字。`;
 
-  const response = await fetch(OPENROUTER_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': getAppOrigin(),
-      'X-Title': 'Storyboard System',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        {
-          role: 'user',
-          content: `請評估以下分鏡腳本的廣告效果：\n${JSON.stringify(
-            scenes.map(s => ({
-              sceneNumber: s.sceneNumber,
-              description: s.description,
-              cameraMovement: s.cameraMovement,
-              dialogue: s.dialogue,
-              duration: s.duration,
-              sceneIntent: s.sceneIntent,
-              notes: s.notes,
-            })),
-            null,
-            2
-          )}\n\n請輸出 JSON：{"emotionalArc":"...","pacing":"...","strongestScene":1,"weakestScene":3,"sceneReviews":[{"sceneNumber":1,"hookScore":4,"hookScoreReason":"...","retentionRisk":"low","weakPoint":"...","suggestion":"..."}]}`,
+  const parsed = await callOpenRouterJson<Partial<CreativeReview>>({
+    apiKey: config.apiKey,
+    model,
+    schemaName: 'creative_review',
+    schema: {
+      type: 'object',
+      properties: {
+        emotionalArc: { type: 'string' },
+        pacing: { type: 'string' },
+        strongestScene: { type: 'integer' },
+        weakestScene: { type: 'integer' },
+        sceneReviews: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              sceneNumber: { type: 'integer' },
+              hookScore: { type: 'number' },
+              hookScoreReason: { type: 'string' },
+              retentionRisk: { type: 'string' },
+              weakPoint: { type: 'string' },
+              suggestion: { type: 'string' },
+            },
+            required: ['sceneNumber', 'hookScore', 'retentionRisk', 'weakPoint', 'suggestion'],
+          },
         },
-      ],
-      response_format: { type: 'json_object' },
-    }),
+      },
+      required: ['emotionalArc', 'pacing', 'strongestScene', 'weakestScene', 'sceneReviews'],
+    },
+    messages: [
+      { role: 'system', content: systemPrompt },
+      {
+        role: 'user',
+        content: `請評估以下分鏡腳本的廣告效果：\n${JSON.stringify(
+          scenes.map(s => ({
+            sceneNumber: s.sceneNumber,
+            description: s.description,
+            cameraMovement: s.cameraMovement,
+            dialogue: s.dialogue,
+            duration: s.duration,
+            sceneIntent: s.sceneIntent,
+            notes: s.notes,
+          })),
+          null,
+          2
+        )}\n\n請輸出 JSON：{"emotionalArc":"...","pacing":"...","strongestScene":1,"weakestScene":3,"sceneReviews":[{"sceneNumber":1,"hookScore":4,"hookScoreReason":"...","retentionRisk":"low","weakPoint":"...","suggestion":"..."}]}`,
+      },
+    ],
   });
 
-  if (!response.ok) {
-    let errorDetails = '';
-    try {
-      const errorData = await response.json();
-      errorDetails = errorData.error?.message || JSON.stringify(errorData);
-    } catch {
-      errorDetails = await response.text();
-    }
-    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
-  }
-
-  const data: OpenRouterResponse = await response.json();
-  const content = data.choices[0]?.message?.content;
-  if (!content) throw new Error('OpenRouter 沒有回傳任何內容');
-
-  const cleaned = content.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-  try {
-    const parsed = JSON.parse(cleaned) as Partial<CreativeReview>;
-    return {
-      emotionalArc: parsed.emotionalArc || '',
-      pacing: parsed.pacing || '',
-      strongestScene: Number(parsed.strongestScene) || 1,
-      weakestScene: Number(parsed.weakestScene) || 1,
-      sceneReviews: Array.isArray(parsed.sceneReviews) ? parsed.sceneReviews : [],
-    };
-  } catch {
-    throw new Error('創意評估回傳格式錯誤，無法解析 JSON');
-  }
+  return {
+    emotionalArc: parsed.emotionalArc || '',
+    pacing: parsed.pacing || '',
+    strongestScene: Number(parsed.strongestScene) || 1,
+    weakestScene: Number(parsed.weakestScene) || 1,
+    sceneReviews: Array.isArray(parsed.sceneReviews) ? parsed.sceneReviews : [],
+  };
 }
 
 /**
@@ -897,49 +925,49 @@ export async function generateHookVariants(
   {"variantType":"story","variantLabel":"故事敘事型","scene":{...}}
 ]}`;
 
-  const response = await fetch(OPENROUTER_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': getAppOrigin(),
-      'X-Title': 'Storyboard System',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        {
-          role: 'user',
-          content: `主題：${topic}\n參考資料：${references}\n\n現有場景 1（請以此為基礎創作 3 種替代 Hook）：\n${JSON.stringify(existingScene1, null, 2)}\n\n請生成 3 種不同 Hook 風格的替代開場。`,
+  const parsed = await callOpenRouterJson<{ variants?: HookVariant[] }>({
+    apiKey: config.apiKey,
+    model,
+    schemaName: 'hook_variants',
+    schema: {
+      type: 'object',
+      properties: {
+        variants: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              variantType: { type: 'string' },
+              variantLabel: { type: 'string' },
+              scene: {
+                type: 'object',
+                properties: {
+                  description: { type: 'string' },
+                  cameraMovement: { type: 'string' },
+                  sceneIntent: { type: 'string' },
+                  dialogue: { type: 'string' },
+                  duration: { type: 'number' },
+                  notes: { type: 'string' },
+                },
+                required: ['description', 'cameraMovement', 'sceneIntent', 'dialogue', 'duration', 'notes'],
+              },
+            },
+            required: ['variantType', 'variantLabel', 'scene'],
+          },
         },
-      ],
-      response_format: { type: 'json_object' },
-    }),
+      },
+      required: ['variants'],
+    },
+    messages: [
+      { role: 'system', content: systemPrompt },
+      {
+        role: 'user',
+        content: `主題：${topic}\n參考資料：${references}\n\n現有場景 1（請以此為基礎創作 3 種替代 Hook）：\n${JSON.stringify(existingScene1, null, 2)}\n\n請生成 3 種不同 Hook 風格的替代開場。`,
+      },
+    ],
   });
 
-  if (!response.ok) {
-    let errorDetails = '';
-    try {
-      const errorData = await response.json();
-      errorDetails = errorData.error?.message || JSON.stringify(errorData);
-    } catch {
-      errorDetails = await response.text();
-    }
-    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
-  }
-
-  const data: OpenRouterResponse = await response.json();
-  const content = data.choices[0]?.message?.content;
-  if (!content) throw new Error('OpenRouter 沒有回傳任何內容');
-
-  const cleaned = content.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '');
-  try {
-    const parsed = JSON.parse(cleaned) as { variants?: HookVariant[] };
-    return Array.isArray(parsed.variants) ? parsed.variants : [];
-  } catch {
-    throw new Error('Hook 變體生成回傳格式錯誤，無法解析 JSON');
-  }
+  return Array.isArray(parsed.variants) ? parsed.variants : [];
 }
 
 export interface IndexTtsPlanningInput {
@@ -986,15 +1014,6 @@ function normalizeEmotionStrengths(value: unknown): IndexTtsEmotionalStrengths |
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
-function cleanJsonText(content: string): string {
-  return content
-    .trim()
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/, '')
-    .trim();
-}
-
 export async function planIndexTtsVoiceovers(
   input: IndexTtsPlanningInput,
   config: OpenRouterConfig
@@ -1020,6 +1039,7 @@ export async function planIndexTtsVoiceovers(
 1) 每個場景輸出可直接送出 TTS 的 payload。
 2) 旁白語氣需貼合場景情緒與鏡頭節奏。
 3) 文案長度要能大致對齊場景秒數，不要冗長。
+4) 每個場景都先做「direction 規劃」，再落地成 prompt。
 
 輸出限制：
 - 只輸出 JSON，不要額外文字。
@@ -1043,6 +1063,12 @@ export async function planIndexTtsVoiceovers(
         "surprised": 0.1,
         "calm": 0.7
       },
+      "direction": {
+        "tone": "溫暖、可信任",
+        "pace": "中速、每句 2-3 秒",
+        "emphasis": "強調產品利益與轉場關鍵詞",
+        "avoid": "避免口號腔與過度誇張"
+      },
       "reasoning": "一句話說明"
     }
   ]
@@ -1053,73 +1079,87 @@ export async function planIndexTtsVoiceovers(
 - strength：0.0~1.0，可省略。
 - emotion_prompt 與 should_use_prompt_for_emotion 可一起使用。
 - emotional_strengths 各值 0.0~1.0，可省略。
+- direction：可選，但若提供需具體且可執行（tone / pace / emphasis / avoid）。
 - 可同時提供 emotion_prompt 與 emotional_strengths；若衝突，以 emotion_prompt 為主。`;
 
-  const response = await fetch(OPENROUTER_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': getAppOrigin(),
-      'X-Title': 'Storyboard System',
-    },
-    body: JSON.stringify({
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            storyboardTitle: input.storyboardTitle || '',
-            originalPrompt: input.originalPrompt || '',
-            voiceDirection: input.voiceDirection || '',
-            audioRequirements: {
-              provider: 'fal-ai/index-tts-2',
-              audio_url: audioUrl,
-              emotional_audio_url: emotionalAudioUrl || undefined,
+  const parsed = await callOpenRouterJson<{ plans?: Array<Record<string, unknown>> }>({
+    apiKey: config.apiKey,
+    model,
+    schemaName: 'index_tts_planning',
+    schema: {
+      type: 'object',
+      properties: {
+        plans: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              sceneId: { type: 'string' },
+              sceneNumber: { type: 'integer' },
+              prompt: { type: 'string' },
+              strength: { type: 'number' },
+              should_use_prompt_for_emotion: { type: 'boolean' },
+              emotion_prompt: { type: 'string' },
+              emotional_strengths: {
+                type: 'object',
+                properties: {
+                  happy: { type: 'number' },
+                  angry: { type: 'number' },
+                  sad: { type: 'number' },
+                  afraid: { type: 'number' },
+                  disgusted: { type: 'number' },
+                  melancholic: { type: 'number' },
+                  surprised: { type: 'number' },
+                  calm: { type: 'number' },
+                },
+              },
+              direction: {
+                type: 'object',
+                properties: {
+                  tone: { type: 'string' },
+                  pace: { type: 'string' },
+                  emphasis: { type: 'string' },
+                  avoid: { type: 'string' },
+                },
+              },
+              reasoning: { type: 'string' },
             },
-            scenes: scenes.map((scene) => ({
-              sceneId: scene.sceneId,
-              sceneNumber: scene.sceneNumber,
-              duration: scene.duration,
-              sourceLabel: scene.sourceLabel,
-              sourceText: scene.sourceText,
-              description: scene.description || '',
-              dialogue: scene.dialogue || '',
-              notes: scene.notes || '',
-            })),
-          }),
+            required: ['sceneId', 'sceneNumber', 'prompt'],
+          },
         },
-      ],
-    }),
+      },
+      required: ['plans'],
+    },
+    messages: [
+      {
+        role: 'system',
+        content: systemPrompt,
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          storyboardTitle: input.storyboardTitle || '',
+          originalPrompt: input.originalPrompt || '',
+          voiceDirection: input.voiceDirection || '',
+          audioRequirements: {
+            provider: 'fal-ai/index-tts-2',
+            audio_url: audioUrl,
+            emotional_audio_url: emotionalAudioUrl || undefined,
+          },
+          scenes: scenes.map((scene) => ({
+            sceneId: scene.sceneId,
+            sceneNumber: scene.sceneNumber,
+            duration: scene.duration,
+            sourceLabel: scene.sourceLabel,
+            sourceText: scene.sourceText,
+            description: scene.description || '',
+            dialogue: scene.dialogue || '',
+            notes: scene.notes || '',
+          })),
+        }),
+      },
+    ],
   });
-
-  if (!response.ok) {
-    let errorDetails = '';
-    try {
-      const errorData = await response.json();
-      errorDetails = errorData.error?.message || JSON.stringify(errorData);
-    } catch {
-      errorDetails = await response.text();
-    }
-    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
-  }
-
-  const data: OpenRouterResponse = await response.json();
-  const content = data.choices[0]?.message?.content;
-  if (!content) throw new Error('OpenRouter 沒有回傳任何內容');
-
-  const cleaned = cleanJsonText(content);
-  let parsed: { plans?: Array<Record<string, unknown>> };
-  try {
-    parsed = JSON.parse(cleaned) as { plans?: Array<Record<string, unknown>> };
-  } catch {
-    throw new Error('TTS 參數生成回傳格式錯誤，無法解析 JSON');
-  }
 
   const rawPlans = Array.isArray(parsed.plans) ? parsed.plans : [];
   const bySceneId = new Map<string, Record<string, unknown>>();
@@ -1160,13 +1200,37 @@ export async function planIndexTtsVoiceovers(
     }
     if (rawEmotionPrompt) payload.emotion_prompt = rawEmotionPrompt;
 
+    const rawDirection = rawPlan.direction && typeof rawPlan.direction === 'object'
+      ? rawPlan.direction as Record<string, unknown>
+      : undefined;
+    const directionSummary = rawDirection
+      ? [
+        typeof rawDirection.tone === 'string' && rawDirection.tone.trim()
+          ? `tone=${rawDirection.tone.trim()}`
+          : '',
+        typeof rawDirection.pace === 'string' && rawDirection.pace.trim()
+          ? `pace=${rawDirection.pace.trim()}`
+          : '',
+        typeof rawDirection.emphasis === 'string' && rawDirection.emphasis.trim()
+          ? `emphasis=${rawDirection.emphasis.trim()}`
+          : '',
+        typeof rawDirection.avoid === 'string' && rawDirection.avoid.trim()
+          ? `avoid=${rawDirection.avoid.trim()}`
+          : '',
+      ].filter(Boolean).join('; ')
+      : '';
+    const rawReasoning = typeof rawPlan.reasoning === 'string' ? rawPlan.reasoning.trim() : '';
+    const combinedReasoning = [rawReasoning, directionSummary]
+      .filter(Boolean)
+      .join(' | ');
+
     return {
       sceneId: scene.sceneId,
       sceneNumber: scene.sceneNumber,
       sourceLabel: scene.sourceLabel,
       sourceText: scene.sourceText,
       payload,
-      reasoning: typeof rawPlan.reasoning === 'string' ? rawPlan.reasoning.trim() : undefined,
+      reasoning: combinedReasoning || undefined,
     };
   });
 
@@ -1202,6 +1266,7 @@ export async function suggestElevenLabsMusicPrompts(
 1) 根據分鏡內容提出 3 組不同風格方向的音樂提示詞。
 2) 每組提示詞都要可直接貼進 ElevenLabs Music 生成。
 3) 音樂要支撐敘事節奏，避免搶戲。
+4) 先定義 direction（節奏/配器/避雷），再寫最終 prompt。
 
 輸出限制：
 - 只輸出 JSON，不要其他文字。
@@ -1212,7 +1277,13 @@ export async function suggestElevenLabsMusicPrompts(
       "prompt": "string",
       "reasoning": "string",
       "mood": "string",
-      "energy": "low|medium|high"
+      "energy": "low|medium|high",
+      "direction": {
+        "tempo": "slow|mid|fast + bpm range",
+        "instrumentation": "主樂器與層次",
+        "mixFocus": "人聲/旁白避讓與頻段策略",
+        "avoid": "禁止元素（例如 heavy drums / vocals）"
+      }
     }
   ]
 }
@@ -1223,66 +1294,63 @@ export async function suggestElevenLabsMusicPrompts(
 - 可包含：genre, instrumentation, tempo, emotional arc, mix style, no vocals / sparse vocals。
 - 不要關鍵字堆疊，不要用逗號長串。`;
 
-  const response = await fetch(OPENROUTER_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': getAppOrigin(),
-      'X-Title': 'Storyboard System',
+  const parsed = await callOpenRouterJson<{ ideas?: Array<Record<string, unknown>> }>({
+    apiKey: config.apiKey,
+    model,
+    schemaName: 'elevenlabs_music_prompt_ideas',
+    schema: {
+      type: 'object',
+      properties: {
+        ideas: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              prompt: { type: 'string' },
+              reasoning: { type: 'string' },
+              mood: { type: 'string' },
+              energy: { type: 'string', enum: ['low', 'medium', 'high'] },
+              direction: {
+                type: 'object',
+                properties: {
+                  tempo: { type: 'string' },
+                  instrumentation: { type: 'string' },
+                  mixFocus: { type: 'string' },
+                  avoid: { type: 'string' },
+                },
+              },
+            },
+            required: ['prompt'],
+          },
+        },
+      },
+      required: ['ideas'],
     },
-    body: JSON.stringify({
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            provider: 'fal-ai/elevenlabs/music',
-            storyboardTitle: input.storyboardTitle || '',
-            originalPrompt: input.originalPrompt || '',
-            currentPrompt: input.currentPrompt || '',
-            targetDurationSec: input.targetDurationSec,
-            scenes: scenes.map((scene) => ({
-              sceneNumber: scene.sceneNumber,
-              duration: scene.duration,
-              description: scene.description || '',
-              dialogue: scene.dialogue || '',
-              notes: scene.notes || '',
-              cameraMovement: scene.cameraMovement || '',
-            })),
-          }),
-        },
-      ],
-    }),
+    messages: [
+      {
+        role: 'system',
+        content: systemPrompt,
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          provider: 'fal-ai/elevenlabs/music',
+          storyboardTitle: input.storyboardTitle || '',
+          originalPrompt: input.originalPrompt || '',
+          currentPrompt: input.currentPrompt || '',
+          targetDurationSec: input.targetDurationSec,
+          scenes: scenes.map((scene) => ({
+            sceneNumber: scene.sceneNumber,
+            duration: scene.duration,
+            description: scene.description || '',
+            dialogue: scene.dialogue || '',
+            notes: scene.notes || '',
+            cameraMovement: scene.cameraMovement || '',
+          })),
+        }),
+      },
+    ],
   });
-
-  if (!response.ok) {
-    let errorDetails = '';
-    try {
-      const errorData = await response.json();
-      errorDetails = errorData.error?.message || JSON.stringify(errorData);
-    } catch {
-      errorDetails = await response.text();
-    }
-    throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
-  }
-
-  const data: OpenRouterResponse = await response.json();
-  const content = data.choices[0]?.message?.content;
-  if (!content) throw new Error('OpenRouter 沒有回傳任何內容');
-
-  const cleaned = cleanJsonText(content);
-  let parsed: { ideas?: Array<Record<string, unknown>> };
-  try {
-    parsed = JSON.parse(cleaned) as { ideas?: Array<Record<string, unknown>> };
-  } catch {
-    throw new Error('音樂提示詞建議回傳格式錯誤，無法解析 JSON');
-  }
 
   const ideasRaw = Array.isArray(parsed.ideas) ? parsed.ideas : [];
   const ideas = ideasRaw
@@ -1293,9 +1361,32 @@ export async function suggestElevenLabsMusicPrompts(
       const energy = energyRaw === 'low' || energyRaw === 'medium' || energyRaw === 'high'
         ? energyRaw
         : undefined;
+      const rawDirection = item.direction && typeof item.direction === 'object'
+        ? item.direction as Record<string, unknown>
+        : undefined;
+      const directionSummary = rawDirection
+        ? [
+          typeof rawDirection.tempo === 'string' && rawDirection.tempo.trim()
+            ? `tempo=${rawDirection.tempo.trim()}`
+            : '',
+          typeof rawDirection.instrumentation === 'string' && rawDirection.instrumentation.trim()
+            ? `instrumentation=${rawDirection.instrumentation.trim()}`
+            : '',
+          typeof rawDirection.mixFocus === 'string' && rawDirection.mixFocus.trim()
+            ? `mix=${rawDirection.mixFocus.trim()}`
+            : '',
+          typeof rawDirection.avoid === 'string' && rawDirection.avoid.trim()
+            ? `avoid=${rawDirection.avoid.trim()}`
+            : '',
+        ].filter(Boolean).join('; ')
+        : '';
+      const reasoning = [
+        typeof item.reasoning === 'string' ? item.reasoning.trim() : '',
+        directionSummary,
+      ].filter(Boolean).join(' | ');
       return {
         prompt,
-        reasoning: typeof item.reasoning === 'string' ? item.reasoning.trim() : undefined,
+        reasoning: reasoning || undefined,
         mood: typeof item.mood === 'string' ? item.mood.trim() : undefined,
         energy,
       } as ElevenLabsMusicPromptIdea;

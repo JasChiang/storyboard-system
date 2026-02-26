@@ -227,15 +227,21 @@ function CharacterCard({
           <div className="absolute top-2 right-2 flex gap-1">
             <button
               onClick={() => onEdit(character.id)}
-              className="rounded-lg bg-white/90 p-1.5 transition-colors hover:bg-white"
+              title="編輯角色"
+              aria-label={`編輯 ${character.name}`}
+              className="inline-flex items-center gap-1 rounded-lg bg-white/90 px-2 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-white"
             >
               <Edit className="w-4 h-4 text-slate-700" />
+              編輯
             </button>
             <button
               onClick={() => onDelete(character.id)}
-              className="rounded-lg bg-white/90 p-1.5 transition-colors hover:bg-white"
+              title="刪除角色"
+              aria-label={`刪除 ${character.name}`}
+              className="inline-flex items-center gap-1 rounded-lg bg-white/90 px-2 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-white"
             >
               <Trash2 className="w-4 h-4 text-red-600" />
+              刪除
             </button>
           </div>
         </div>

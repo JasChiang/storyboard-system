@@ -17,6 +17,7 @@ export interface TransitionToNext {
   reason?: string;                    // AI 選擇此轉場的原因
   duration?: number;                  // 轉場時長 (秒)，預設 0.5
   useEndFrameAsNextStart?: boolean;   // 是否讓下一場景使用此場景的 endFrame 作為開始幀
+  continuitySourceMode?: 'auto' | 'previous_end_only' | 'previous_start_only' | 'none';
 }
 
 // 場景資料結構

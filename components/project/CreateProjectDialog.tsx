@@ -8,7 +8,7 @@ import { X, ChevronRight, ChevronLeft, Check } from 'lucide-react';
 interface CreateProjectDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string, description?: string, targetDurationSec?: number) => void;
+  onCreate: (name: string, description?: string, targetDurationSec?: number) => void | Promise<void>;
 }
 
 const DURATION_OPTIONS = [
@@ -24,6 +24,7 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
   const [targetDurationSec, setTargetDurationSec] = useState(30);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const reset = () => {
     setStep(1);
@@ -37,11 +38,16 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
     onClose();
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name.trim()) return;
-    onCreate(name.trim(), description.trim() || undefined, targetDurationSec);
-    reset();
-    onClose();
+    setIsSubmitting(true);
+    try {
+      await onCreate(name.trim(), description.trim() || undefined, targetDurationSec);
+      reset();
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -197,7 +203,7 @@ export function CreateProjectDialog({ isOpen, onClose, onCreate }: CreateProject
                 <ChevronLeft className="mr-1 h-4 w-4" />
                 上一步
               </Button>
-              <Button onClick={handleSubmit} className="flex-1">
+              <Button onClick={handleSubmit} className="flex-1" disabled={isSubmitting}>
                 建立專案
                 <Check className="ml-1 h-4 w-4" />
               </Button>

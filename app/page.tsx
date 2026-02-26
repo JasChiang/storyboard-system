@@ -7,17 +7,22 @@ import { ProjectCard } from '@/components/project/ProjectCard';
 import { CreateProjectDialog } from '@/components/project/CreateProjectDialog';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
   const { projects, loadProjects, createProject, deleteProject } = useProjectStore();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
 
-  const handleCreateProject = (name: string, description?: string, targetDurationSec?: number) => {
-    createProject(name, description, targetDurationSec);
+  const handleCreateProject = async (name: string, description?: string, targetDurationSec?: number) => {
+    const createdProject = await createProject(name, description, targetDurationSec);
+    if (createdProject?.id) {
+      router.push(`/project/${createdProject.id}/storyboard`);
+    }
   };
 
   return (

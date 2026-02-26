@@ -1,5 +1,6 @@
 import type { Storyboard, Scene, TransitionType } from '@/lib/types/storyboard';
 import type { EditingSuggestion } from '@/lib/types/project';
+import { resolveContinuationSource } from '@/lib/utils/transition';
 
 const SCHEMA_VERSION = '1.0.0';
 
@@ -396,9 +397,7 @@ export function convertToOpenReelProjectFile(
     const mediaId = `media-${scene.id}`;
     const clipId = `clip-${scene.id}`;
     const previousScene = index > 0 ? storyboard.scenes[index - 1] : null;
-    const continuationStartUrl = previousScene?.transitionToNext?.useEndFrameAsNextStart
-      ? previousScene.generatedEndFrame?.url
-      : undefined;
+    const continuationStartUrl = resolveContinuationSource(previousScene).url;
     const sceneSuggestion = sceneSuggestionMap.get(scene.id);
     const sceneBaseDuration = clampDuration(scene.duration, 2);
     const isVideo = !!scene.generatedVideo?.url;

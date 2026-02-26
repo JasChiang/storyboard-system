@@ -18,7 +18,7 @@ export default function StoryboardPage() {
   const params = useParams();
   const projectId = params.projectId as string;
 
-  const { currentProject, setCurrentProject, updateProject } = useProjectStore();
+  const { currentProject, isCurrentProjectLoading, setCurrentProject, updateProject } = useProjectStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [regeneratingSceneId, setRegeneratingSceneId] = useState<string | null>(null);
   const [isAutoFixing, setIsAutoFixing] = useState(false);
@@ -421,16 +421,110 @@ export default function StoryboardPage() {
     setGenerationNotice({ type: 'success', message: `已套用「${variant.variantLabel}」Hook 開場。` });
   };
 
+  const sceneNeedsRegeneration = (previous: Scene, next: Scene): boolean => {
+    const isChanged = (a: unknown, b: unknown) => JSON.stringify(a ?? null) !== JSON.stringify(b ?? null);
+    return (
+      isChanged(previous.description, next.description)
+      || isChanged(previous.cameraMovement, next.cameraMovement)
+      || isChanged(previous.dialogue, next.dialogue)
+      || isChanged(previous.duration, next.duration)
+      || isChanged(previous.requiresEndFrame, next.requiresEndFrame)
+      || isChanged(previous.endFrameDescription, next.endFrameDescription)
+      || isChanged(previous.endFrameDelta, next.endFrameDelta)
+      || isChanged(previous.endFrameDeltaSpec, next.endFrameDeltaSpec)
+      || isChanged(previous.transitionToNext, next.transitionToNext)
+      || isChanged(previous.requiredReferences, next.requiredReferences)
+      || isChanged(previous.charactersUsed, next.charactersUsed)
+      || isChanged(previous.productsUsed, next.productsUsed)
+      || isChanged(previous.sceneIntent, next.sceneIntent)
+      || isChanged(previous.startComposition, next.startComposition)
+      || isChanged(previous.subjectMotion, next.subjectMotion)
+      || isChanged(previous.continuityLock, next.continuityLock)
+      || isChanged(previous.beatGoal, next.beatGoal)
+      || isChanged(previous.shotIntent, next.shotIntent)
+      || isChanged(previous.continuityAnchor, next.continuityAnchor)
+      || isChanged(previous.changeFromPrev, next.changeFromPrev)
+    );
+  };
+
+  const clearSceneGeneratedAssets = (scene: Scene): Scene => ({
+    ...scene,
+    generatedImage: undefined,
+    generatedEndFrame: undefined,
+    generatedVideo: undefined,
+    generatedVoiceover: undefined,
+    motionPrompt: undefined,
+    videoPromptDraft: undefined,
+    videoPromptDraftNotes: undefined,
+  });
+
+  const createBlankScene = (sceneNumber: number): Scene => ({
+    id: `scene-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    sceneNumber,
+    description: '',
+    cameraMovement: 'Static shot',
+    sceneIntent: '',
+    startComposition: '',
+    subjectMotion: '',
+    continuityLock: '',
+    dialogue: '',
+    duration: 5,
+    beatGoal: '',
+    shotIntent: '',
+    continuityAnchor: '',
+    requiredReferences: [],
+    charactersUsed: [],
+    productsUsed: [],
+    changeFromPrev: sceneNumber === 1 ? 'N/A' : '',
+    requiresEndFrame: false,
+    endFrameDescription: '',
+    endFrameDelta: '',
+    transitionToNext: {
+      type: 'dissolve',
+      reason: '手動新增場景，預設溶解轉場。',
+      duration: 0.5,
+      useEndFrameAsNextStart: false,
+      continuitySourceMode: 'none',
+    },
+    qaStatus: 'warn',
+    qaIssues: ['新場景尚未完善，請補齊描述、運鏡與結構欄位。'],
+  });
+
+  const insertSceneAt = (insertAtIndex: number) => {
+    if (!currentProject?.storyboard) return;
+
+    const scenes = currentProject.storyboard.scenes;
+    const safeIndex = Math.max(0, Math.min(insertAtIndex, scenes.length));
+    const newScene = createBlankScene(safeIndex + 1);
+    const updatedScenes = [
+      ...scenes.slice(0, safeIndex),
+      newScene,
+      ...scenes.slice(safeIndex),
+    ].map((scene, index) => ({
+      ...scene,
+      sceneNumber: index + 1,
+      changeFromPrev: index === 0 ? 'N/A' : (scene.changeFromPrev || ''),
+    }));
+
+    updateProject(projectId, {
+      storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() },
+    });
+    setGenerationNotice({
+      type: 'warning',
+      message: `已新增場景 ${safeIndex + 1}，請補齊描述與指示後再生成素材。`,
+    });
+  };
+
   const handleDuplicateScene = (sceneId: string) => {
     if (!currentProject?.storyboard) return;
     const scenes = currentProject.storyboard.scenes;
     const idx = scenes.findIndex(s => s.id === sceneId);
     if (idx === -1) return;
     const original = scenes[idx];
-    const clone: Scene = {
+    const clone: Scene = clearSceneGeneratedAssets({
       ...original,
       id: `scene-${Date.now()}-clone`,
-    };
+    });
     const newScenes = [...scenes.slice(0, idx + 1), clone, ...scenes.slice(idx + 1)].map((s, i) => ({
       ...s,
       sceneNumber: i + 1,
@@ -438,6 +532,22 @@ export default function StoryboardPage() {
     updateProject(projectId, {
       storyboard: { ...currentProject.storyboard, scenes: newScenes, updatedAt: new Date().toISOString() },
     });
+    setGenerationNotice({
+      type: 'warning',
+      message: `已複製場景 ${original.sceneNumber}，新場景需重新生成圖片/影片。`,
+    });
+  };
+
+  const handleInsertSceneAfter = (sceneId: string) => {
+    if (!currentProject?.storyboard) return;
+    const idx = currentProject.storyboard.scenes.findIndex((scene) => scene.id === sceneId);
+    if (idx === -1) return;
+    insertSceneAt(idx + 1);
+  };
+
+  const handleAppendScene = () => {
+    if (!currentProject?.storyboard) return;
+    insertSceneAt(currentProject.storyboard.scenes.length);
   };
 
   const handleReorderScenes = (orderedIds: string[]) => {
@@ -478,10 +588,12 @@ export default function StoryboardPage() {
 
   const handleUpdateScene = (sceneId: string, updates: Partial<Scene>) => {
     if (!currentProject?.storyboard) return;
+    let invalidatedSceneNumber: number | null = null;
 
     const updatedScenes = currentProject.storyboard.scenes.map((scene) =>
       scene.id === sceneId
-        ? {
+        ? (() => {
+          const mergedScene: Scene = {
           ...scene,
           ...updates,
           generatedEndFrame: updates.requiresEndFrame === false ? undefined : scene.generatedEndFrame,
@@ -491,7 +603,15 @@ export default function StoryboardPage() {
           endFrameDelta: updates.requiresEndFrame === false
             ? ''
             : (updates.endFrameDelta ?? scene.endFrameDelta),
-        }
+          };
+
+          if (!sceneNeedsRegeneration(scene, mergedScene)) {
+            return mergedScene;
+          }
+
+          invalidatedSceneNumber = scene.sceneNumber;
+          return clearSceneGeneratedAssets(mergedScene);
+        })()
         : scene
     );
 
@@ -502,6 +622,13 @@ export default function StoryboardPage() {
         updatedAt: new Date().toISOString(),
       },
     });
+
+    if (invalidatedSceneNumber !== null) {
+      setGenerationNotice({
+        type: 'warning',
+        message: `已更新場景 ${invalidatedSceneNumber}，舊圖片/影片已清除，請重新生成。`,
+      });
+    }
   };
 
   const handleDeleteScene = (sceneId: string) => {
@@ -548,10 +675,26 @@ export default function StoryboardPage() {
   const passSceneCount = currentProject?.storyboard?.scenes.filter((scene) => !scene.qaStatus || scene.qaStatus === 'pass').length || 0;
   const totalSceneCount = currentProject?.storyboard?.scenes.length || 0;
 
-  if (!currentProject) {
+  if (isCurrentProjectLoading && !currentProject) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-lg text-slate-600 dark:text-slate-400">載入中...</p>
+      </div>
+    );
+  }
+
+  if (!currentProject) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <p className="text-muted-foreground">找不到專案或已被刪除</p>
+          <Link
+            href="/"
+            className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            返回首頁
+          </Link>
+        </div>
       </div>
     );
   }
@@ -768,6 +911,8 @@ export default function StoryboardPage() {
             onDeleteScene={handleDeleteScene}
             onRegenerateScene={handleRegenerateScene}
             onDuplicateScene={handleDuplicateScene}
+            onInsertSceneAfter={handleInsertSceneAfter}
+            onAppendScene={handleAppendScene}
             onResetScene={handleResetScene}
             onReorderScenes={handleReorderScenes}
             isRegeneratingSceneId={regeneratingSceneId}

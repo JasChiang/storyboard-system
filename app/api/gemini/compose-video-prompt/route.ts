@@ -6,8 +6,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as {
       model: 'kling' | 'seedance';
-      scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'requiresEndFrame' | 'endFrameDescription'>;
-      motionPrompt: string;
+      scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev' | 'requiresEndFrame' | 'endFrameDescription'>;
+      motionPrompt?: string;
       references?: ProjectReference[];
       hasPreviousEndFrame?: boolean;
     };
@@ -27,18 +27,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!body?.model || !body?.scene || !body?.motionPrompt?.trim()) {
+    if (!body?.model || !body?.scene) {
       return NextResponse.json(
-        { error: 'Missing required fields: model, scene, motionPrompt' },
+        { error: 'Missing required fields: model, scene' },
         { status: 400 }
       );
     }
+
+    const motionPrompt = body.motionPrompt?.trim()
+      || body.scene.cameraMovement?.trim()
+      || body.scene.description?.trim()
+      || 'Keep camera motion smooth and physically plausible.';
 
     const result = await composeVideoPromptWithGemini(
       {
         model: body.model,
         scene: body.scene,
-        motionPrompt: body.motionPrompt,
+        motionPrompt,
         references: body.references || [],
         hasPreviousEndFrame: Boolean(body.hasPreviousEndFrame),
       },
@@ -54,4 +59,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

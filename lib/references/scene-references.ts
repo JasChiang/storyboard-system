@@ -2,7 +2,7 @@ import type { ProjectReference, Scene } from '@/lib/types/storyboard';
 
 const TAG_PATTERN = /<([^>]+)>/g;
 
-function normalizeTag(raw: string): string {
+export function normalizeTag(raw: string): string {
   const trimmed = raw.replace(/^<|>$/g, '').trim().toLowerCase();
   return trimmed ? `<${trimmed}>` : '';
 }
@@ -23,7 +23,7 @@ function extractTagsFromText(text: string): Set<string> {
   return tags;
 }
 
-function getReferenceTag(reference: ProjectReference): string {
+export function getReferenceTag(reference: Pick<ProjectReference, 'name'>): string {
   return reference.name ? normalizeTag(reference.name) : '';
 }
 
@@ -38,19 +38,43 @@ export function getSceneEntityTags(
   return tags;
 }
 
+export function getSceneRequiredTags(
+  scene: Pick<Scene, 'requiredReferences'>
+): Set<string> {
+  const tags = new Set<string>();
+  (scene.requiredReferences || []).forEach((tag) => addTag(tags, tag));
+  return tags;
+}
+
 export function getSceneRelevantReferences(
-  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed'>,
+  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed' | 'requiredReferences'>,
   references: ProjectReference[]
 ): ProjectReference[] {
   if (!references.length) return [];
 
+  const requiredTags = getSceneRequiredTags(scene);
+  if (requiredTags.size > 0) {
+    const requiredMatched = references.filter((reference) => {
+      const tag = getReferenceTag(reference);
+      return tag ? requiredTags.has(tag) : false;
+    });
+    return requiredMatched;
+  }
+
   const sceneTags = getSceneEntityTags(scene);
-  if (!sceneTags.size) return references;
+  if (!sceneTags.size) {
+    // Without explicit entity tags, avoid sending every character/product reference.
+    // Keep environment/context references only to reduce identity contamination.
+    return references.filter((reference) => reference.type === 'environment');
+  }
 
   const matched = references.filter((reference) => {
     const tag = getReferenceTag(reference);
     return tag ? sceneTags.has(tag) : false;
   });
 
-  return matched.length > 0 ? matched : references;
+  if (matched.length > 0) return matched;
+
+  // If entity tags do not match any reference, only keep environment references as safe fallback.
+  return references.filter((reference) => reference.type === 'environment');
 }

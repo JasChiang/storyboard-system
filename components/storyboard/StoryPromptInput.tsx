@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -127,6 +127,27 @@ export function StoryPromptInput({
   }));
   const selectedTemplate = TEMPLATES.find(t => t.id === templateId);
   const useManualSceneCount = targetDurationSec === '60';
+  const referenceTagSummary = useMemo(() => {
+    const grouped = new Map<string, { label: string; count: number; hasAi: boolean }>();
+
+    references.forEach((ref) => {
+      const key = ref.name ? `name:${ref.name}` : `type:${ref.type}`;
+      const label = ref.name ? `<${ref.name}>` : ref.type;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.count += 1;
+        existing.hasAi = existing.hasAi || ref.descriptionSource === 'ai';
+        return;
+      }
+      grouped.set(key, {
+        label,
+        count: 1,
+        hasAi: ref.descriptionSource === 'ai',
+      });
+    });
+
+    return Array.from(grouped.values());
+  }, [references]);
 
   return (
     <div className="surface-panel p-6">
@@ -216,13 +237,14 @@ export function StoryPromptInput({
               ✅ 已設定 {references.length} 張參考圖。AI 生成的分鏡描述會使用 &lt;角色名&gt; 或 &lt;商品名&gt; 格式標記，不會重複描述外觀。
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {references.map(ref => (
+              {referenceTagSummary.map((item) => (
                 <span
-                  key={ref.id}
+                  key={item.label}
                   className="inline-flex items-center gap-1 rounded-full border border-emerald-300/70 bg-white px-2.5 py-1 text-xs dark:border-emerald-500/30 dark:bg-slate-900/60"
                 >
-                  {ref.name ? `<${ref.name}>` : ref.type}
-                  {ref.descriptionSource === 'ai' && ' 🤖'}
+                  {item.label}
+                  {item.count > 1 && ` ×${item.count}`}
+                  {item.hasAi && ' 🤖'}
                 </span>
               ))}
             </div>
