@@ -31,7 +31,7 @@ function categorizeLine(
   const lower = line.toLowerCase();
   const geometryPattern = /比例|形狀|輪廓|線條|曲線|方形|圓形|corner|shape|geometry|silhouette|ratio|outline|head|body|panel|vent|grille|louver/;
   const materialPattern = /材質|霧面|亮面|金屬|塑膠|texture|material|matte|gloss|color|顏色|surface|finish/;
-  const logoPattern = /logo|標誌|字樣|文字|text|spelling|字體|位置|placement|brand/;
+  const logoPattern = /logo|標誌|字樣|文字|\btext\b|spelling|字體|位置|placement|brand/;
   const forbiddenPattern = /不得|不可|不要|禁止|forbid|avoid|no\s|unchanged|固定|must remain|must stay|cannot|can't/;
   const requiredPattern = /必須|需|需要|must|保留|含有|構成|should have|must have/;
 
@@ -131,4 +131,3 @@ export function buildIdentityLockPromptLine(lock: StructuredIdentityLock, tag: s
   if (lock.forbiddenChanges?.length) parts.push(`forbidden=${lock.forbiddenChanges.slice(0, 4).join(', ')}`);
   return `${tag} structured lock: ${parts.join(' | ')}`;
 }
-

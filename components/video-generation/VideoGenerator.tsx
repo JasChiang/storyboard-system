@@ -7,10 +7,12 @@ import { MotionPromptEditor } from './MotionPromptEditor';
 import { VideoPreview } from './VideoPreview';
 import { Button } from '@/components/ui/button';
 import type { Scene, ProjectReference } from '@/lib/types/storyboard';
+import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 import { buildKlingPrompt } from '@/lib/video/adapters/kling';
 import { buildSeedancePrompt } from '@/lib/video/adapters/seedance';
 import { enforceVideoPromptPolicy } from '@/lib/video/prompt-policy';
+import { formatBlockersForAlert, getSceneGenerationBlockers } from '@/lib/workflow/generation-guard';
 
 type VideoModel = 'kling' | 'seedance';
 type PromptMode = 'deterministic' | 'ai_composer';
@@ -22,6 +24,7 @@ interface VideoGeneratorProps {
     previousEndFrameUrl?: string; // 當前一場景為 continuation 時，傳入其延續來源幀 URL（尾幀或首幀）
     externalGenerating?: boolean;
     projectReferences?: ProjectReference[];
+    allScenes?: Scene[];
     onPromptDraftChanged?: (draftPrompt: string, notes?: string) => void;
     onVideoGenerated: (
         videoUrl: string,
@@ -58,6 +61,7 @@ export function VideoGenerator({
     previousEndFrameUrl,
     externalGenerating = false,
     projectReferences = [],
+    allScenes = [],
     onPromptDraftChanged,
     onVideoGenerated
 }: VideoGeneratorProps) {
@@ -101,6 +105,19 @@ export function VideoGenerator({
         () => getSceneRelevantReferences(scene, contentRefs),
         [scene, contentRefs]
     );
+    const continuityMemoryLines = useMemo(
+        () => buildContinuityMemoryLines(scene, allScenes),
+        [allScenes, scene]
+    );
+    const generationBlockers = useMemo(
+        () => getSceneGenerationBlockers({
+            stage: 'video',
+            scene,
+            projectReferences,
+            effectiveStartFrameUrl,
+        }),
+        [effectiveStartFrameUrl, projectReferences, scene]
+    );
 
     // 當場景變化時，同步更新 motionPrompt
     useEffect(() => {
@@ -135,9 +152,9 @@ export function VideoGenerator({
 
     const buildVideoPrompt = (activeMotionPrompt: string) => {
         if (model === 'kling') {
-            return buildKlingPrompt({ scene, motionPrompt: activeMotionPrompt, scopedRefs });
+            return buildKlingPrompt({ scene, motionPrompt: activeMotionPrompt, scopedRefs, continuityMemoryLines });
         }
-        return buildSeedancePrompt({ scene, motionPrompt: activeMotionPrompt, scopedRefs });
+        return buildSeedancePrompt({ scene, motionPrompt: activeMotionPrompt, scopedRefs, continuityMemoryLines });
     };
 
     const composePromptWithAI = async (activeMotionPrompt: string): Promise<string> => {
@@ -165,6 +182,7 @@ export function VideoGenerator({
                     },
                     motionPrompt: activeMotionPrompt,
                     references: scopedRefs,
+                    continuityMemoryLines,
                     hasPreviousEndFrame: Boolean(previousEndFrameUrl),
                 }),
             });
@@ -191,6 +209,10 @@ export function VideoGenerator({
     const handleGenerate = async () => {
         if (scene.qaStatus === 'block') {
             alert('此場景被 QA 阻擋，請先回分鏡頁修正。');
+            return;
+        }
+        if (generationBlockers.length > 0) {
+            alert(`無法生成影片：\n${formatBlockersForAlert(generationBlockers)}`);
             return;
         }
 
@@ -437,8 +459,17 @@ export function VideoGenerator({
                         <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                             {isGenerationLocked ? '生成中' : hasGeneratedVideo ? '已完成' : '尚未生成'}
                         </p>
-                    </div>
                 </div>
+
+                {generationBlockers.length > 0 && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                        <p className="font-medium">影片生成已阻擋，請先修正：</p>
+                        {generationBlockers.slice(0, 3).map((blocker, index) => (
+                            <p key={`${blocker.code}-${index}`}>- {blocker.message}</p>
+                        ))}
+                    </div>
+                )}
+            </div>
 
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -734,7 +765,7 @@ export function VideoGenerator({
             <Button
                 type="button"
                 onClick={handleGenerate}
-                disabled={isGenerationLocked || !canGenerateVideo}
+                disabled={isGenerationLocked || !canGenerateVideo || generationBlockers.length > 0}
                 className="h-11 w-full rounded-xl"
             >
                 {isGenerationLocked ? (

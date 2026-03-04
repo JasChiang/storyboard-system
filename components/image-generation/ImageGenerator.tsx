@@ -7,6 +7,7 @@ import { ImagePreview } from './ImagePreview';
 import { Button } from '@/components/ui/button';
 import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/lib/prompts/image-static';
+import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
 import { buildSceneDirectiveLines } from '@/lib/prompts/scene-directives';
 import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
@@ -14,6 +15,21 @@ import { getReferenceTag, getSceneRelevantReferences, getSceneRequiredTags } fro
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
+import { formatBlockersForAlert, getSceneGenerationBlockers } from '@/lib/workflow/generation-guard';
+
+function truncatePromptLine(value: string, max = 260): string {
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    if (normalized.length <= max) return normalized;
+    return `${normalized.slice(0, max - 3)}...`;
+}
+
+function areStringArraysEqual(a: string[], b: string[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
+}
 
 interface ImageGeneratorProps {
     projectId: string;
@@ -28,6 +44,7 @@ interface ImageGeneratorProps {
     ) => void;
     onEndFrameDescriptionChanged?: (description: string, enabled: boolean) => void;
     projectReferences?: ProjectReference[];
+    allScenes?: Scene[];
     styleProfile?: StyleProfile;
     previousEndFrameUrl?: string;
     previousContinuationSource?: 'end' | 'start';
@@ -43,6 +60,7 @@ export function ImageGenerator({
     onImageGenerated,
     onEndFrameDescriptionChanged,
     projectReferences = [],
+    allScenes = [],
     styleProfile,
     previousEndFrameUrl,
     previousContinuationSource,
@@ -75,17 +93,24 @@ export function ImageGenerator({
         !scene.requiresEndFrame && scene.endFrameDescription ? scene.endFrameDescription : ''
     );
     // 專案參考圖選擇狀態
-    const [selectedProjectRefs, setSelectedProjectRefs] = useState<string[]>(
-        contentProjectReferences.map(r => r.id)  // 預設全選（不含 style refs）
-    );
+    const [selectedProjectRefs, setSelectedProjectRefs] = useState<string[]>([]);
 
     const selectedStyleReferenceUrls = styleProfile?.styleReferenceIds?.length
         ? styleProjectReferences
             .filter(ref => styleProfile.styleReferenceIds!.includes(ref.id))
             .map(ref => ref.url)
         : styleProjectReferences.map(ref => ref.url);
+    const sceneCharactersKey = (scene.charactersUsed || []).join('|');
+    const sceneProductsKey = (scene.productsUsed || []).join('|');
+    const sceneRequiredRefsKey = (scene.requiredReferences || []).join('|');
+    const sceneReferenceScope = {
+        description: scene.description,
+        charactersUsed: scene.charactersUsed || [],
+        productsUsed: scene.productsUsed || [],
+        requiredReferences: scene.requiredReferences || [],
+    };
     const requiredReferenceTags = useMemo(
-        () => getSceneRequiredTags({ requiredReferences: scene.requiredReferences }),
+        () => getSceneRequiredTags({ requiredReferences: scene.requiredReferences || [] }),
         [scene.requiredReferences]
     );
     const requiredProjectRefIds = useMemo(() => {
@@ -99,22 +124,59 @@ export function ImageGenerator({
         return new Set(ids);
     }, [contentProjectReferences, requiredReferenceTags]);
     const selectedContentRefs = contentProjectReferences.filter(ref => selectedProjectRefs.includes(ref.id));
-    const sceneScopedContentRefs = getSceneRelevantReferences(scene, selectedContentRefs);
+    const sceneScopedContentRefs = getSceneRelevantReferences(sceneReferenceScope, selectedContentRefs, {
+        // ImageGenerator has explicit user selection UI; never silently drop selected references
+        // just because scene tags are incomplete.
+        fallbackPolicy: 'all_selected',
+    });
     const requiredScopedRefs = sceneScopedContentRefs.filter((ref) => requiredProjectRefIds.has(ref.id));
     const optionalScopedRefs = sceneScopedContentRefs.filter((ref) => !requiredProjectRefIds.has(ref.id));
+    const continuityMemoryLines = useMemo(
+        () => buildContinuityMemoryLines(scene, allScenes),
+        [allScenes, scene]
+    );
     const scenePreferredAspectRatio = useMemo(() => {
         const withDefault = sceneScopedContentRefs.find((ref) => ref.ipProfile?.generationDefaults?.preferredOutputAspectRatio);
         return withDefault?.ipProfile?.generationDefaults?.preferredOutputAspectRatio;
     }, [sceneScopedContentRefs]);
 
     useEffect(() => {
-        if (requiredProjectRefIds.size === 0) return;
-        setSelectedProjectRefs((prev) => {
-            const merged = new Set(prev);
-            requiredProjectRefIds.forEach((id) => merged.add(id));
-            return merged.size === prev.length ? prev : Array.from(merged);
-        });
-    }, [requiredProjectRefIds, scene.id]);
+        const requiredOnly = contentProjectReferences
+            .filter((ref) => requiredProjectRefIds.has(ref.id))
+            .map((ref) => ref.id);
+        if (requiredOnly.length > 0) {
+            setSelectedProjectRefs((prev) => (areStringArraysEqual(prev, requiredOnly) ? prev : requiredOnly));
+            return;
+        }
+
+        const sceneMatched = getSceneRelevantReferences(
+            {
+                description: scene.description,
+                charactersUsed: scene.charactersUsed || [],
+                productsUsed: scene.productsUsed || [],
+                requiredReferences: scene.requiredReferences || [],
+            },
+            contentProjectReferences
+        ).map((ref) => ref.id);
+        if (sceneMatched.length > 0) {
+            setSelectedProjectRefs((prev) => (areStringArraysEqual(prev, sceneMatched) ? prev : sceneMatched));
+            return;
+        }
+
+        const fallback = contentProjectReferences[0]?.id ? [contentProjectReferences[0].id] : [];
+        setSelectedProjectRefs((prev) => (areStringArraysEqual(prev, fallback) ? prev : fallback));
+    }, [
+        contentProjectReferences,
+        requiredProjectRefIds,
+        scene.id,
+        scene.description,
+        scene.charactersUsed,
+        scene.productsUsed,
+        scene.requiredReferences,
+        sceneCharactersKey,
+        sceneProductsKey,
+        sceneRequiredRefsKey,
+    ]);
 
     useEffect(() => {
         if (scenePreferredAspectRatio) {
@@ -140,9 +202,27 @@ export function ImageGenerator({
     const startGenerationLoading = isGeneratingStart || externalGeneratingStart;
     const endGenerationLoading = isGeneratingEnd || externalGeneratingEnd;
     const isAnyGenerationLoading = startGenerationLoading || endGenerationLoading;
+    const startFrameBlockers = useMemo(
+        () => getSceneGenerationBlockers({
+            stage: 'image_start',
+            scene,
+            projectReferences,
+        }),
+        [projectReferences, scene]
+    );
+    const endFrameBlockers = useMemo(
+        () => getSceneGenerationBlockers({
+            stage: 'image_end',
+            scene,
+            projectReferences,
+            effectiveStartFrameUrl,
+        }),
+        [effectiveStartFrameUrl, projectReferences, scene]
+    );
 
     // 取得選中的專案參考圖 URL
     const getSelectedReferenceUrls = (options?: { includeStartFrameForEnd?: boolean; includePreviousSceneContinuation?: boolean }): string[] => {
+        const hasAnyContentRefs = requiredScopedRefs.length > 0 || optionalScopedRefs.length > 0;
         return buildPrioritizedReferenceUrls({
             model: imageModel,
             continuityReferenceUrl: options?.includePreviousSceneContinuation ? previousEndFrameUrl : undefined,
@@ -153,6 +233,10 @@ export function ImageGenerator({
             requiredContentRefs: requiredScopedRefs,
             optionalContentRefs: optionalScopedRefs,
             styleReferenceUrls: selectedStyleReferenceUrls,
+            // Start-frame generation should anchor identity refs before continuity/style cues.
+            prioritizeContentRefs: !options?.includeStartFrameForEnd,
+            strictRequiredOnlyWhenPresent: true,
+            includeStyleReferenceImages: !hasAnyContentRefs,
         });
     };
 
@@ -166,12 +250,59 @@ export function ImageGenerator({
         const effectiveDeltaSpec = scene.endFrameDeltaSpec;
         const hasExplicitDelta = Boolean(effectiveEndFrameDelta.trim());
         const cameraMovementLower = (scene.cameraMovement || '').toLowerCase();
+        const hasCharacterRefs = sceneScopedContentRefs.some((ref) => ref.type === 'character');
+        const hasProductRefs = sceneScopedContentRefs.some((ref) => ref.type === 'product');
+        const hasIdentityRefs = hasCharacterRefs || hasProductRefs;
         const hasLockVisibleText = sceneScopedContentRefs.some(
             (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
         );
         const hasForbidNewText = sceneScopedContentRefs.some(
             (ref) => ref.ipProfile?.textLogoPolicy === 'forbid_new_text'
         );
+        const hasReferenceInputs = Boolean(
+            referenceImage
+            || sceneScopedContentRefs.length > 0
+            || selectedStyleReferenceUrls.length > 0
+            || (isEndFrame && scene.generatedImage?.url)
+            || (!isEndFrame && previousEndFrameUrl)
+        );
+        const lockedReferenceLine = requiredScopedRefs.length > 0
+            ? `Locked references for this shot: ${requiredScopedRefs.map((ref) => ref.name ? `<${ref.name}>` : ref.type).join(', ')}.`
+            : '';
+        const pushReferenceHardConstraints = (target: string[]) => {
+            if (!hasReferenceInputs) return;
+            target.push('Priority order: 1) locked reference identity/geometry/logo-text fidelity 2) scene composition directives 3) style treatment.');
+            target.push('Reference images are provided via image_urls in this request. Treat them as visual ground truth, not optional inspiration.');
+            target.push('If rendered output conflicts with reference identity or geometry, follow the reference images.');
+            target.push(
+                'Maintain the exact appearance of all referenced subjects from the provided reference images; for products, preserve geometry, proportions, materials, color, logo/text, and control layout.'
+            );
+            target.push(
+                'For locked product references, never deform geometry, proportions, materials, logos/text, or control layout.'
+            );
+            target.push('Do not merge, split, add, or remove major product parts. Keep door count, door split ratio, and seam positions exactly as reference.');
+            target.push(
+                '保持所有參考主體的外觀一致；若是商品，必須維持幾何形狀、比例、材質、顏色、Logo/文字與按鍵介面布局。'
+            );
+            target.push(
+                'Across any visual style preset, style directives may change rendering language only; locked subject identity and topology must remain exact.'
+            );
+            target.push(
+                'Keep locked character identity exact (face/hair/body proportions/outfit silhouette/accessories) and locked product topology exact (part count/layout/seams/handles/feet/buttons/ports/cameras/logo/text).'
+            );
+            target.push(
+                'If style negatives conflict with locked material identity, preserve locked material cues and only reduce excessive glare/noise.'
+            );
+            target.push(
+                '不論套用任何風格模板，僅可改變渲染語彙，不可改變鎖定主體的身份與零件拓撲（角色臉型髮型與身形比例、商品門片/門縫/把手/底腳/按鍵與 Logo 位置）。'
+            );
+            if (lockedReferenceLine) {
+                target.push(lockedReferenceLine);
+            }
+            target.push('Reference usage protocol: uploaded content references are hard constraints for identity, geometry, materials, logos, and visible text.');
+            target.push('If text instructions conflict with locked references, locked references win.');
+            target.push('If multiple reference images are different angles of the same product/character, keep one unified identity and do not blend with other designs.');
+        };
 
         // Tail frame "delta-only" mode:
         // Use start frame as ground truth and only describe required changes.
@@ -197,15 +328,27 @@ export function ImageGenerator({
                 }
             }
 
-            const minimalParts: string[] = [
-                ...buildStyleDirectiveLines(styleProfile),
-                ...buildSceneDirectiveLines(scene),
-            ];
+            const minimalParts: string[] = [];
+            pushReferenceHardConstraints(minimalParts);
+            minimalParts.push(...buildStyleDirectiveLines(styleProfile));
+            minimalParts.push(...buildSceneDirectiveLines(scene));
+            minimalParts.push(...continuityMemoryLines);
 
             minimalParts.push('Use the generated start frame as the single source of truth.');
+            minimalParts.push(
+                'Maintain the exact appearance of all referenced subjects from the provided reference images; for products, preserve geometry, proportions, materials, color, logo/text, and control layout.'
+            );
+            minimalParts.push(
+                '保持所有參考主體的外觀一致；若是商品，必須維持幾何形狀、比例、材質、顏色、Logo/文字與按鍵介面布局。'
+            );
             minimalParts.push('Camera movement/reframing is allowed, but keep scene geometry and object continuity physically consistent.');
             minimalParts.push('Keep static environment layout unchanged: walls, bed, nightstand, lamp, curtain, and furniture must keep the same world relationships.');
-            minimalParts.push('Keep character continuity unchanged unless explicitly requested.');
+            if (hasCharacterRefs) {
+                minimalParts.push('Keep character continuity unchanged unless explicitly requested: face structure, body proportions, outfit silhouette/materials, and accessories must remain the same.');
+            }
+            if (hasProductRefs) {
+                minimalParts.push('Keep product continuity unchanged unless explicitly requested: geometry, proportions, material finish, colorway, logo/text placement, and control layout (buttons/ports/camera arrangement) must remain the same.');
+            }
             minimalParts.push('Keep movable-object continuity unchanged unless explicitly requested: phone/props position, orientation, and interaction state must remain consistent with start frame.');
             minimalParts.push(`Apply only this end-frame delta: ${deltaParts.join('. ')}`);
             if (effectiveDeltaSpec?.reframingGoal) {
@@ -247,106 +390,60 @@ export function ImageGenerator({
             return normalizePromptParts(minimalParts, 5000);
         }
 
-        const parts = [];
+        const parts: string[] = [];
         const consistencyGuardrails = [
             'Describe the scene in natural language, not keyword stuffing.',
             'Anchor identity and product geometry to reference images.',
-            'Keep face structure, hairstyle, body proportions, outfit silhouette/materials, accessories, and logo placement unchanged unless explicitly requested.',
             'Do not introduce new characters, props, logos, or text unless explicitly requested.',
         ];
-
+        if (hasCharacterRefs) {
+            consistencyGuardrails.push(
+                'Keep face structure, hairstyle, body proportions, outfit silhouette/materials, and accessories unchanged unless explicitly requested.'
+            );
+        }
+        if (hasProductRefs) {
+            consistencyGuardrails.push(
+                'Keep product identity unchanged: geometry, proportions, material finish, colorway, logo/text placement, and control layout (buttons/ports/camera arrangement) must remain the same unless explicitly requested.'
+            );
+            consistencyGuardrails.push(
+                'Keep product part topology unchanged: component count/layout (doors, seams, handles, feet, buttons, ports, camera clusters) must match references exactly.'
+            );
+        }
+        if (!hasIdentityRefs && !referenceImage) {
+            consistencyGuardrails.push(
+                'Keep key object identity and layout continuity stable unless explicitly requested.'
+            );
+        }
+        pushReferenceHardConstraints(parts);
         parts.push(...buildStyleDirectiveLines(styleProfile));
         parts.push(...buildSceneDirectiveLines(scene));
+        parts.push(...continuityMemoryLines);
 
-        // 1. 加入專案參考圖的描述作為上下文
-        const selectedStyleRefs = styleProjectReferences.filter((ref) =>
-            selectedStyleReferenceUrls.includes(ref.url)
-        );
-        if (selectedStyleRefs.length > 0) {
-            parts.push('Style references:');
-            selectedStyleRefs.forEach(ref => {
-                parts.push(`[style] ${ref.description}`);
-            });
-            parts.push('Preserve rendering style, texture language, color treatment, and lighting grammar from style references.');
-        }
-
-        if (selectedProjectRefs.length > 0) {
-            if (sceneScopedContentRefs.length > 0) {
-                parts.push('Content references:');
-                sceneScopedContentRefs.forEach(ref => {
-                    const nameTag = ref.name ? `<${ref.name}>` : ref.type;
-                    const guidelineText = ref.guidelines ? ` (Rules: ${ref.guidelines})` : '';
-                    parts.push(`${nameTag}: ${ref.description}${guidelineText}`);
-                    const structuredLock = ref.structuredIdentityLock || buildStructuredIdentityLock(ref);
-                    if (structuredLock) {
-                        parts.push(buildIdentityLockPromptLine(structuredLock, nameTag));
-                    }
-                    if (ref.mustKeepFeatures?.length) {
-                        parts.push(`${nameTag} must keep: ${ref.mustKeepFeatures.join(', ')}`);
-                    }
-                    if (ref.ipProfile?.immutableRules?.length) {
-                        parts.push(`${nameTag} hard rules: ${ref.ipProfile.immutableRules.join('; ')}`);
-                    }
-                    if (ref.ipProfile) {
-                        parts.push(
-                            `${nameTag} policy: identity=${ref.ipProfile.strictIdentity ? 'strict' : 'flexible'}, accessories=${ref.ipProfile.allowAccessoryChanges ? 'allowed' : 'locked'}`
-                        );
-                    }
-                });
-                if (selectedContentRefs.length > sceneScopedContentRefs.length) {
-                    parts.push('Ignore non-tagged references for this shot; keep only the scene-mentioned identities.');
-                }
-            }
-        }
-
-        if (hasLockVisibleText) {
-            parts.push('If brand text or logos are visible, keep them exactly legible and unchanged in spelling, shape, and placement.');
-        }
-        if (hasForbidNewText) {
-            parts.push('Do not invent any new letters, numbers, brand marks, or package text.');
-        }
-
-        // 2. 選擇正確的描述（首幀）
+        // 先放入場景主描述，避免長提示詞被截斷時遺失核心構圖要求
         const sceneDescription = buildStaticFrameDescription(
             scene.description,
             isEndFrame ? effectiveEndFrameDescription : scene.description,
             isEndFrame
         );
-
-        // 3. 加入主要場景描述和自訂提示詞
         if (!customPrompt) {
-            // 沒有自訂內容，直接使用場景描述
             parts.push(sceneDescription);
         } else {
-            // 有自訂內容，根據模式處理
             switch (promptMode) {
                 case 'replace':
-                    // 只使用自訂內容
                     parts.push(sanitizeStaticFrameDescription(customPrompt));
                     break;
-
                 case 'append':
-                    // 場景描述 + 自訂內容
                     parts.push(sceneDescription);
                     parts.push(sanitizeStaticFrameDescription(customPrompt));
                     break;
-
                 case 'prepend':
-                    // 自訂內容 + 場景描述
                     parts.push(sanitizeStaticFrameDescription(customPrompt));
                     parts.push(sceneDescription);
                     break;
             }
         }
-
         parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
         parts.push(...consistencyGuardrails);
-
-        // 4. 如果有場景參考圖，加強保持外觀特徵的指令
-        if (referenceImage || selectedProjectRefs.length > 0) {
-            parts.push('Maintain the exact appearance, facial features, clothing, and style from the uploaded reference image.');
-            parts.push('保持參考圖中的外觀、面部特徵、服裝和風格。');
-        }
         if (isEndFrame && scene.generatedImage?.url) {
             parts.push('Use the generated start frame as the primary continuity reference.');
             parts.push('Start-frame continuity has higher priority than generic stylistic interpretation.');
@@ -371,6 +468,54 @@ export function ImageGenerator({
             parts.push('This scene continues from the previous scene end frame.');
             parts.push('Keep everything the same as the previous scene end frame unless this prompt explicitly changes it.');
             parts.push('Keep subject identity and key object consistency while updating only composition and action as described.');
+        }
+
+        // 1. 加入專案參考圖的描述作為上下文（內容參考優先於風格參考）
+        if (selectedProjectRefs.length > 0) {
+            if (sceneScopedContentRefs.length > 0) {
+                parts.push('Content references:');
+                sceneScopedContentRefs.forEach(ref => {
+                    const nameTag = ref.name ? `<${ref.name}>` : ref.type;
+                    const guidelineText = ref.guidelines ? ` (Rules: ${ref.guidelines})` : '';
+                    parts.push(`${nameTag}: ${truncatePromptLine(ref.description, 220)}${guidelineText}`);
+                    const structuredLock = ref.structuredIdentityLock || buildStructuredIdentityLock(ref);
+                    if (structuredLock) {
+                        parts.push(truncatePromptLine(buildIdentityLockPromptLine(structuredLock, nameTag), 320));
+                    }
+                    if (ref.mustKeepFeatures?.length) {
+                        parts.push(`${nameTag} must keep: ${ref.mustKeepFeatures.slice(0, 8).join(', ')}`);
+                    }
+                    if (ref.ipProfile?.immutableRules?.length) {
+                        parts.push(`${nameTag} hard rules: ${ref.ipProfile.immutableRules.slice(0, 5).join('; ')}`);
+                    }
+                    if (ref.ipProfile) {
+                        parts.push(
+                            `${nameTag} policy: identity=${ref.ipProfile.strictIdentity ? 'strict' : 'flexible'}, accessories=${ref.ipProfile.allowAccessoryChanges ? 'allowed' : 'locked'}`
+                        );
+                    }
+                });
+                if (selectedContentRefs.length > sceneScopedContentRefs.length) {
+                    parts.push('Ignore non-tagged references for this shot; keep only the scene-mentioned identities.');
+                }
+            }
+        }
+
+        const selectedStyleRefs = styleProjectReferences.filter((ref) =>
+            selectedStyleReferenceUrls.includes(ref.url)
+        );
+        if (selectedStyleRefs.length > 0) {
+            parts.push('Style references:');
+            selectedStyleRefs.forEach(ref => {
+                parts.push(`[style] ${ref.description}`);
+            });
+            parts.push('Preserve rendering style, texture language, color treatment, and lighting grammar from style references.');
+        }
+
+        if (hasLockVisibleText) {
+            parts.push('If brand text or logos are visible, keep them exactly legible and unchanged in spelling, shape, and placement.');
+        }
+        if (hasForbidNewText) {
+            parts.push('Do not invent any new letters, numbers, brand marks, or package text.');
         }
 
         return normalizePromptParts(parts, 5000);
@@ -425,6 +570,11 @@ export function ImageGenerator({
 
     const handleGenerate = async (isEndFrame: boolean = false) => {
         if (isAnyGenerationLoading) {
+            return;
+        }
+        const blockers = isEndFrame ? endFrameBlockers : startFrameBlockers;
+        if (blockers.length > 0) {
+            alert(`無法生成${isEndFrame ? '尾幀' : '首幀'}：\n${formatBlockersForAlert(blockers)}`);
             return;
         }
 
@@ -709,6 +859,7 @@ export function ImageGenerator({
     const hasStartFrame = Boolean(effectiveStartFrameUrl);
     const hasEndFrame = Boolean(scene.generatedEndFrame?.url);
     const totalSelectedReferences = selectedProjectRefs.length + selectedStyleReferenceUrls.length + (referenceImage ? 1 : 0);
+    const activeGenerationBlockers = shouldUseEndFrame ? [...startFrameBlockers, ...endFrameBlockers] : startFrameBlockers;
 
     return (
         <div className="space-y-5">
@@ -753,6 +904,15 @@ export function ImageGenerator({
                         <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{totalSelectedReferences}</p>
                     </div>
                 </div>
+
+                {activeGenerationBlockers.length > 0 && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                        <p className="font-medium">生成已阻擋，請先修正：</p>
+                        {activeGenerationBlockers.slice(0, 3).map((blocker, index) => (
+                            <p key={`${blocker.code}-${index}`}>- {blocker.message}</p>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <div className="surface-panel space-y-2 p-4">
@@ -1109,7 +1269,7 @@ export function ImageGenerator({
                 <Button
                     type="button"
                     onClick={() => handleGenerate(false)}
-                    disabled={isAnyGenerationLoading}
+                    disabled={isAnyGenerationLoading || startFrameBlockers.length > 0}
                     className="h-11 w-full rounded-xl"
                 >
                     {startGenerationLoading ? '生成首幀中...' : (
@@ -1125,7 +1285,7 @@ export function ImageGenerator({
                         type="button"
                         variant="outline"
                         onClick={() => handleGenerate(true)}
-                        disabled={isAnyGenerationLoading || !effectiveStartFrameUrl}
+                        disabled={isAnyGenerationLoading || !effectiveStartFrameUrl || endFrameBlockers.length > 0}
                         className="h-11 w-full rounded-xl border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-300 dark:hover:bg-purple-900/20"
                     >
                         {endGenerationLoading ? '生成尾幀中...' : (

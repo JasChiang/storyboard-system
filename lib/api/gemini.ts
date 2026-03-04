@@ -21,6 +21,7 @@ export interface ComposeVideoPromptInput {
   scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev' | 'requiresEndFrame' | 'endFrameDescription'>;
   motionPrompt: string;
   references: ProjectReference[];
+  continuityMemoryLines?: string[];
   hasPreviousEndFrame?: boolean;
 }
 
@@ -290,7 +291,8 @@ Rules:
 ${modelSpecificRule}
 9) Avoid keyword stuffing like "masterpiece, best quality, 8k, ultra-detailed".
 10) Respect storyboard directives: sceneIntent/startComposition/subjectMotion/continuityLock/shotIntent/continuityAnchor/changeFromPrev.
-11) If visible text/logo exists, require exact spelling and placement. JSON only, no markdown.`;
+11) Keep continuity memory constraints stable unless this shot explicitly overrides them.
+12) If visible text/logo exists, require exact spelling and placement. JSON only, no markdown.`;
 
   const userPayload = {
     mode: input.model,
@@ -312,6 +314,9 @@ ${modelSpecificRule}
     },
     userMotionPrompt: input.motionPrompt,
     consolidatedReferenceRules: referenceContext,
+    continuityMemory: Array.isArray(input.continuityMemoryLines)
+      ? input.continuityMemoryLines.filter((line) => typeof line === 'string' && line.trim())
+      : [],
   };
 
   const result = await ai.models.generateContent({

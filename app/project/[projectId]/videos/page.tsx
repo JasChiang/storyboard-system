@@ -29,16 +29,6 @@ interface WorkflowTask {
   updatedAt: string;
 }
 
-interface CheckStatusResponse {
-  status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
-  error?: string;
-  result?: {
-    video?: { url?: string };
-  };
-}
-
-const MISSING_VIDEO_RECOVERY_METADATA_TIMEOUT_MS = 45_000;
-
 export default function VideosPage() {
   const params = useParams();
   const projectId = params.projectId as string;
@@ -47,7 +37,6 @@ export default function VideosPage() {
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [sceneQuery, setSceneQuery] = useState('');
   const [generationTasks, setGenerationTasks] = useState<WorkflowTask[]>([]);
-  const recoveringTaskIdsRef = useRef<Set<string>>(new Set());
   const appliedRecoveredKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -60,7 +49,7 @@ export default function VideosPage() {
 
     const fetchTasks = async () => {
       try {
-        const response = await fetch(`/api/workflow/tasks?projectId=${encodeURIComponent(projectId)}&stage=video`);
+        const response = await fetch(`/api/workflow/tasks?projectId=${encodeURIComponent(projectId)}&stage=video&recoverRunning=1`);
         if (!response.ok) return;
 
         const payload = (await response.json()) as { data?: WorkflowTask[] };
@@ -267,101 +256,6 @@ export default function VideosPage() {
       if (appliedRecoveredKeysRef.current.has(key)) return;
       appliedRecoveredKeysRef.current.add(key);
       applyRecoveredVideoTask(task, task.outputUrl);
-    });
-  }, [applyRecoveredVideoTask, currentProject?.storyboard, generationTasks]);
-
-  useEffect(() => {
-    if (!currentProject?.storyboard) return;
-
-    generationTasks.forEach((task) => {
-      if (!task.sceneId) return;
-      if (task.stage !== 'video') return;
-      if (task.status !== 'running') return;
-      if (recoveringTaskIdsRef.current.has(task.id)) return;
-
-      const requestId = typeof task.metadata?.requestId === 'string' ? task.metadata.requestId.trim() : '';
-      const endpoint = typeof task.metadata?.endpoint === 'string' ? task.metadata.endpoint.trim() : '';
-
-      if (!requestId || !endpoint) {
-        const updatedAt = Date.parse(task.updatedAt);
-        if (!Number.isFinite(updatedAt)) return;
-        if (Date.now() - updatedAt <= MISSING_VIDEO_RECOVERY_METADATA_TIMEOUT_MS) return;
-
-        recoveringTaskIdsRef.current.add(task.id);
-        void (async () => {
-          try {
-            await fetch(`/api/workflow/tasks/${task.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                status: 'failed',
-                error: 'Task recovery metadata missing (requestId/endpoint). Please regenerate this video.',
-              }),
-            });
-          } catch (error) {
-            console.error('Failed to fail stale video task without recovery metadata', task.id, error);
-          } finally {
-            recoveringTaskIdsRef.current.delete(task.id);
-          }
-        })();
-        return;
-      }
-
-      recoveringTaskIdsRef.current.add(task.id);
-      void (async () => {
-        try {
-          const response = await fetch('/api/fal/check-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requestId,
-              endpoint,
-              type: 'video',
-            }),
-          });
-          if (!response.ok) return;
-
-          const payload = await response.json() as CheckStatusResponse;
-          if (payload.status === 'FAILED') {
-            await fetch(`/api/workflow/tasks/${task.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                status: 'failed',
-                error: payload.error || 'Video generation failed during recovery',
-              }),
-            });
-            return;
-          }
-
-          if (payload.status !== 'COMPLETED') return;
-
-          const videoUrl = typeof payload.result?.video?.url === 'string'
-            ? payload.result.video.url.trim()
-            : '';
-          if (!videoUrl) return;
-
-          await fetch(`/api/workflow/tasks/${task.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              status: 'completed',
-              outputUrl: videoUrl,
-              metadata: {
-                ...(task.metadata || {}),
-                requestId,
-                endpoint,
-                recoveredAt: new Date().toISOString(),
-              },
-            }),
-          });
-          applyRecoveredVideoTask(task, videoUrl);
-        } catch (error) {
-          console.error('Failed to recover running video task', task.id, error);
-        } finally {
-          recoveringTaskIdsRef.current.delete(task.id);
-        }
-      })();
     });
   }, [applyRecoveredVideoTask, currentProject?.storyboard, generationTasks]);
 
@@ -741,6 +635,7 @@ export default function VideosPage() {
                     previousEndFrameUrl={previousEndFrameUrl}
                     externalGenerating={selectedSceneGenerationState.isGenerating}
                     projectReferences={currentProject.storyboard?.projectReferences}
+                    allScenes={scenes}
                     onPromptDraftChanged={(draftPrompt, notes) =>
                       handleVideoPromptDraftChanged(selectedScene.id, draftPrompt, notes)
                     }

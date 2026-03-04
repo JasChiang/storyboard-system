@@ -48,5 +48,44 @@ describe('reference priority', () => {
 
     expect(urls).toEqual([duplicate]);
   });
-});
 
+  it('can prioritize content refs for start-frame generation', () => {
+    const requiredRefs = [mkRef('req-1', 'https://example.com/req-1.png')];
+    const optionalRefs = [mkRef('opt-1', 'https://example.com/opt-1.png')];
+    const urls = buildPrioritizedReferenceUrls({
+      model: 'nano-banana-pro',
+      continuityReferenceUrl: 'https://example.com/continuity.png',
+      sceneReferenceUrl: 'https://example.com/scene.png',
+      requiredContentRefs: requiredRefs,
+      optionalContentRefs: optionalRefs,
+      prioritizeContentRefs: true,
+    });
+
+    expect(urls.slice(0, 3)).toEqual([
+      'https://example.com/req-1.png',
+      'https://example.com/scene.png',
+      'https://example.com/opt-1.png',
+    ]);
+  });
+
+  it('can keep only required refs when strictRequiredOnlyWhenPresent is enabled', () => {
+    const urls = buildPrioritizedReferenceUrls({
+      model: 'nano-banana-pro',
+      requiredContentRefs: [mkRef('req-1', 'https://example.com/req-1.png')],
+      optionalContentRefs: [mkRef('opt-1', 'https://example.com/opt-1.png')],
+      strictRequiredOnlyWhenPresent: true,
+    });
+
+    expect(urls).toEqual(['https://example.com/req-1.png']);
+  });
+
+  it('can disable style images in image_urls payload', () => {
+    const urls = buildPrioritizedReferenceUrls({
+      model: 'nano-banana-pro',
+      styleReferenceUrls: ['https://example.com/style.png'],
+      includeStyleReferenceImages: false,
+    });
+
+    expect(urls).toEqual([]);
+  });
+});

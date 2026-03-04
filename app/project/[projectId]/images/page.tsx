@@ -31,17 +31,6 @@ interface WorkflowTask {
   updatedAt: string;
 }
 
-interface CheckStatusResponse {
-  status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
-  error?: string;
-  result?: {
-    images?: Array<{ url?: string }>;
-    seed?: number;
-  };
-}
-
-const MISSING_RECOVERY_METADATA_TIMEOUT_MS = 45_000;
-
 export default function ImagesPage() {
   const params = useParams();
   const projectId = params.projectId as string;
@@ -55,7 +44,6 @@ export default function ImagesPage() {
   const [generationTasks, setGenerationTasks] = useState<WorkflowTask[]>([]);
   const [sceneQuery, setSceneQuery] = useState('');
   const [showPreview, setShowPreview] = useState(false);
-  const recoveringTaskIdsRef = useRef<Set<string>>(new Set());
   const appliedRecoveredKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -68,7 +56,7 @@ export default function ImagesPage() {
 
     const fetchTasks = async () => {
       try {
-        const response = await fetch(`/api/workflow/tasks?projectId=${encodeURIComponent(projectId)}`);
+        const response = await fetch(`/api/workflow/tasks?projectId=${encodeURIComponent(projectId)}&recoverRunning=1`);
         if (!response.ok) return;
 
         const payload = (await response.json()) as { data?: WorkflowTask[] };
@@ -306,103 +294,6 @@ export default function ImagesPage() {
       const seedValue = task.metadata?.seed;
       const seed = typeof seedValue === 'number' ? seedValue : undefined;
       applyRecoveredImageTask(task, task.outputUrl, seed);
-    });
-  }, [applyRecoveredImageTask, currentProject?.storyboard, generationTasks]);
-
-  useEffect(() => {
-    if (!currentProject?.storyboard) return;
-
-    generationTasks.forEach((task) => {
-      if (!task.sceneId) return;
-      if (task.status !== 'running') return;
-      if (task.stage !== 'image_start' && task.stage !== 'image_end') return;
-      if (recoveringTaskIdsRef.current.has(task.id)) return;
-
-      const requestId = typeof task.metadata?.requestId === 'string' ? task.metadata.requestId.trim() : '';
-      const endpoint = typeof task.metadata?.endpoint === 'string' ? task.metadata.endpoint.trim() : '';
-      if (!requestId || !endpoint) {
-        const updatedAt = Date.parse(task.updatedAt);
-        if (!Number.isFinite(updatedAt)) return;
-        if (Date.now() - updatedAt <= MISSING_RECOVERY_METADATA_TIMEOUT_MS) return;
-
-        recoveringTaskIdsRef.current.add(task.id);
-        void (async () => {
-          try {
-            await fetch(`/api/workflow/tasks/${task.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                status: 'failed',
-                error: 'Task recovery metadata missing (requestId/endpoint). Please regenerate this frame.',
-              }),
-            });
-          } catch (error) {
-            console.error('Failed to fail stale image task without recovery metadata', task.id, error);
-          } finally {
-            recoveringTaskIdsRef.current.delete(task.id);
-          }
-        })();
-        return;
-      }
-
-      recoveringTaskIdsRef.current.add(task.id);
-      void (async () => {
-        try {
-          const response = await fetch('/api/fal/check-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requestId,
-              endpoint,
-              type: 'image',
-            }),
-          });
-          if (!response.ok) return;
-
-          const payload = await response.json() as CheckStatusResponse;
-          if (payload.status === 'FAILED') {
-            await fetch(`/api/workflow/tasks/${task.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                status: 'failed',
-                error: payload.error || 'Generation failed during recovery',
-              }),
-            });
-            return;
-          }
-
-          if (payload.status !== 'COMPLETED') return;
-
-          const imageUrl = typeof payload.result?.images?.[0]?.url === 'string'
-            ? payload.result.images[0].url.trim()
-            : '';
-          if (!imageUrl) return;
-          const seed = typeof payload.result?.seed === 'number' ? payload.result.seed : undefined;
-          const nextMetadata = {
-            ...(task.metadata || {}),
-            requestId,
-            endpoint,
-            seed,
-            recoveredAt: new Date().toISOString(),
-          };
-
-          await fetch(`/api/workflow/tasks/${task.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              status: 'completed',
-              outputUrl: imageUrl,
-              metadata: nextMetadata,
-            }),
-          });
-          applyRecoveredImageTask(task, imageUrl, seed);
-        } catch (error) {
-          console.error('Failed to recover running image task', task.id, error);
-        } finally {
-          recoveringTaskIdsRef.current.delete(task.id);
-        }
-      })();
     });
   }, [applyRecoveredImageTask, currentProject?.storyboard, generationTasks]);
 
@@ -932,6 +823,7 @@ export default function ImagesPage() {
                           handleEndFrameDescriptionChanged(selectedScene.id, description, enabled)
                         }
                         projectReferences={currentProject.storyboard?.projectReferences}
+                        allScenes={scenes}
                         styleProfile={activeStyleProfile}
                         previousEndFrameUrl={previousEndFrameUrl}
                         previousContinuationSource={previousContinuationSource}

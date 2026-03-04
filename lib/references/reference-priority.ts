@@ -14,6 +14,9 @@ interface BuildPrioritizedReferenceUrlsInput {
   requiredContentRefs?: ProjectReference[];
   optionalContentRefs?: ProjectReference[];
   styleReferenceUrls?: string[];
+  prioritizeContentRefs?: boolean;
+  strictRequiredOnlyWhenPresent?: boolean;
+  includeStyleReferenceImages?: boolean;
 }
 
 function appendUniqueUrl(target: string[], raw?: string | null) {
@@ -28,24 +31,45 @@ export function buildPrioritizedReferenceUrls(
   input: BuildPrioritizedReferenceUrlsInput
 ): string[] {
   const ordered: string[] = [];
+  const requiredContentRefs = input.requiredContentRefs || [];
+  const optionalContentRefs = input.optionalContentRefs || [];
+  const hasRequiredContentRefs = requiredContentRefs.length > 0;
+  const includeOptionalContentRefs = !(
+    input.strictRequiredOnlyWhenPresent && hasRequiredContentRefs
+  );
 
-  appendUniqueUrl(ordered, input.continuityReferenceUrl);
-  appendUniqueUrl(ordered, input.startFrameReferenceUrl);
-  appendUniqueUrl(ordered, input.sceneReferenceUrl);
-
-  for (const ref of input.requiredContentRefs || []) {
-    appendUniqueUrl(ordered, ref.url);
+  if (input.prioritizeContentRefs) {
+    for (const ref of requiredContentRefs) {
+      appendUniqueUrl(ordered, ref.url);
+    }
+    appendUniqueUrl(ordered, input.sceneReferenceUrl);
+    if (includeOptionalContentRefs) {
+      for (const ref of optionalContentRefs) {
+        appendUniqueUrl(ordered, ref.url);
+      }
+    }
+    appendUniqueUrl(ordered, input.continuityReferenceUrl);
+    appendUniqueUrl(ordered, input.startFrameReferenceUrl);
+  } else {
+    appendUniqueUrl(ordered, input.continuityReferenceUrl);
+    appendUniqueUrl(ordered, input.startFrameReferenceUrl);
+    appendUniqueUrl(ordered, input.sceneReferenceUrl);
+    for (const ref of requiredContentRefs) {
+      appendUniqueUrl(ordered, ref.url);
+    }
+    if (includeOptionalContentRefs) {
+      for (const ref of optionalContentRefs) {
+        appendUniqueUrl(ordered, ref.url);
+      }
+    }
   }
 
-  for (const ref of input.optionalContentRefs || []) {
-    appendUniqueUrl(ordered, ref.url);
-  }
-
-  for (const styleUrl of input.styleReferenceUrls || []) {
-    appendUniqueUrl(ordered, styleUrl);
+  if (input.includeStyleReferenceImages !== false) {
+    for (const styleUrl of input.styleReferenceUrls || []) {
+      appendUniqueUrl(ordered, styleUrl);
+    }
   }
 
   const cap = MAX_REFERENCE_IMAGES[input.model] ?? 4;
   return ordered.slice(0, cap);
 }
-

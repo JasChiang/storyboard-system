@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Scene, TransitionType, type TransitionToNext } from '@/lib/types/storyboard';
 import { Pencil, Trash2, Check, X, Copy, Star, RotateCcw, MoreHorizontal, RefreshCw, Loader2, Plus } from 'lucide-react';
+const TAG_PATTERN = /^<[^<>]+>$/;
 
 interface SceneRowProps {
   scene: Scene;
@@ -68,6 +69,51 @@ const QA_CONFIG = {
   pass: { label: '通過', className: 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300' },
 };
 
+function validateSceneDraft(scene: Scene): string[] {
+  const errors: string[] = [];
+  const requiredTextFields: Array<[key: keyof Scene, label: string]> = [
+    ['description', 'description'],
+    ['cameraMovement', 'cameraMovement'],
+    ['sceneIntent', 'sceneIntent'],
+    ['startComposition', 'startComposition'],
+    ['subjectMotion', 'subjectMotion'],
+    ['continuityLock', 'continuityLock'],
+    ['shotIntent', 'shotIntent'],
+    ['continuityAnchor', 'continuityAnchor'],
+  ];
+
+  requiredTextFields.forEach(([key, label]) => {
+    const value = scene[key];
+    if (typeof value !== 'string' || !value.trim()) {
+      errors.push(`${label} 不能為空`);
+    }
+  });
+
+  if (!Number.isFinite(scene.duration) || scene.duration <= 0) {
+    errors.push('duration 必須大於 0');
+  }
+
+  const validateTagArray = (label: string, values?: string[]) => {
+    const invalid = (values || []).filter((tag) => !TAG_PATTERN.test((tag || '').trim()));
+    if (invalid.length > 0) {
+      errors.push(`${label} 標記格式錯誤：${invalid.join(', ')}`);
+    }
+  };
+
+  validateTagArray('charactersUsed', scene.charactersUsed);
+  validateTagArray('productsUsed', scene.productsUsed);
+  validateTagArray('requiredReferences', scene.requiredReferences);
+
+  if (scene.requiresEndFrame && !scene.endFrameDelta?.trim()) {
+    errors.push('requiresEndFrame 開啟時，endFrameDelta 不能為空');
+  }
+  if (scene.transitionToNext?.type === 'continuation' && !scene.transitionToNext?.continuitySourceMode) {
+    errors.push('continuation 轉場必須指定 continuitySourceMode');
+  }
+
+  return errors;
+}
+
 export function SceneRow({
   scene,
   onUpdate,
@@ -86,6 +132,7 @@ export function SceneRow({
 }: SceneRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedScene, setEditedScene] = useState(scene);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showMore, setShowMore] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
@@ -103,15 +150,24 @@ export function SceneRow({
 
   useEffect(() => {
     setEditedScene(scene);
+    setValidationErrors([]);
   }, [scene]);
 
   const handleSave = () => {
+    const errors = validateSceneDraft(editedScene);
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      alert(`請先修正以下欄位：\n${errors.map((error, index) => `${index + 1}. ${error}`).join('\n')}`);
+      return;
+    }
+    setValidationErrors([]);
     onUpdate(editedScene);
     setIsEditing(false);
   };
 
   const handleCancel = () => {
     setEditedScene(scene);
+    setValidationErrors([]);
     setIsEditing(false);
   };
 
@@ -231,6 +287,13 @@ export function SceneRow({
               rows={1}
             />
           </div>
+          {validationErrors.length > 0 && (
+            <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+              {validationErrors.slice(0, 4).map((error, index) => (
+                <p key={`${error}-${index}`}>- {error}</p>
+              ))}
+            </div>
+          )}
         </td>
         <td className="px-4 py-3">
           <input

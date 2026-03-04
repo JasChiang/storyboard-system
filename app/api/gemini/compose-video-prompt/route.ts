@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
       scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev' | 'requiresEndFrame' | 'endFrameDescription'>;
       motionPrompt?: string;
       references?: ProjectReference[];
+      continuityMemoryLines?: string[];
       hasPreviousEndFrame?: boolean;
     };
 
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
         scene: body.scene,
         motionPrompt,
         references: body.references || [],
+        continuityMemoryLines: Array.isArray(body.continuityMemoryLines) ? body.continuityMemoryLines : [],
         hasPreviousEndFrame: Boolean(body.hasPreviousEndFrame),
       },
       { apiKey }

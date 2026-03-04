@@ -99,4 +99,21 @@ describe('scene references', () => {
 
     expect(matched).toHaveLength(0);
   });
+
+  it('can keep explicitly selected references when fallback policy is all_selected', () => {
+    const selected = [references[1]];
+    const matched = getSceneRelevantReferences(
+      {
+        description: 'Wide establishing shot without tags',
+        charactersUsed: [],
+        productsUsed: [],
+        requiredReferences: [],
+      },
+      selected,
+      { fallbackPolicy: 'all_selected' }
+    );
+
+    expect(matched).toHaveLength(1);
+    expect(matched[0]?.name).toBe('ProductX');
+  });
 });

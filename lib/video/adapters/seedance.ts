@@ -9,9 +9,10 @@ interface SeedancePromptInput {
   scene: Scene;
   motionPrompt: string;
   scopedRefs: ProjectReference[];
+  continuityMemoryLines?: string[];
 }
 
-export function buildSeedancePrompt({ scene, motionPrompt, scopedRefs }: SeedancePromptInput): string {
+export function buildSeedancePrompt({ scene, motionPrompt, scopedRefs, continuityMemoryLines = [] }: SeedancePromptInput): string {
   const consolidatedRules = buildConsolidatedReferenceRules(scopedRefs);
 
   const identityCoreLines = consolidatedRules
@@ -59,6 +60,7 @@ export function buildSeedancePrompt({ scene, motionPrompt, scopedRefs }: Seedanc
     cameraPlan: `Generate a smooth single-shot motion sequence from the start frame. ${cameraPlan}`,
     subjectState: [
       ...sceneScriptLines,
+      ...continuityMemoryLines,
       'Use one continuous motion path for the whole clip; keep transitions inside the shot smooth.',
       'Keep movement readable with clear camera intent and stable anchored subjects.',
       'Prefer stable temporal continuity and realistic inertia; avoid sudden perspective jumps.',

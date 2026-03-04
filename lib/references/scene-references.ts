@@ -48,9 +48,24 @@ export function getSceneRequiredTags(
 
 export function getSceneRelevantReferences(
   scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed' | 'requiredReferences'>,
-  references: ProjectReference[]
+  references: ProjectReference[],
+  options?: {
+    fallbackPolicy?: 'environment_only' | 'non_environment' | 'all_selected';
+  }
 ): ProjectReference[] {
   if (!references.length) return [];
+  const fallbackPolicy = options?.fallbackPolicy || 'environment_only';
+  const fallbackReferences = () => {
+    if (fallbackPolicy === 'all_selected') {
+      return references;
+    }
+    if (fallbackPolicy === 'non_environment') {
+      const nonEnvironment = references.filter((reference) => reference.type !== 'environment');
+      return nonEnvironment.length > 0 ? nonEnvironment : references.filter((reference) => reference.type === 'environment');
+    }
+    // Default: environment-only fallback to avoid identity contamination.
+    return references.filter((reference) => reference.type === 'environment');
+  };
 
   const requiredTags = getSceneRequiredTags(scene);
   if (requiredTags.size > 0) {
@@ -63,9 +78,7 @@ export function getSceneRelevantReferences(
 
   const sceneTags = getSceneEntityTags(scene);
   if (!sceneTags.size) {
-    // Without explicit entity tags, avoid sending every character/product reference.
-    // Keep environment/context references only to reduce identity contamination.
-    return references.filter((reference) => reference.type === 'environment');
+    return fallbackReferences();
   }
 
   const matched = references.filter((reference) => {
@@ -75,6 +88,6 @@ export function getSceneRelevantReferences(
 
   if (matched.length > 0) return matched;
 
-  // If entity tags do not match any reference, only keep environment references as safe fallback.
-  return references.filter((reference) => reference.type === 'environment');
+  // If entity tags do not match any reference, use fallback policy.
+  return fallbackReferences();
 }

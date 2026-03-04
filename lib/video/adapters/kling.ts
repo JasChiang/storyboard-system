@@ -9,9 +9,10 @@ interface KlingPromptInput {
   scene: Scene;
   motionPrompt: string;
   scopedRefs: ProjectReference[];
+  continuityMemoryLines?: string[];
 }
 
-export function buildKlingPrompt({ scene, motionPrompt, scopedRefs }: KlingPromptInput): string {
+export function buildKlingPrompt({ scene, motionPrompt, scopedRefs, continuityMemoryLines = [] }: KlingPromptInput): string {
   const consolidatedRules = buildConsolidatedReferenceRules(scopedRefs);
 
   const identityCoreLines = consolidatedRules
@@ -59,6 +60,7 @@ export function buildKlingPrompt({ scene, motionPrompt, scopedRefs }: KlingPromp
     cameraPlan: `Use the start frame as the visual anchor and keep one continuous shot. ${cameraPlan}`,
     subjectState: [
       ...sceneScriptLines,
+      ...continuityMemoryLines,
       'Generate one coherent camera path from first frame to last frame; no jump cuts.',
       'Prioritize clean camera language (pan/dolly/tilt/zoom) with stable anchored subjects.',
       'Prefer physically plausible motion and stable temporal continuity over aggressive reframing.',
