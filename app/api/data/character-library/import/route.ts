@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sqliteCharacterLibraryRepo } from '@/lib/db/sqlite';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
 import { saveRemoteImageToLocalMedia } from '@/lib/storage/local-media';
+import { normalizeCharacterItem } from '@/lib/characters/workflow';
 
 export const runtime = 'nodejs';
 
@@ -41,10 +42,10 @@ export async function POST(req: NextRequest) {
       if (exists) continue;
       const views = Array.isArray(item.views) ? item.views : [];
       const archivedViews = await ensureArchivedViews(views, item.name);
-      sqliteCharacterLibraryRepo.create({
+      sqliteCharacterLibraryRepo.create(normalizeCharacterItem({
         ...item,
         views: archivedViews,
-      });
+      }));
       imported += 1;
     }
 

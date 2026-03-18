@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sqliteCharacterLibraryRepo } from '@/lib/db/sqlite';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
 import { saveRemoteImageToLocalMedia } from '@/lib/storage/local-media';
+import { buildCharacterLibraryItem } from '@/lib/characters/normalize';
 
 export const runtime = 'nodejs';
 
@@ -55,21 +56,12 @@ export async function POST(req: NextRequest) {
     const name = String(body.name);
     const views = await ensureArchivedViews(body.views, name);
 
-    const item: CharacterLibraryItem = {
-      id: body.id || crypto.randomUUID(),
+    const created = sqliteCharacterLibraryRepo.create(buildCharacterLibraryItem({
+      ...body,
       name,
       type,
-      description: String(body.description || ''),
-      guidelines: body.guidelines,
-      tags: Array.isArray(body.tags) ? body.tags : [],
       views,
-      ipProfile: body.ipProfile,
-      usageCount: typeof body.usageCount === 'number' ? body.usageCount : 0,
-      createdAt: body.createdAt || now,
-      updatedAt: now,
-    };
-
-    const created = sqliteCharacterLibraryRepo.create(item);
+    }, now));
     return NextResponse.json({ data: created }, { status: 201 });
   } catch (error) {
     return NextResponse.json(

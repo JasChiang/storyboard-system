@@ -316,6 +316,7 @@ export async function POST(req: NextRequest) {
       id: crypto.randomUUID(),
       name,
       type,
+      status: 'draft',
       description: generatedProfile.description || `${name} 角色參考`,
       guidelines: generatedProfile.guidelines || undefined,
       tags,

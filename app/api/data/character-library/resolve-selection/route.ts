@@ -15,6 +15,7 @@ import {
   saveRemoteImageToLocalMedia,
 } from '@/lib/storage/local-media';
 import type { ProjectReference } from '@/lib/types/storyboard';
+import { normalizeProjectReferenceWorkflow, type ReferenceUsageRole } from '@/lib/characters/workflow';
 
 export const runtime = 'nodejs';
 
@@ -23,6 +24,8 @@ type ViewAngle = CharacterLibraryView['angle'];
 interface SelectionItem {
   id: string;
   angle?: ViewAngle;
+  isAnchor?: boolean;
+  usageRole?: ReferenceUsageRole;
 }
 
 interface ResolveSelectionBody {
@@ -49,6 +52,8 @@ function uniqueSelections(items: SelectionItem[]): SelectionItem[] {
     result.push({
       id,
       angle: item.angle || 'front',
+      isAnchor: Boolean(item.isAnchor),
+      usageRole: item.usageRole || 'supporting',
     });
   });
   return result;
@@ -183,6 +188,14 @@ async function refreshItemViewsForSelection(
   };
 }
 
+function applyWorkflowSelection(reference: ProjectReference, selection: SelectionItem): ProjectReference {
+  return normalizeProjectReferenceWorkflow({
+    ...reference,
+    isAnchor: Boolean(selection.isAnchor),
+    usageRole: selection.isAnchor ? 'anchor' : (selection.usageRole || reference.usageRole || 'supporting'),
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ResolveSelectionBody;
@@ -225,9 +238,9 @@ export async function POST(req: NextRequest) {
       }
 
       if (includeAllViews) {
-        references.push(...characterLibraryItemToProjectReferences(activeItem, 'all'));
+        references.push(...characterLibraryItemToProjectReferences(activeItem, 'all').map((reference) => applyWorkflowSelection(reference, selection)));
       } else {
-        references.push(characterLibraryItemToProjectReference(activeItem, targetAngle));
+        references.push(applyWorkflowSelection(characterLibraryItemToProjectReference(activeItem, targetAngle), selection));
       }
     }
 

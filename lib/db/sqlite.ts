@@ -3,6 +3,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import type { Project } from '@/lib/types/project';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
+import { normalizeCharacterItem } from '@/lib/characters/workflow';
 
 const DB_DIR = path.join(process.cwd(), '.data');
 const DB_PATH = path.join(DB_DIR, 'storyboard.sqlite');
@@ -469,7 +470,7 @@ export const sqliteQaRepo = {
 
 function rowToCharacterItem(row: DbRow): CharacterLibraryItem {
   const parsed = JSON.parse(String(row.item_json)) as CharacterLibraryItem;
-  return {
+  return normalizeCharacterItem({
     ...parsed,
     id: String(row.id),
     name: String(row.name),
@@ -477,7 +478,7 @@ function rowToCharacterItem(row: DbRow): CharacterLibraryItem {
     usageCount: Number(row.usage_count || 0),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
-  };
+  });
 }
 
 export const sqliteCharacterLibraryRepo = {

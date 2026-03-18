@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useProjectStore } from '@/stores/project-store';
 import { StoryPromptInput } from '@/components/storyboard/StoryPromptInput';
@@ -12,6 +12,7 @@ import { StyleProfileSelector } from '@/components/image-generation/StyleProfile
 import { Badge } from '@/components/ui/badge';
 import { Scene, Storyboard, StoryboardGenerationResponse, ProjectReference, CreativeReview, HookVariant } from '@/lib/types/storyboard';
 import { DEFAULT_STYLE_PROFILE_ID, findStyleProfileById } from '@/lib/constants/style-profiles';
+import { applyAutoGlobalContinuityDraft, buildGlobalContinuityDraft, isGlobalContinuityDraftStillPristine } from '@/lib/storyboard/global-continuity-draft';
 import { ArrowLeft, ArrowRight, Loader2, Sparkles, Zap, Undo2, ChevronDown, ChevronUp, RefreshCw, ShieldCheck, ShieldAlert, Palette, Link2, Rows3, Wand2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -92,6 +93,11 @@ export default function StoryboardPage() {
         id: `scene-${Date.now()}-${index}`,
       }));
 
+      const styleProfileForDraft = findStyleProfileById(
+        currentProject?.storyboard?.selectedStyleProfileId || currentProject?.storyboard?.productionPresetId || DEFAULT_STYLE_PROFILE_ID,
+        currentProject?.storyboard?.customStyleProfiles
+      );
+      const autoDraft = buildGlobalContinuityDraft(references, styleProfileForDraft);
       const storyboard: Storyboard = {
         id: `storyboard-${Date.now()}`,
         projectId,
@@ -103,8 +109,9 @@ export default function StoryboardPage() {
         selectedStyleProfileId: currentProject?.storyboard?.selectedStyleProfileId || DEFAULT_STYLE_PROFILE_ID,
         productionPresetId: currentProject?.storyboard?.productionPresetId || DEFAULT_STYLE_PROFILE_ID,
         customStyleProfiles: currentProject?.storyboard?.customStyleProfiles || [],
-        sharedAnchors: data.sharedAnchors || [],
-        sharedContinuityDirectives: data.sharedContinuityDirectives || [],
+        sharedAnchors: (data.sharedAnchors?.length ? data.sharedAnchors : autoDraft.sharedAnchors) || [],
+        sharedContinuityDirectives: (data.sharedContinuityDirectives?.length ? data.sharedContinuityDirectives : autoDraft.sharedContinuityDirectives) || [],
+        globalContinuityDraft: autoDraft,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -567,7 +574,57 @@ export default function StoryboardPage() {
   const passSceneCount = currentProject?.storyboard?.scenes.filter((scene) => !scene.qaStatus || scene.qaStatus === 'pass').length || 0;
   const totalSceneCount = currentProject?.storyboard?.scenes.length || 0;
   const storyboard = currentProject?.storyboard;
-  const activeStyleProfile = findStyleProfileById(storyboard?.selectedStyleProfileId || storyboard?.productionPresetId || DEFAULT_STYLE_PROFILE_ID, storyboard?.customStyleProfiles);
+  const activeStyleProfile = useMemo(
+    () => findStyleProfileById(storyboard?.selectedStyleProfileId || storyboard?.productionPresetId || DEFAULT_STYLE_PROFILE_ID, storyboard?.customStyleProfiles),
+    [storyboard?.selectedStyleProfileId, storyboard?.productionPresetId, storyboard?.customStyleProfiles]
+  );
+  const continuityDraft = useMemo(
+    () => buildGlobalContinuityDraft(storyboard?.projectReferences || [], activeStyleProfile),
+    [storyboard?.projectReferences, activeStyleProfile]
+  );
+  const hasProjectReferences = Boolean(storyboard?.projectReferences?.length);
+  const isDraftPristine = isGlobalContinuityDraftStillPristine(storyboard);
+
+  useEffect(() => {
+    if (!currentProject?.storyboard || !hasProjectReferences) return;
+    const currentDraftSignature = currentProject.storyboard.globalContinuityDraft?.sourceSignature;
+    if (currentDraftSignature === continuityDraft.sourceSignature) return;
+
+    const nextStoryboard = applyAutoGlobalContinuityDraft(currentProject.storyboard, continuityDraft);
+    updateProject(projectId, { storyboard: nextStoryboard });
+  }, [currentProject?.storyboard, hasProjectReferences, continuityDraft, projectId, updateProject]);
+
+  const handleRegenerateGlobalContinuityDraft = (forceApply = true) => {
+    if (!currentProject?.storyboard) return;
+    const nextStoryboard = applyAutoGlobalContinuityDraft(currentProject.storyboard, buildGlobalContinuityDraft(currentProject.storyboard.projectReferences || [], activeStyleProfile), { forceApply });
+    updateProject(projectId, { storyboard: nextStoryboard });
+    setGenerationNotice({ type: 'success', message: forceApply ? '已重新生成並套用 Global Continuity draft。' : '已刷新 Global Continuity draft。' });
+  };
+
+  const updateSharedAnchors = (value: string) => {
+    if (!currentProject?.storyboard) return;
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        sharedAnchors: value.split('\n').map((item) => item.trim()).filter(Boolean),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  };
+
+  const updateSharedDirectives = (value: string) => {
+    if (!currentProject?.storyboard) return;
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        sharedContinuityDirectives: value.split('\n').map((line) => {
+          const [label, ...rest] = line.split(':');
+          return { anchorLabel: (label || '').trim(), directive: rest.join(':').trim() };
+        }).filter((item) => item.directive),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  };
 
   if (isCurrentProjectLoading && !currentProject) {
     return <div className="min-h-screen flex items-center justify-center"><p className="text-lg text-slate-600 dark:text-slate-400">載入中...</p></div>;
@@ -696,16 +753,40 @@ export default function StoryboardPage() {
                   <p className="text-kicker">Global Continuity</p>
                   <p className="mt-1 text-sm text-muted-foreground">把全片共用 anchor / directive 寫在這裡，圖片與影片提示詞都能沿用。</p>
                 </div>
-                <Badge variant="outline" className="gap-1.5"><Link2 className="h-3.5 w-3.5" />global lock</Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  {hasProjectReferences && (
+                    <Badge variant="outline" className="gap-1.5 border-emerald-300/70 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+                      <Sparkles className="h-3.5 w-3.5" />auto-generated draft
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className="gap-1.5"><Link2 className="h-3.5 w-3.5" />global lock</Badge>
+                </div>
               </div>
+              {hasProjectReferences && (
+                <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-200">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p>
+                      已根據 Project References 產生 draft；你可以直接改。{isDraftPristine ? '目前內容仍與 auto draft 同步。' : '你已手動調整，系統不會自動硬覆蓋。'}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => handleRegenerateGlobalContinuityDraft(false)}>
+                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />刷新 draft
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => handleRegenerateGlobalContinuityDraft(true)}>
+                        <Sparkles className="mr-1.5 h-3.5 w-3.5" />重新套用
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
                   <label className="text-xs text-muted-foreground">Shared anchors（每行一條）</label>
-                  <textarea className="mt-1 w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground dark:bg-slate-900/65" rows={6} value={(currentProject.storyboard?.sharedAnchors || []).join('\n')} onChange={(e) => updateProject(projectId, { storyboard: { ...currentProject.storyboard!, sharedAnchors: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean), updatedAt: new Date().toISOString() } })} placeholder="例如：主商品永遠在畫面右半部可辨識 / 品牌藍白燈光語彙不變" />
+                  <textarea className="mt-1 w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground dark:bg-slate-900/65" rows={6} value={(currentProject.storyboard?.sharedAnchors || []).join('\n')} onChange={(e) => updateSharedAnchors(e.target.value)} placeholder="例如：主商品永遠在畫面右半部可辨識 / 品牌藍白燈光語彙不變" />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Shared directives（格式：label: directive）</label>
-                  <textarea className="mt-1 w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground dark:bg-slate-900/65" rows={6} value={(currentProject.storyboard?.sharedContinuityDirectives || []).map((item) => `${item.anchorLabel}: ${item.directive}`).join('\n')} onChange={(e) => updateProject(projectId, { storyboard: { ...currentProject.storyboard!, sharedContinuityDirectives: e.target.value.split('\n').map((line) => { const [label, ...rest] = line.split(':'); return { anchorLabel: (label || '').trim(), directive: rest.join(':').trim() }; }).filter((item) => item.directive), updatedAt: new Date().toISOString() } })} placeholder="wardrobe: 人物服裝 silhouette 不變\nlogo: 包裝文字不可改拼寫" />
+                  <textarea className="mt-1 w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground dark:bg-slate-900/65" rows={6} value={(currentProject.storyboard?.sharedContinuityDirectives || []).map((item) => `${item.anchorLabel}: ${item.directive}`).join('\n')} onChange={(e) => updateSharedDirectives(e.target.value)} placeholder="wardrobe: 人物服裝 silhouette 不變\nlogo: 包裝文字不可改拼寫" />
                 </div>
               </div>
             </section>

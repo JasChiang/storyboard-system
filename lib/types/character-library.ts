@@ -5,6 +5,12 @@
 
 import type { ProjectReference } from './storyboard';
 import { buildStructuredIdentityLock } from '@/lib/references/identity-lock';
+import {
+  inferFallbackAnchorRole,
+  inferFallbackUsageRole,
+  normalizeCharacterStatus,
+  type CharacterLibraryStatus,
+} from '@/lib/characters/workflow';
 
 export type IpTextLogoPolicy = 'lock_visible_text' | 'forbid_new_text';
 
@@ -28,6 +34,7 @@ export interface CharacterLibraryItem {
   id: string;
   name: string;                    // 角色名稱（如 "吉祥物小熊"）
   type: 'character' | 'product' | 'environment' | 'style';
+  status: CharacterLibraryStatus;  // workflow 品質狀態
   description: string;              // 全局描述
   guidelines?: string;              // 規則/限制（提供給生成提示詞）
   tags: string[];                   // 標籤（用於搜尋和分類）
@@ -78,6 +85,7 @@ export function characterLibraryItemToProjectReference(
     throw new Error(`角色 ${item.name} 沒有可用的視角圖片`);
   }
 
+  const usageRole = inferFallbackUsageRole(item);
   const reference: ProjectReference = {
     id: crypto.randomUUID(),
     url: view.url,
@@ -92,6 +100,10 @@ export function characterLibraryItemToProjectReference(
     styleTraits: view.styleTraits,
     angleVisibility: view.angleVisibility,
     ipProfile: item.ipProfile,
+    sourceCharacterLibraryItemId: item.id,
+    sourceCharacterStatus: normalizeCharacterStatus(item.status),
+    isAnchor: inferFallbackAnchorRole(item),
+    usageRole,
   };
 
   return {
@@ -109,6 +121,7 @@ export function characterLibraryItemToProjectReferences(
   }
 
   return item.views.map((view) => {
+    const usageRole = inferFallbackUsageRole(item);
     const reference: ProjectReference = {
       id: crypto.randomUUID(),
       url: view.url,
@@ -123,6 +136,10 @@ export function characterLibraryItemToProjectReferences(
       styleTraits: view.styleTraits,
       angleVisibility: view.angleVisibility,
       ipProfile: item.ipProfile,
+      sourceCharacterLibraryItemId: item.id,
+      sourceCharacterStatus: normalizeCharacterStatus(item.status),
+      isAnchor: inferFallbackAnchorRole(item),
+      usageRole,
     };
 
     return {

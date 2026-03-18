@@ -132,7 +132,8 @@ export function StoryPromptInput({
 
     references.forEach((ref) => {
       const key = ref.name ? `name:${ref.name}` : `type:${ref.type}`;
-      const label = ref.name ? `<${ref.name}>` : ref.type;
+      const roleLabel = ref.isAnchor ? 'anchor' : (ref.usageRole || 'usage');
+      const label = ref.name ? `<${ref.name}> · ${roleLabel}` : `${ref.type} · ${roleLabel}`;
       const existing = grouped.get(key);
       if (existing) {
         existing.count += 1;
@@ -234,7 +235,7 @@ export function StoryPromptInput({
         {references.length > 0 && (
           <div className="surface-inset border border-emerald-200/60 p-3 dark:border-emerald-500/25">
             <p className="text-sm text-emerald-700 dark:text-emerald-300">
-              ✅ 已設定 {references.length} 張參考圖。AI 生成的分鏡描述會使用 &lt;角色名&gt; 或 &lt;商品名&gt; 格式標記，不會重複描述外觀。
+              ✅ 已設定 {references.length} 張參考圖。Anchor / usage role 會一起送進 continuity draft，AI 生成的分鏡描述會使用 &lt;角色名&gt; 或 &lt;商品名&gt; 格式標記，不會重複描述外觀。
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {referenceTagSummary.map((item) => (

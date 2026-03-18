@@ -3,20 +3,21 @@
  */
 
 import type { CharacterLibrary, CharacterLibraryItem } from '@/lib/types/character-library';
+import { CHARACTER_LIBRARY_SCHEMA_VERSION, migrateCharacterLibrary, normalizeCharacterItem } from '@/lib/characters/workflow';
 
 const STORAGE_KEY = 'storyboard_character_library';
 
 class CharacterLibraryStorage {
   private getLocalLibrary(): CharacterLibrary {
-    if (typeof window === 'undefined') return { items: [], version: 1 };
+    if (typeof window === 'undefined') return { items: [], version: CHARACTER_LIBRARY_SCHEMA_VERSION };
 
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return { items: [], version: 1 };
+    if (!stored) return { items: [], version: CHARACTER_LIBRARY_SCHEMA_VERSION };
 
     try {
-      return JSON.parse(stored) as CharacterLibrary;
+      return migrateCharacterLibrary(JSON.parse(stored) as CharacterLibrary);
     } catch {
-      return { items: [], version: 1 };
+      return { items: [], version: CHARACTER_LIBRARY_SCHEMA_VERSION };
     }
   }
 
@@ -61,8 +62,9 @@ class CharacterLibraryStorage {
               return localItems;
             }
           }
-          this.saveLocalLibrary({ items: retryItems, version: 1 });
-          return retryItems;
+          const normalizedRetryItems = retryItems.map((item) => normalizeCharacterItem(item));
+          this.saveLocalLibrary({ items: normalizedRetryItems, version: CHARACTER_LIBRARY_SCHEMA_VERSION });
+          return normalizedRetryItems;
         }
         const localItems = this.getLocalLibrary().items;
         if (localItems.length > 0) {
@@ -70,8 +72,9 @@ class CharacterLibraryStorage {
         }
       }
 
-      this.saveLocalLibrary({ items: remote, version: 1 });
-      return remote;
+      const normalizedRemote = remote.map((item) => normalizeCharacterItem(item));
+      this.saveLocalLibrary({ items: normalizedRemote, version: CHARACTER_LIBRARY_SCHEMA_VERSION });
+      return normalizedRemote;
     } catch {
       return this.getLocalLibrary().items;
     }
@@ -83,7 +86,7 @@ class CharacterLibraryStorage {
       if (response.status === 404) return undefined;
       if (!response.ok) throw new Error('Failed to fetch character library item');
       const json = await response.json();
-      return json.data as CharacterLibraryItem;
+      return normalizeCharacterItem(json.data as CharacterLibraryItem);
     } catch {
       return this.getLocalLibrary().items.find((item) => item.id === id);
     }
@@ -99,14 +102,14 @@ class CharacterLibraryStorage {
 
       if (!response.ok) throw new Error('Failed to create character library item');
       const json = await response.json();
-      const created = json.data as CharacterLibraryItem;
+      const created = normalizeCharacterItem(json.data as CharacterLibraryItem);
       const items = await this.getAll();
-      this.saveLocalLibrary({ items, version: 1 });
+      this.saveLocalLibrary({ items, version: CHARACTER_LIBRARY_SCHEMA_VERSION });
       return created;
     } catch {
       const library = this.getLocalLibrary();
       const created: CharacterLibraryItem = {
-        ...item,
+        ...normalizeCharacterItem(item),
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -127,17 +130,17 @@ class CharacterLibraryStorage {
       });
       if (!response.ok) throw new Error('Failed to update character library item');
       const items = await this.getAll();
-      this.saveLocalLibrary({ items, version: 1 });
+      this.saveLocalLibrary({ items, version: CHARACTER_LIBRARY_SCHEMA_VERSION });
       return;
     } catch {
       const library = this.getLocalLibrary();
       const index = library.items.findIndex((x) => x.id === id);
       if (index === -1) throw new Error('角色不存在');
-      library.items[index] = {
+      library.items[index] = normalizeCharacterItem({
         ...library.items[index],
         ...updates,
         updatedAt: new Date().toISOString(),
-      };
+      });
       this.saveLocalLibrary(library);
     }
   }
@@ -147,7 +150,7 @@ class CharacterLibraryStorage {
       const response = await fetch(`/api/data/character-library/${id}`, { method: 'DELETE' });
       if (!response.ok && response.status !== 404) throw new Error('Failed to delete character library item');
       const items = await this.getAll();
-      this.saveLocalLibrary({ items, version: 1 });
+      this.saveLocalLibrary({ items, version: CHARACTER_LIBRARY_SCHEMA_VERSION });
       return;
     } catch {
       const library = this.getLocalLibrary();

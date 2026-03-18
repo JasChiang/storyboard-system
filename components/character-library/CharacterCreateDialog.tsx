@@ -6,6 +6,7 @@ import { X, Plus, Loader2, Sparkles, ChevronDown, ChevronUp } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import { fal } from '@fal-ai/client';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
+import { CHARACTER_STATUS_LABELS, type CharacterLibraryStatus } from '@/lib/characters/workflow';
 
 interface CharacterCreateDialogProps {
   isOpen: boolean;
@@ -63,6 +64,7 @@ export function CharacterCreateDialog({
   const [name, setName] = useState(editingCharacter?.name || '');
   const [type, setType] = useState<CharacterLibraryItem['type']>(editingCharacter?.type || 'character');
   const [description, setDescription] = useState(editingCharacter?.description || '');
+  const [status, setStatus] = useState<CharacterLibraryStatus>(editingCharacter?.status || 'draft');
   const [guidelines, setGuidelines] = useState(editingCharacter?.guidelines || '');
   const [tags, setTags] = useState<string[]>(editingCharacter?.tags || []);
   const [views, setViews] = useState<ViewUpload[]>(editingCharacter?.views || []);
@@ -113,6 +115,7 @@ export function CharacterCreateDialog({
       setName(editingCharacter.name || '');
       setType(editingCharacter.type || 'character');
       setDescription(editingCharacter.description || '');
+      setStatus(editingCharacter.status || 'draft');
       setGuidelines(editingCharacter.guidelines || '');
       setTags(editingCharacter.tags || []);
       setViews(editingCharacter.views || []);
@@ -141,6 +144,8 @@ export function CharacterCreateDialog({
       setName('');
       setType('character');
       setDescription('');
+    setStatus('draft');
+      setStatus('draft');
       setGuidelines('');
       setTags([]);
       setViews([]);
@@ -240,6 +245,7 @@ export function CharacterCreateDialog({
     await onSave({
       name: name.trim(),
       type,
+      status: editingCharacter?.status || 'draft',
       description: description.trim() || `${name} - ${TYPE_OPTIONS.find(t => t.value === type)?.label}`,
       guidelines: guidelines.trim() || undefined,
       tags,
@@ -400,6 +406,25 @@ export function CharacterCreateDialog({
                 className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
                          bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">品質狀態</label>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {(['draft', 'reviewed', 'production_ready', 'archived'] as CharacterLibraryStatus[]).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setStatus(option)}
+                    className={`rounded-lg border px-3 py-3 text-left text-sm transition-all ${status === option ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'}`}
+                  >
+                    <div className="font-medium">{CHARACTER_STATUS_LABELS[option]}</div>
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {option === 'draft' ? '尚未驗證，可先存檔。' : option === 'reviewed' ? '已做人工檢查。' : option === 'production_ready' ? '可作為 anchor reference。' : '不再參與新專案。'}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div>

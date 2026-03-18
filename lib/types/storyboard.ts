@@ -125,6 +125,12 @@ export interface Storyboard {
   productionNotes?: string;
   sharedAnchors?: string[];
   sharedContinuityDirectives?: SharedContinuityDirective[];
+  globalContinuityDraft?: {
+    sharedAnchors: string[];
+    sharedContinuityDirectives: SharedContinuityDirective[];
+    sourceSignature: string;
+    generatedAt: string;
+  };
   originalPrompt: string;        // 使用者原始輸入
   templateUsed: string;          // 使用的提示詞模板
   scenes: Scene[];
@@ -205,12 +211,20 @@ export interface StructuredIdentityLock {
   forbiddenChanges?: string[];
 }
 
+export type ReferenceAnchorRole =
+  | 'primary_character_anchor'
+  | 'supporting_character'
+  | 'product_anchor'
+  | 'environment_anchor'
+  | 'style_modifier';
+
 export interface ProjectReference {
   id: string;
   url: string;                   // Fal Storage URL
   description: string;           // 描述（手動輸入或 AI 生成）
   type: 'character' | 'product' | 'environment' | 'style';
   name?: string;                 // 角色名稱 或 商品名稱
+  anchorRole?: ReferenceAnchorRole; // 進入專案後扮演的 continuity / reference 角色
   descriptionSource: 'manual' | 'ai';  // 描述來源
   guidelines?: string;           // 規則/限制（生成提示詞用）
 
@@ -223,6 +237,10 @@ export interface ProjectReference {
   angleVisibility?: string;      // 此視角可見/不可見重點
   ipProfile?: IpProfile;         // 來自角色庫的 IP 套件設定
   structuredIdentityLock?: StructuredIdentityLock; // 結構化保真鎖（可選，缺省時由既有欄位自動推導）
+  sourceCharacterLibraryItemId?: string;
+  sourceCharacterStatus?: 'draft' | 'reviewed' | 'production_ready' | 'archived';
+  isAnchor?: boolean;
+  usageRole?: 'anchor' | 'supporting' | 'style_support';
 }
 
 // 提示詞模板
