@@ -205,6 +205,15 @@ function generateId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function shortHash(input: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
 function clampDuration(value: number, fallback = 0.5) {
   if (!Number.isFinite(value) || value <= 0) return fallback;
   return value;
@@ -341,9 +350,23 @@ function getAppOrigin() {
   return process.env.NEXT_PUBLIC_APP_ORIGIN || DEFAULT_APP_ORIGIN;
 }
 
-function buildProxyUrl(source: string) {
+function buildVersionSeed(parts: Array<string | number | null | undefined>): string | undefined {
+  const normalized = parts
+    .map((part) => {
+      if (typeof part === 'number') return String(part);
+      if (typeof part === 'string') return part.trim();
+      return '';
+    })
+    .filter(Boolean)
+    .join('|');
+  return normalized || undefined;
+}
+
+function buildProxyUrl(source: string, versionSeed?: string) {
   const origin = getAppOrigin();
-  return `${origin}/api/openreel/asset?url=${encodeURIComponent(source)}`;
+  const base = `${origin}/api/openreel/asset?url=${encodeURIComponent(source)}`;
+  if (!versionSeed) return base;
+  return `${base}&v=${shortHash(versionSeed)}`;
 }
 
 export function convertToOpenReelProjectFile(
@@ -394,10 +417,25 @@ export function convertToOpenReelProjectFile(
 
   let currentTime = 0;
   storyboard.scenes.forEach((scene, index) => {
-    const mediaId = `media-${scene.id}`;
-    const clipId = `clip-${scene.id}`;
     const previousScene = index > 0 ? storyboard.scenes[index - 1] : null;
     const continuationStartUrl = resolveContinuationSource(previousScene).url;
+    const rawSrc = getSceneSource(scene, continuationStartUrl);
+    const sceneSourceVersionSeed = buildVersionSeed([
+      scene.id,
+      rawSrc,
+      scene.generatedVideo?.timestamp,
+      scene.generatedVideo?.prompt,
+      scene.generatedImage?.timestamp,
+      scene.generatedImage?.prompt,
+      scene.generatedEndFrame?.timestamp,
+      scene.generatedEndFrame?.prompt,
+      previousScene?.generatedVideo?.timestamp,
+      previousScene?.generatedImage?.timestamp,
+      previousScene?.generatedEndFrame?.timestamp,
+    ]);
+    const src = rawSrc ? buildProxyUrl(rawSrc, sceneSourceVersionSeed) : "";
+    const mediaId = `media-${scene.id}-${shortHash(src || `placeholder-${scene.id}`)}`;
+    const clipId = `clip-${scene.id}`;
     const sceneSuggestion = sceneSuggestionMap.get(scene.id);
     const sceneBaseDuration = clampDuration(scene.duration, 2);
     const isVideo = !!scene.generatedVideo?.url;
@@ -427,12 +465,18 @@ export function convertToOpenReelProjectFile(
     const speed = clampRange(Number(sceneSuggestion?.speedFactor), 0.25, 3, 1);
     const effects = buildOpenReelEffects(sceneSuggestion?.effects || []);
 
-    const rawSrc = getSceneSource(scene, continuationStartUrl);
-    const src = rawSrc ? buildProxyUrl(rawSrc) : "";
     const type = isVideo ? 'video' : 'image';
 
     const rawThumbnail = scene.generatedImage?.url ?? (!isVideo ? rawSrc || null : null);
-    const thumbnailUrl = rawThumbnail ? buildProxyUrl(rawThumbnail) : null;
+    const thumbnailVersionSeed = buildVersionSeed([
+      scene.id,
+      rawThumbnail,
+      scene.generatedImage?.timestamp,
+      scene.generatedImage?.prompt,
+      scene.generatedEndFrame?.timestamp,
+      scene.generatedEndFrame?.prompt,
+    ]);
+    const thumbnailUrl = rawThumbnail ? buildProxyUrl(rawThumbnail, thumbnailVersionSeed) : null;
 
     mediaItems.push({
       id: mediaId,
@@ -480,12 +524,20 @@ export function convertToOpenReelProjectFile(
     });
 
     if (scene.generatedVoiceover?.url) {
-      const voiceMediaId = `media-${scene.id}-voice`;
+      const voiceVersionSeed = buildVersionSeed([
+        scene.id,
+        scene.generatedVoiceover.url,
+        scene.generatedVoiceover.timestamp,
+        scene.generatedVoiceover.script,
+        scene.generatedVoiceover.prompt,
+        scene.generatedVoiceover.durationSeconds,
+      ]);
+      const voiceSrc = buildProxyUrl(scene.generatedVoiceover.url, voiceVersionSeed);
+      const voiceMediaId = `media-${scene.id}-voice-${shortHash(voiceSrc)}`;
       const knownVoiceDuration = Number(scene.generatedVoiceover.durationSeconds);
       const voiceDuration = Number.isFinite(knownVoiceDuration) && knownVoiceDuration > 0
         ? Math.min(duration, knownVoiceDuration)
         : duration;
-      const voiceSrc = buildProxyUrl(scene.generatedVoiceover.url);
 
       mediaItems.push({
         id: voiceMediaId,
@@ -532,7 +584,7 @@ export function convertToOpenReelProjectFile(
       });
     }
 
-    const subtitleText = scene.dialogue || scene.description;
+    const subtitleText = scene.generatedVoiceover?.script || scene.dialogue || scene.description;
     if (subtitleText) {
       const SUBTITLE_FONT_SIZE = 60;
       const wrappedText = wrapText(subtitleText, width, SUBTITLE_FONT_SIZE);
@@ -628,12 +680,18 @@ export function convertToOpenReelProjectFile(
   });
 
   if (storyboard.generatedMusic?.url) {
-    const musicMediaId = 'media-project-music';
+    const musicVersionSeed = buildVersionSeed([
+      storyboard.generatedMusic.url,
+      storyboard.generatedMusic.timestamp,
+      storyboard.generatedMusic.prompt,
+      storyboard.generatedMusic.durationSeconds,
+    ]);
+    const musicSrc = buildProxyUrl(storyboard.generatedMusic.url, musicVersionSeed);
+    const musicMediaId = `media-project-music-${shortHash(musicSrc)}`;
     const knownMusicDuration = Number(storyboard.generatedMusic.durationSeconds);
     const musicDuration = Number.isFinite(knownMusicDuration) && knownMusicDuration > 0
       ? knownMusicDuration
       : currentTime;
-    const musicSrc = buildProxyUrl(storyboard.generatedMusic.url);
 
     mediaItems.push({
       id: musicMediaId,

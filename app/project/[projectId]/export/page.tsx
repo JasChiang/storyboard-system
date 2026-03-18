@@ -61,10 +61,12 @@ export default function ExportPage() {
       generatedVoiceover: Scene['generatedVoiceover'];
     }>
   ) => {
-    if (!currentProject?.storyboard || updates.length === 0) return;
+    if (updates.length === 0) return;
+    const latestProject = useProjectStore.getState().currentProject;
+    if (!latestProject?.storyboard || latestProject.id !== projectId) return;
 
     const updateMap = new Map(updates.map((item) => [item.sceneId, item.generatedVoiceover]));
-    const updatedScenes = currentProject.storyboard.scenes.map((scene) => {
+    const updatedScenes = latestProject.storyboard.scenes.map((scene) => {
       const generatedVoiceover = updateMap.get(scene.id);
       if (!generatedVoiceover) return scene;
       return {
@@ -75,7 +77,7 @@ export default function ExportPage() {
 
     updateProject(projectId, {
       storyboard: {
-        ...currentProject.storyboard,
+        ...latestProject.storyboard,
         scenes: updatedScenes,
         updatedAt: new Date().toISOString(),
       },
@@ -83,11 +85,13 @@ export default function ExportPage() {
   };
 
   const handleMusicGenerated = (generatedMusic: Storyboard['generatedMusic']) => {
-    if (!currentProject?.storyboard || !generatedMusic) return;
+    if (!generatedMusic) return;
+    const latestProject = useProjectStore.getState().currentProject;
+    if (!latestProject?.storyboard || latestProject.id !== projectId) return;
 
     updateProject(projectId, {
       storyboard: {
-        ...currentProject.storyboard,
+        ...latestProject.storyboard,
         generatedMusic,
         updatedAt: new Date().toISOString(),
       },
@@ -95,16 +99,18 @@ export default function ExportPage() {
   };
 
   const handleAudioDraftChange = useCallback((audioPlanningDraft: Storyboard['audioPlanningDraft']) => {
-    if (!currentProject?.storyboard || !audioPlanningDraft) return;
+    if (!audioPlanningDraft) return;
+    const latestProject = useProjectStore.getState().currentProject;
+    if (!latestProject?.storyboard || latestProject.id !== projectId) return;
 
     updateProject(projectId, {
       storyboard: {
-        ...currentProject.storyboard,
+        ...latestProject.storyboard,
         audioPlanningDraft,
         updatedAt: new Date().toISOString(),
       },
     });
-  }, [currentProject?.storyboard, projectId, updateProject]);
+  }, [projectId, updateProject]);
 
   if (isCurrentProjectLoading && !currentProject) {
     return (
