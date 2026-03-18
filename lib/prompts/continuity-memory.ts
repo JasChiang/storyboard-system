@@ -1,7 +1,10 @@
-import type { Scene } from '@/lib/types/storyboard';
+import type { Scene, SharedContinuityDirective, WorkflowStage } from '@/lib/types/storyboard';
 
 interface ContinuityMemoryOptions {
   lookbackShots?: number;
+  stage?: WorkflowStage;
+  sharedAnchors?: string[];
+  sharedContinuityDirectives?: SharedContinuityDirective[];
 }
 
 function normalize(value?: string): string {
@@ -53,10 +56,19 @@ export function buildContinuityMemoryLines(
     lines.push(`Shot ${scene.sceneNumber}: ${parts.join(' | ')}`);
   });
 
-  if (lines.length === 0) return [];
+  const sharedAnchors = (options?.sharedAnchors || []).map((item) => normalize(item)).filter(Boolean);
+  const sharedDirectives = (options?.sharedContinuityDirectives || []).filter((item) => {
+    if (!normalize(item.directive)) return false;
+    if (!options?.stage || !item.appliesToStages?.length) return true;
+    return item.appliesToStages.includes(options.stage);
+  });
+
+  if (lines.length === 0 && sharedAnchors.length === 0 && sharedDirectives.length === 0) return [];
   return [
     `Continuity memory (${lines.length} previous shots):`,
     ...lines,
+    ...(sharedAnchors.length > 0 ? [`Shared anchors: ${sharedAnchors.join(' | ')}`] : []),
+    ...sharedDirectives.map((item) => `Shared directive${item.anchorLabel ? ` [${item.anchorLabel}]` : ''}: ${normalize(item.directive)}`),
     'Keep unresolved anchors and continuity locks stable unless this shot explicitly changes them.',
   ];
 }

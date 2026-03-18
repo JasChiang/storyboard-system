@@ -1,8 +1,9 @@
-import { PromptTemplate, StoryboardGenerationResponse, ProjectReference, Scene, TransitionType, CreativeReview, HookVariant } from '../types/storyboard';
+import { PromptTemplate, StoryboardGenerationResponse, ProjectReference, Scene, TransitionType, CreativeReview, HookVariant, type RenderLane, type ProductionRisk, type ReferencePriorityMode, type SharedContinuityDirective } from '../types/storyboard';
 import { OpenRouterResponse } from '../types/api-responses';
 import { buildSystemPrompt } from '../prompts/prompt-builder';
 import { buildConsolidatedReferenceRules } from '../references/consistency-rules';
 import { sanitizeStaticFrameDescription } from '../prompts/image-static';
+import { STORYBOARD_CONTRACT_PROMPT_BLOCK, STORYBOARD_PRODUCTION_RISKS, STORYBOARD_REFERENCE_PRIORITY_MODES, STORYBOARD_RENDER_LANES } from '../prompts/storyboard-contract';
 import type {
   ElevenLabsMusicPromptIdea,
   IndexTtsEmotionalStrengths,
@@ -344,6 +345,26 @@ export async function generateStoryboardScript(
   const normalizeStoryboard = (input: unknown): StoryboardGenerationResponse => {
     const raw = (input && typeof input === 'object') ? (input as Record<string, unknown>) : {};
     const scenesRaw = Array.isArray(raw.scenes) ? raw.scenes : [];
+    const normalizeStringArray = (value: unknown) => Array.isArray(value)
+      ? value.filter((v): v is string => typeof v === 'string').map((v) => v.trim()).filter(Boolean)
+      : [];
+    const normalizeEnum = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T => {
+      const normalized = typeof value === 'string' ? value.trim() as T : fallback;
+      return allowed.includes(normalized) ? normalized : fallback;
+    };
+    const normalizeSharedDirective = (value: unknown): SharedContinuityDirective | null => {
+      if (!value || typeof value !== 'object') return null;
+      const rawDirective = value as Record<string, unknown>;
+      const anchorLabel = stringValue(rawDirective.anchorLabel);
+      const directive = stringValue(rawDirective.directive);
+      if (!anchorLabel || !directive) return null;
+      const appliesToStages = normalizeStringArray(rawDirective.appliesToStages);
+      return {
+        anchorLabel,
+        directive,
+        appliesToStages: appliesToStages.length > 0 ? appliesToStages as SharedContinuityDirective['appliesToStages'] : undefined,
+      };
+    };
     const normalizedScenes = scenesRaw.slice(0, normalizedSceneLimit).map((sceneRaw, index) => {
       const scene = (sceneRaw && typeof sceneRaw === 'object') ? (sceneRaw as Record<string, unknown>) : {};
 
@@ -430,6 +451,9 @@ export async function generateStoryboardScript(
       const sceneNumberValue = Number(scene.sceneNumber);
       const sceneDurationValue = Number(scene.duration);
       const transitionDurationValue = Number(transitionRaw.duration);
+      const renderLane = normalizeEnum<RenderLane>(scene.renderLane, STORYBOARD_RENDER_LANES, 'hero');
+      const productionRisk = normalizeEnum<ProductionRisk>(scene.productionRisk, STORYBOARD_PRODUCTION_RISKS, 'medium');
+      const referencePriorityMode = normalizeEnum<ReferencePriorityMode>(scene.referencePriorityMode, STORYBOARD_REFERENCE_PRIORITY_MODES, 'stage_balanced');
 
       return {
         sceneNumber: Number.isFinite(sceneNumberValue) ? sceneNumberValue : index + 1,
@@ -449,6 +473,11 @@ export async function generateStoryboardScript(
         beatGoal: typeof scene.beatGoal === 'string' ? scene.beatGoal.trim() : '',
         shotIntent: typeof scene.shotIntent === 'string' ? scene.shotIntent.trim() : '',
         continuityAnchor: typeof scene.continuityAnchor === 'string' ? scene.continuityAnchor.trim() : '',
+        renderLane,
+        productionRisk,
+        reservedForPost: stringValue(scene.reservedForPost),
+        deliveryIntent: stringValue(scene.deliveryIntent),
+        referencePriorityMode,
         requiredReferences: Array.isArray(scene.requiredReferences)
           ? scene.requiredReferences.filter((v): v is string => typeof v === 'string')
           : [],
@@ -478,6 +507,10 @@ export async function generateStoryboardScript(
       title: typeof raw.title === 'string' && raw.title.trim()
         ? raw.title.trim()
         : 'Storyboard',
+      sharedAnchors: normalizeStringArray(raw.sharedAnchors),
+      sharedContinuityDirectives: Array.isArray(raw.sharedContinuityDirectives)
+        ? raw.sharedContinuityDirectives.map(normalizeSharedDirective).filter((v): v is SharedContinuityDirective => v !== null)
+        : [],
       scenes: normalizedScenes,
     };
   };
@@ -499,7 +532,7 @@ export async function generateStoryboardScript(
   const firstPassParsed = await callJsonCompletion([
     {
       role: 'system',
-      content: `${systemPrompt}\n\n你必須以 JSON 格式回應，遵循以下結構：${outputSchemaText}`,
+      content: `${systemPrompt}\n\n${STORYBOARD_CONTRACT_PROMPT_BLOCK}\n你必須以 JSON 格式回應，遵循以下結構：${outputSchemaText}`,
     },
     {
       role: 'user',
@@ -529,8 +562,10 @@ export async function generateStoryboardScript(
 - 若 transitionToNext.type = "continuation"，requiresEndFrame 可為 true 或 false；若為 false，需保持 endFrameDescription/endFrameDelta 為空字串。
 - 若 requiresEndFrame = false，endFrameDescription 必須是空字串 ""。
 - 若 requiresEndFrame = false，endFrameDelta 也必須是空字串 ""。
+- 頂層必須有 sharedAnchors/sharedContinuityDirectives，沒有內容時也要輸出空陣列。
 - 每個場景都要有 sceneIntent/startComposition/subjectMotion/continuityLock。
 - 每個場景都要有 shotIntent/continuityAnchor/requiredReferences（若無必用參考則 requiredReferences=[]）。
+- 每個場景都要有 renderLane/productionRisk/reservedForPost/deliveryIntent/referencePriorityMode。
 - endFrameDelta 必須用「相對首幀差異」描述，不可重寫整個場景。
 - 若 description 內使用 <角色>/<商品> 標記，charactersUsed/productsUsed 必須同步列出。
 - 不可在 description 重新定義角色/商品外觀（髮型、服裝、顏色、材質、Logo 細節）。
@@ -542,7 +577,7 @@ export async function generateStoryboardScript(
     finalParsed = await callJsonCompletion([
       {
         role: 'system',
-        content: `${secondPassSystemPrompt}\n\n請遵循以下 JSON 結構：${outputSchemaText}`,
+        content: `${secondPassSystemPrompt}\n\n${STORYBOARD_CONTRACT_PROMPT_BLOCK}\n請遵循以下 JSON 結構：${outputSchemaText}`,
       },
       {
         role: 'user',
@@ -601,6 +636,11 @@ export async function regenerateStoryboardScene(
       continuityLock: { type: 'string' },
       shotIntent: { type: 'string' },
       continuityAnchor: { type: 'string' },
+      renderLane: { type: 'string', enum: [...STORYBOARD_RENDER_LANES] },
+      productionRisk: { type: 'string', enum: [...STORYBOARD_PRODUCTION_RISKS] },
+      reservedForPost: { type: 'string' },
+      deliveryIntent: { type: 'string' },
+      referencePriorityMode: { type: 'string', enum: [...STORYBOARD_REFERENCE_PRIORITY_MODES] },
       requiresEndFrame: { type: 'boolean' },
       endFrameDescription: { type: 'string' },
       endFrameDelta: { type: 'string' },
@@ -634,7 +674,7 @@ export async function regenerateStoryboardScene(
         required: ['type', 'reason'],
       },
     },
-    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'shotIntent', 'continuityAnchor', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'requiredReferences', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext'],
+    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'shotIntent', 'continuityAnchor', 'renderLane', 'productionRisk', 'reservedForPost', 'deliveryIntent', 'referencePriorityMode', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'requiredReferences', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext'],
   };
 
   const parsed = await callOpenRouterJson<{ scene?: Partial<Scene> }>({
@@ -660,6 +700,7 @@ ${JSON.stringify(sceneSchema, null, 2)}
 規則：
 - 只允許改動目標場景，不要改場景編號。
 - 優先修正：運鏡可執行性、endFrameDelta 可執行性、連續性約束清楚。
+- scene 必須保留完整 contract，特別是 renderLane / productionRisk / reservedForPost / deliveryIntent / referencePriorityMode。
 - endFrameDelta 僅描述相對首幀差異，不可重寫整景。
 - 若運鏡有 pan/dolly/zoom 終態，requiresEndFrame 應為 true。`,
       },

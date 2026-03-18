@@ -636,6 +636,8 @@ export default function VideosPage() {
                     externalGenerating={selectedSceneGenerationState.isGenerating}
                     projectReferences={currentProject.storyboard?.projectReferences}
                     allScenes={scenes}
+                    sharedAnchors={currentProject.storyboard?.sharedAnchors}
+                    sharedContinuityDirectives={currentProject.storyboard?.sharedContinuityDirectives}
                     onPromptDraftChanged={(draftPrompt, notes) =>
                       handleVideoPromptDraftChanged(selectedScene.id, draftPrompt, notes)
                     }

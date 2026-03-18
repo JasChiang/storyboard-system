@@ -1,4 +1,5 @@
 import { PromptTemplate } from '@/lib/types/storyboard';
+import { buildStoryboardOutputSchema, STORYBOARD_CONTRACT_PROMPT_BLOCK } from '@/lib/prompts/storyboard-contract';
 
 export const SHORTS_HOOK_TEMPLATE: PromptTemplate = {
     id: 'shorts_hook',
@@ -55,138 +56,9 @@ Hook Intensity Rules（第一場景必選最強的一種）：
 12. 場景差異 (changeFromPrev)
 9. 轉場設定 (transitionToNext) - 優先 cut（快節奏）
 
-⚠️ 禁止：開場淡入、無意義過場、超過 4 秒的靜態鏡頭`,
+⚠️ 禁止：開場淡入、無意義過場、超過 4 秒的靜態鏡頭
 
-    outputSchema: {
-        type: 'object',
-        properties: {
-            title: {
-                type: 'string',
-                description: '分鏡腳本的標題'
-            },
-            scenes: {
-                type: 'array',
-                items: {
-                    type: 'object',
-                    properties: {
-                        sceneNumber: {
-                            type: 'integer',
-                            description: '場景編號'
-                        },
-                        description: {
-                            type: 'string',
-                            description: '場景的靜態視覺描述（9:16 豎版構圖）'
-                        },
-                        cameraMovement: {
-                            type: 'string',
-                            description: '鏡頭運動方式'
-                        },
-                        sceneIntent: {
-                            type: 'string',
-                            description: '此秒要讓觀眾感受/思考什麼'
-                        },
-                        startComposition: {
-                            type: 'string',
-                            description: '首幀構圖摘要（豎版比例）'
-                        },
-                        subjectMotion: {
-                            type: 'string',
-                            description: '主體動作範圍'
-                        },
-                        continuityLock: {
-                            type: 'string',
-                            description: '連續性約束'
-                        },
-                        shotIntent: {
-                            type: 'string',
-                            description: '鏡頭在整體敘事中的任務（一句話）'
-                        },
-                        continuityAnchor: {
-                            type: 'string',
-                            description: '跨鏡頭必須維持的一個關鍵連續性錨點'
-                        },
-                        requiresEndFrame: {
-                            type: 'boolean',
-                            description: 'AI 判斷是否需要生成尾幀（Shorts 傾向 false）'
-                        },
-                        endFrameDescription: {
-                            type: 'string',
-                            description: '尾幀描述（只在 requiresEndFrame = true 時填寫）'
-                        },
-                        endFrameDelta: {
-                            type: 'string',
-                            description: '尾幀相對首幀的差異描述'
-                        },
-                        endFrameDeltaSpec: {
-                            type: 'object',
-                            description: '尾幀差異的半結構化規格',
-                            properties: {
-                                reframingGoal: { type: 'string' },
-                                subjectScaleChangePct: { type: 'string' },
-                                newVisibleArea: { type: 'string' },
-                                mustNotChange: { type: 'array', items: { type: 'string' } },
-                            },
-                        },
-                        dialogue: {
-                            type: 'string',
-                            description: '對話或旁白（第一句必須完整有力）'
-                        },
-                        duration: {
-                            type: 'number',
-                            description: '場景時長（秒，建議 1-4）'
-                        },
-                        notes: {
-                            type: 'string',
-                            description: '備註（含 [TWIST:] 或 [HOOK:] 標記）'
-                        },
-                        charactersUsed: {
-                            type: 'array',
-                            items: { type: 'string' },
-                            description: '本場景使用的角色標記列表'
-                        },
-                        productsUsed: {
-                            type: 'array',
-                            items: { type: 'string' },
-                            description: '本場景使用的商品標記列表'
-                        },
-                        changeFromPrev: {
-                            type: 'string',
-                            description: '相對前一場景的變化摘要'
-                        },
-                        requiredReferences: {
-                            type: 'array',
-                            items: { type: 'string' },
-                            description: '本鏡頭必須使用的參考標記（如 ["<Alice>", "<iPhone>"]）'
-                        },
-                        transitionToNext: {
-                            type: 'object',
-                            description: '與下一場景的轉場設定（優先 cut）',
-                            properties: {
-                                type: {
-                                    type: 'string',
-                                    enum: ['cut', 'dissolve', 'fade_black', 'fade_white', 'continuation', 'match_cut', 'wipe', 'push'],
-                                    description: '轉場類型'
-                                },
-                                reason: {
-                                    type: 'string',
-                                    description: 'AI 選擇此轉場的原因'
-                                },
-                                duration: {
-                                    type: 'number',
-                                    description: '轉場時長（秒），預設 0.3'
-                                },
-                                useEndFrameAsNextStart: {
-                                    type: 'boolean',
-                                    description: '是否讓下一場景使用此場景的 endFrame 作為開始幀'
-                                }
-                            },
-                            required: ['type', 'reason']
-                        }
-                    },
-                    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'shotIntent', 'continuityAnchor', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'requiredReferences', 'transitionToNext']
-                }
-            }
-        },
-        required: ['title', 'scenes']
-    }
+${STORYBOARD_CONTRACT_PROMPT_BLOCK}`,
+
+    outputSchema: buildStoryboardOutputSchema()
 };

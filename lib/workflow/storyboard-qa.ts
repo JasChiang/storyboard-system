@@ -44,6 +44,18 @@ export function validateStoryboard(storyboard: Storyboard): {
       .filter(Boolean)
   );
 
+  if (storyboard.sharedAnchors && !Array.isArray(storyboard.sharedAnchors)) {
+    issues.push(issue('medium', 'invalid_shared_anchors', 'sharedAnchors 必須是字串陣列。'));
+  }
+  if (storyboard.sharedContinuityDirectives && !Array.isArray(storyboard.sharedContinuityDirectives)) {
+    issues.push(issue('medium', 'invalid_shared_directives', 'sharedContinuityDirectives 必須是陣列。'));
+  }
+  (storyboard.sharedContinuityDirectives || []).forEach((directive, index) => {
+    if (!directive.anchorLabel?.trim() || !directive.directive?.trim()) {
+      issues.push(issue('medium', 'invalid_shared_directive_item', `sharedContinuityDirectives[${index}] 缺少 anchorLabel 或 directive。`));
+    }
+  });
+
   storyboard.scenes.forEach((scene, index) => {
     const hasCharactersTag = Array.isArray(scene.charactersUsed) && scene.charactersUsed.length > 0;
     const hasProductsTag = Array.isArray(scene.productsUsed) && scene.productsUsed.length > 0;
@@ -58,6 +70,11 @@ export function validateStoryboard(storyboard: Storyboard): {
     const hasShotIntent = Boolean(scene.shotIntent?.trim());
     const hasContinuityAnchor = Boolean(scene.continuityAnchor?.trim());
     const hasChangeFromPrev = Boolean(scene.changeFromPrev?.trim());
+    const hasRenderLane = Boolean(scene.renderLane?.trim());
+    const hasProductionRisk = Boolean(scene.productionRisk?.trim());
+    const hasReservedForPost = typeof scene.reservedForPost === 'string';
+    const hasDeliveryIntent = typeof scene.deliveryIntent === 'string';
+    const hasReferencePriorityMode = Boolean(scene.referencePriorityMode?.trim());
     const continuationMode = scene.transitionToNext?.continuitySourceMode;
     const continuationUsesStartOnly = continuationMode === 'previous_start_only' || continuationMode === 'none';
     const normalizedRequiredTags = (scene.requiredReferences || [])
@@ -97,6 +114,15 @@ export function validateStoryboard(storyboard: Storyboard): {
     }
 
     // ===== Warn（品質提醒，不阻擋流程）=====
+    if (hasRenderLane && !['hero', 'performance', 'continuity', 'plate', 'insert', 'utility'].includes(scene.renderLane!)) {
+      issues.push(issue('medium', 'invalid_render_lane', `renderLane 值無效：${scene.renderLane}`, scene));
+    }
+    if (hasProductionRisk && !['low', 'medium', 'high'].includes(scene.productionRisk!)) {
+      issues.push(issue('medium', 'invalid_production_risk', `productionRisk 值無效：${scene.productionRisk}`, scene));
+    }
+    if (hasReferencePriorityMode && !['identity_first', 'continuity_first', 'style_first', 'stage_balanced'].includes(scene.referencePriorityMode!)) {
+      issues.push(issue('medium', 'invalid_reference_priority_mode', `referencePriorityMode 值無效：${scene.referencePriorityMode}`, scene));
+    }
     if (!hasCharactersTag && !hasProductsTag) {
       issues.push(issue('medium', 'missing_entity_tags', '場景缺少 charactersUsed/productsUsed，一致性追蹤會較弱。', scene));
     }
@@ -120,6 +146,21 @@ export function validateStoryboard(storyboard: Storyboard): {
     }
     if (!hasRequiredReferences) {
       issues.push(issue('medium', 'missing_required_references', '缺少 requiredReferences 欄位，無法精準限制本鏡頭必用參考。', scene));
+    }
+    if (!hasRenderLane) {
+      issues.push(issue('medium', 'missing_render_lane', '缺少 renderLane，生產 lane 無法穩定路由。', scene));
+    }
+    if (!hasProductionRisk) {
+      issues.push(issue('medium', 'missing_production_risk', '缺少 productionRisk，QA 無法判讀製作風險。', scene));
+    }
+    if (!hasReservedForPost) {
+      issues.push(issue('medium', 'missing_reserved_for_post', '缺少 reservedForPost，後製責任切分不明。', scene));
+    }
+    if (!hasDeliveryIntent) {
+      issues.push(issue('medium', 'missing_delivery_intent', '缺少 deliveryIntent，交付目的不明。', scene));
+    }
+    if (!hasReferencePriorityMode) {
+      issues.push(issue('medium', 'missing_reference_priority_mode', '缺少 referencePriorityMode，參考優先順序不明。', scene));
     }
     if (hasRequiredReferences && scene.requiredReferences!.length > 0 && !hasCharactersTag && !hasProductsTag) {
       issues.push(issue('medium', 'required_refs_without_entity_tags', '有 requiredReferences 但缺少 charactersUsed/productsUsed，參考映射可能失效。', scene));

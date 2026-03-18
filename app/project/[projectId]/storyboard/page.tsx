@@ -8,9 +8,11 @@ import { StoryboardTable } from '@/components/storyboard/StoryboardTable';
 import { PacingTimeline } from '@/components/storyboard/PacingTimeline';
 import { HookVariantPanel } from '@/components/storyboard/HookVariantPanel';
 import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator';
+import { StyleProfileSelector } from '@/components/image-generation/StyleProfileSelector';
+import { Badge } from '@/components/ui/badge';
 import { Scene, Storyboard, StoryboardGenerationResponse, ProjectReference, CreativeReview, HookVariant } from '@/lib/types/storyboard';
-import { DEFAULT_STYLE_PROFILE_ID } from '@/lib/constants/style-profiles';
-import { ArrowLeft, ArrowRight, Loader2, Sparkles, Zap, Undo2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { DEFAULT_STYLE_PROFILE_ID, findStyleProfileById } from '@/lib/constants/style-profiles';
+import { ArrowLeft, ArrowRight, Loader2, Sparkles, Zap, Undo2, ChevronDown, ChevronUp, RefreshCw, ShieldCheck, ShieldAlert, Palette, Link2, Rows3, Wand2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -39,7 +41,6 @@ export default function StoryboardPage() {
     setCurrentProject(projectId);
   }, [projectId, setCurrentProject]);
 
-  // 有分鏡腳本時自動收合 StoryPromptInput（只在第一次載入時觸發）
   useEffect(() => {
     if (promptCollapsedInitRef.current) return;
     if (currentProject?.storyboard?.scenes?.length) {
@@ -59,15 +60,6 @@ export default function StoryboardPage() {
     setGenerationNotice(null);
 
     try {
-      console.log('發送請求到:', '/api/openrouter/generate-storyboard');
-      console.log('請求參數:', {
-        prompt: prompt.substring(0, 50) + '...',
-        templateId,
-        refsCount: references.length,
-        targetDurationSec,
-        targetSceneCount,
-      });
-
       const response = await fetch('/api/openrouter/generate-storyboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -86,7 +78,6 @@ export default function StoryboardPage() {
           const error = await response.json();
           errorMessage = error.details || error.error || '生成失敗';
         } catch {
-          // 如果回應不是 JSON，嘗試讀取純文字
           const text = await response.text();
           errorMessage = text || `請求失敗 (${response.status})`;
         }
@@ -96,13 +87,11 @@ export default function StoryboardPage() {
       const result = await response.json();
       const data: StoryboardGenerationResponse = result.data;
 
-      // 轉換為 Scene 格式並生成 ID
       const rawScenes: Scene[] = data.scenes.map((scene, index) => ({
         ...scene,
         id: `scene-${Date.now()}-${index}`,
       }));
 
-      // 建立 Storyboard（包含參考圖）
       const storyboard: Storyboard = {
         id: `storyboard-${Date.now()}`,
         projectId,
@@ -111,12 +100,15 @@ export default function StoryboardPage() {
         templateUsed: result.templateUsed,
         scenes: rawScenes,
         projectReferences: references.length > 0 ? references : undefined,
-        selectedStyleProfileId: DEFAULT_STYLE_PROFILE_ID,
+        selectedStyleProfileId: currentProject?.storyboard?.selectedStyleProfileId || DEFAULT_STYLE_PROFILE_ID,
+        productionPresetId: currentProject?.storyboard?.productionPresetId || DEFAULT_STYLE_PROFILE_ID,
+        customStyleProfiles: currentProject?.storyboard?.customStyleProfiles || [],
+        sharedAnchors: data.sharedAnchors || [],
+        sharedContinuityDirectives: data.sharedContinuityDirectives || [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      // QA Gate：先驗證再寫入，避免後續圖片/影片流程吃到不穩定腳本
       const qaResponse = await fetch('/api/workflow/qa/validate-storyboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,7 +122,6 @@ export default function StoryboardPage() {
       const scenes = applyQaStatusToScenes(rawScenes, qaReport?.issues);
       storyboard.scenes = scenes;
 
-      // 更新專案
       updateProject(projectId, {
         storyboard,
         targetDurationSec,
@@ -149,7 +140,6 @@ export default function StoryboardPage() {
         });
       }
     } catch (error) {
-      console.error('生成錯誤:', error);
       setGenerationNotice({
         type: 'error',
         message: error instanceof Error ? error.message : '生成失敗，請檢查服務設定與網路連線',
@@ -250,15 +240,9 @@ export default function StoryboardPage() {
           updatedAt: new Date().toISOString(),
         },
       });
-      setGenerationNotice({
-        type: 'success',
-        message: `已重生場景 ${targetScene.sceneNumber}，並重新套用 QA。`,
-      });
+      setGenerationNotice({ type: 'success', message: `已重生場景 ${targetScene.sceneNumber}，並重新套用 QA。` });
     } catch (error) {
-      setGenerationNotice({
-        type: 'error',
-        message: error instanceof Error ? error.message : '重生場景失敗',
-      });
+      setGenerationNotice({ type: 'error', message: error instanceof Error ? error.message : '重生場景失敗' });
     } finally {
       setRegeneratingSceneId(null);
     }
@@ -310,26 +294,14 @@ export default function StoryboardPage() {
       const skippedCount = Number(payload?.data?.skippedSceneIds?.length || 0);
 
       if (blockedBefore === 0) {
-        setGenerationNotice({
-          type: 'success',
-          message: '目前沒有被 QA 阻擋的場景。',
-        });
+        setGenerationNotice({ type: 'success', message: '目前沒有被 QA 阻擋的場景。' });
       } else if (blockedAfter === 0) {
-        setGenerationNotice({
-          type: 'success',
-          message: `自動修復完成：已處理 ${fixedCount} 個場景，所有阻擋問題已解除。`,
-        });
+        setGenerationNotice({ type: 'success', message: `自動修復完成：已處理 ${fixedCount} 個場景，所有阻擋問題已解除。` });
       } else {
-        setGenerationNotice({
-          type: 'warning',
-          message: `已嘗試修復 ${fixedCount} 個場景（略過 ${skippedCount} 個），仍有 ${blockedAfter} 個高風險問題需手動調整。`,
-        });
+        setGenerationNotice({ type: 'warning', message: `已嘗試修復 ${fixedCount} 個場景（略過 ${skippedCount} 個），仍有 ${blockedAfter} 個高風險問題需手動調整。` });
       }
     } catch (error) {
-      setGenerationNotice({
-        type: 'error',
-        message: error instanceof Error ? error.message : '自動修復失敗',
-      });
+      setGenerationNotice({ type: 'error', message: error instanceof Error ? error.message : '自動修復失敗' });
     } finally {
       setIsAutoFixing(false);
     }
@@ -349,20 +321,12 @@ export default function StoryboardPage() {
       const review: CreativeReview = payload.data;
       setCreativeReview(review);
 
-      // Merge hookScore into scenes
       const updatedScenes = currentProject.storyboard.scenes.map((scene) => {
         const sr = review.sceneReviews.find(r => r.sceneNumber === scene.sceneNumber);
         if (!sr) return scene;
-        return {
-          ...scene,
-          hookScore: sr.hookScore as Scene['hookScore'],
-          hookScoreReason: sr.hookScoreReason,
-          retentionRisk: sr.retentionRisk,
-        };
+        return { ...scene, hookScore: sr.hookScore as Scene['hookScore'], hookScoreReason: sr.hookScoreReason, retentionRisk: sr.retentionRisk };
       });
-      updateProject(projectId, {
-        storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() },
-      });
+      updateProject(projectId, { storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() } });
       setGenerationNotice({ type: 'success', message: '廣告效果分析完成，已更新 Hook 評分。' });
     } catch (error) {
       setGenerationNotice({ type: 'error', message: error instanceof Error ? error.message : '分析失敗' });
@@ -379,11 +343,7 @@ export default function StoryboardPage() {
       const response = await fetch('/api/openrouter/hook-variants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: currentProject.storyboard.originalPrompt,
-          references: '',
-          existingScene1: scene1,
-        }),
+        body: JSON.stringify({ topic: currentProject.storyboard.originalPrompt, references: '', existingScene1: scene1 }),
       });
       if (!response.ok) throw new Error('生成 Hook 變體失敗');
       const payload = await response.json();
@@ -401,22 +361,10 @@ export default function StoryboardPage() {
     if (!scene1) return;
     const updatedScenes = currentProject.storyboard.scenes.map((s) =>
       s.id === scene1.id
-        ? {
-          ...s,
-          ...variant.scene,
-          id: s.id,
-          sceneNumber: s.sceneNumber,
-          generatedImage: undefined,
-          generatedEndFrame: undefined,
-          generatedVideo: undefined,
-          generatedVoiceover: undefined,
-          motionPrompt: undefined,
-        }
+        ? { ...s, ...variant.scene, id: s.id, sceneNumber: s.sceneNumber, generatedImage: undefined, generatedEndFrame: undefined, generatedVideo: undefined, generatedVoiceover: undefined, motionPrompt: undefined }
         : s
     );
-    updateProject(projectId, {
-      storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() },
-    });
+    updateProject(projectId, { storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() } });
     setHookVariants([]);
     setGenerationNotice({ type: 'success', message: `已套用「${variant.variantLabel}」Hook 開場。` });
   };
@@ -443,6 +391,11 @@ export default function StoryboardPage() {
       || isChanged(previous.beatGoal, next.beatGoal)
       || isChanged(previous.shotIntent, next.shotIntent)
       || isChanged(previous.continuityAnchor, next.continuityAnchor)
+      || isChanged(previous.renderLane, next.renderLane)
+      || isChanged(previous.productionRisk, next.productionRisk)
+      || isChanged(previous.reservedForPost, next.reservedForPost)
+      || isChanged(previous.deliveryIntent, next.deliveryIntent)
+      || isChanged(previous.referencePriorityMode, next.referencePriorityMode)
       || isChanged(previous.changeFromPrev, next.changeFromPrev)
     );
   };
@@ -472,6 +425,11 @@ export default function StoryboardPage() {
     beatGoal: '',
     shotIntent: '',
     continuityAnchor: '',
+    renderLane: 'hero',
+    productionRisk: 'medium',
+    reservedForPost: '',
+    deliveryIntent: '',
+    referencePriorityMode: 'stage_balanced',
     requiredReferences: [],
     charactersUsed: [],
     productsUsed: [],
@@ -479,13 +437,7 @@ export default function StoryboardPage() {
     requiresEndFrame: false,
     endFrameDescription: '',
     endFrameDelta: '',
-    transitionToNext: {
-      type: 'dissolve',
-      reason: '手動新增場景，預設溶解轉場。',
-      duration: 0.5,
-      useEndFrameAsNextStart: false,
-      continuitySourceMode: 'none',
-    },
+    transitionToNext: { type: 'dissolve', reason: '手動新增場景，預設溶解轉場。', duration: 0.5, useEndFrameAsNextStart: false, continuitySourceMode: 'none' },
     qaStatus: 'warn',
     qaIssues: ['新場景尚未完善，請補齊描述、運鏡與結構欄位。'],
   });
@@ -500,19 +452,10 @@ export default function StoryboardPage() {
       ...scenes.slice(0, safeIndex),
       newScene,
       ...scenes.slice(safeIndex),
-    ].map((scene, index) => ({
-      ...scene,
-      sceneNumber: index + 1,
-      changeFromPrev: index === 0 ? 'N/A' : (scene.changeFromPrev || ''),
-    }));
+    ].map((scene, index) => ({ ...scene, sceneNumber: index + 1, changeFromPrev: index === 0 ? 'N/A' : (scene.changeFromPrev || '') }));
 
-    updateProject(projectId, {
-      storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() },
-    });
-    setGenerationNotice({
-      type: 'warning',
-      message: `已新增場景 ${safeIndex + 1}，請補齊描述與指示後再生成素材。`,
-    });
+    updateProject(projectId, { storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() } });
+    setGenerationNotice({ type: 'warning', message: `已新增場景 ${safeIndex + 1}，請補齊描述與指示後再生成素材。` });
   };
 
   const handleDuplicateScene = (sceneId: string) => {
@@ -521,21 +464,10 @@ export default function StoryboardPage() {
     const idx = scenes.findIndex(s => s.id === sceneId);
     if (idx === -1) return;
     const original = scenes[idx];
-    const clone: Scene = clearSceneGeneratedAssets({
-      ...original,
-      id: `scene-${Date.now()}-clone`,
-    });
-    const newScenes = [...scenes.slice(0, idx + 1), clone, ...scenes.slice(idx + 1)].map((s, i) => ({
-      ...s,
-      sceneNumber: i + 1,
-    }));
-    updateProject(projectId, {
-      storyboard: { ...currentProject.storyboard, scenes: newScenes, updatedAt: new Date().toISOString() },
-    });
-    setGenerationNotice({
-      type: 'warning',
-      message: `已複製場景 ${original.sceneNumber}，新場景需重新生成圖片/影片。`,
-    });
+    const clone: Scene = clearSceneGeneratedAssets({ ...original, id: `scene-${Date.now()}-clone` });
+    const newScenes = [...scenes.slice(0, idx + 1), clone, ...scenes.slice(idx + 1)].map((s, i) => ({ ...s, sceneNumber: i + 1 }));
+    updateProject(projectId, { storyboard: { ...currentProject.storyboard, scenes: newScenes, updatedAt: new Date().toISOString() } });
+    setGenerationNotice({ type: 'warning', message: `已複製場景 ${original.sceneNumber}，新場景需重新生成圖片/影片。` });
   };
 
   const handleInsertSceneAfter = (sceneId: string) => {
@@ -553,37 +485,18 @@ export default function StoryboardPage() {
   const handleReorderScenes = (orderedIds: string[]) => {
     if (!currentProject?.storyboard) return;
     const sceneMap = new Map(currentProject.storyboard.scenes.map(s => [s.id, s]));
-    const reordered = orderedIds
-      .map((id, i) => {
-        const scene = sceneMap.get(id);
-        if (!scene) return null;
-        return { ...scene, sceneNumber: i + 1 };
-      })
-      .filter((s): s is Scene => s !== null);
-    updateProject(projectId, {
-      storyboard: { ...currentProject.storyboard, scenes: reordered, updatedAt: new Date().toISOString() },
-    });
+    const reordered = orderedIds.map((id, i) => {
+      const scene = sceneMap.get(id);
+      if (!scene) return null;
+      return { ...scene, sceneNumber: i + 1 };
+    }).filter((s): s is Scene => s !== null);
+    updateProject(projectId, { storyboard: { ...currentProject.storyboard, scenes: reordered, updatedAt: new Date().toISOString() } });
   };
 
   const handleResetScene = (sceneId: string) => {
     if (!currentProject?.storyboard) return;
-    const updatedScenes = currentProject.storyboard.scenes.map(s =>
-      s.id === sceneId
-        ? {
-          ...s,
-          generatedImage: undefined,
-          generatedEndFrame: undefined,
-          generatedVideo: undefined,
-          generatedVoiceover: undefined,
-          motionPrompt: undefined,
-          videoPromptDraft: undefined,
-          videoPromptDraftNotes: undefined,
-        }
-        : s
-    );
-    updateProject(projectId, {
-      storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() },
-    });
+    const updatedScenes = currentProject.storyboard.scenes.map(s => s.id === sceneId ? { ...s, generatedImage: undefined, generatedEndFrame: undefined, generatedVideo: undefined, generatedVoiceover: undefined, motionPrompt: undefined, videoPromptDraft: undefined, videoPromptDraftNotes: undefined } : s);
+    updateProject(projectId, { storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() } });
   };
 
   const handleUpdateScene = (sceneId: string, updates: Partial<Scene>) => {
@@ -594,20 +507,14 @@ export default function StoryboardPage() {
       scene.id === sceneId
         ? (() => {
           const mergedScene: Scene = {
-          ...scene,
-          ...updates,
-          generatedEndFrame: updates.requiresEndFrame === false ? undefined : scene.generatedEndFrame,
-          endFrameDescription: updates.requiresEndFrame === false
-            ? ''
-            : (updates.endFrameDescription ?? scene.endFrameDescription),
-          endFrameDelta: updates.requiresEndFrame === false
-            ? ''
-            : (updates.endFrameDelta ?? scene.endFrameDelta),
+            ...scene,
+            ...updates,
+            generatedEndFrame: updates.requiresEndFrame === false ? undefined : scene.generatedEndFrame,
+            endFrameDescription: updates.requiresEndFrame === false ? '' : (updates.endFrameDescription ?? scene.endFrameDescription),
+            endFrameDelta: updates.requiresEndFrame === false ? '' : (updates.endFrameDelta ?? scene.endFrameDelta),
           };
 
-          if (!sceneNeedsRegeneration(scene, mergedScene)) {
-            return mergedScene;
-          }
+          if (!sceneNeedsRegeneration(scene, mergedScene)) return mergedScene;
 
           invalidatedSceneNumber = scene.sceneNumber;
           return clearSceneGeneratedAssets(mergedScene);
@@ -615,19 +522,10 @@ export default function StoryboardPage() {
         : scene
     );
 
-    updateProject(projectId, {
-      storyboard: {
-        ...currentProject.storyboard,
-        scenes: updatedScenes,
-        updatedAt: new Date().toISOString(),
-      },
-    });
+    updateProject(projectId, { storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() } });
 
     if (invalidatedSceneNumber !== null) {
-      setGenerationNotice({
-        type: 'warning',
-        message: `已更新場景 ${invalidatedSceneNumber}，舊圖片/影片已清除，請重新生成。`,
-      });
+      setGenerationNotice({ type: 'warning', message: `已更新場景 ${invalidatedSceneNumber}，舊圖片/影片已清除，請重新生成。` });
     }
   };
 
@@ -641,15 +539,11 @@ export default function StoryboardPage() {
     const deletedScene = scenes[idx];
     const updatedScenes = scenes.filter(s => s.id !== sceneId).map((s, i) => ({ ...s, sceneNumber: i + 1 }));
 
-    updateProject(projectId, {
-      storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() },
-    });
+    updateProject(projectId, { storyboard: { ...currentProject.storyboard, scenes: updatedScenes, updatedAt: new Date().toISOString() } });
 
-    // Push to undo stack
     setDeletedSceneStack(prev => [...prev, { scene: deletedScene, index: idx }]);
     setGenerationNotice({ type: 'warning', message: `已刪除場景 ${deletedScene.sceneNumber}` });
 
-    // Auto-clear after 5s
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     undoTimerRef.current = setTimeout(() => {
       setDeletedSceneStack([]);
@@ -662,9 +556,7 @@ export default function StoryboardPage() {
     const last = deletedSceneStack[deletedSceneStack.length - 1];
     const scenes = currentProject.storyboard.scenes;
     const restored = [...scenes.slice(0, last.index), last.scene, ...scenes.slice(last.index)].map((s, i) => ({ ...s, sceneNumber: i + 1 }));
-    updateProject(projectId, {
-      storyboard: { ...currentProject.storyboard, scenes: restored, updatedAt: new Date().toISOString() },
-    });
+    updateProject(projectId, { storyboard: { ...currentProject.storyboard, scenes: restored, updatedAt: new Date().toISOString() } });
     setDeletedSceneStack(prev => prev.slice(0, -1));
     setGenerationNotice(null);
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
@@ -674,13 +566,11 @@ export default function StoryboardPage() {
   const warnSceneCount = currentProject?.storyboard?.scenes.filter((scene) => scene.qaStatus === 'warn').length || 0;
   const passSceneCount = currentProject?.storyboard?.scenes.filter((scene) => !scene.qaStatus || scene.qaStatus === 'pass').length || 0;
   const totalSceneCount = currentProject?.storyboard?.scenes.length || 0;
+  const storyboard = currentProject?.storyboard;
+  const activeStyleProfile = findStyleProfileById(storyboard?.selectedStyleProfileId || storyboard?.productionPresetId || DEFAULT_STYLE_PROFILE_ID, storyboard?.customStyleProfiles);
 
   if (isCurrentProjectLoading && !currentProject) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-lg text-slate-600 dark:text-slate-400">載入中...</p>
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center"><p className="text-lg text-slate-600 dark:text-slate-400">載入中...</p></div>;
   }
 
   if (!currentProject) {
@@ -688,12 +578,7 @@ export default function StoryboardPage() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <p className="text-muted-foreground">找不到專案或已被刪除</p>
-          <Link
-            href="/"
-            className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            返回首頁
-          </Link>
+          <Link href="/" className="mt-4 inline-block rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">返回首頁</Link>
         </div>
       </div>
     );
@@ -706,10 +591,7 @@ export default function StoryboardPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href={`/project/${projectId}`}>
-                <Button variant="outline" size="sm">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  返回
-                </Button>
+                <Button variant="outline" size="sm"><ArrowLeft className="w-4 h-4 mr-2" />返回</Button>
               </Link>
               <div>
                 <p className="text-kicker">Storyboard</p>
@@ -717,181 +599,178 @@ export default function StoryboardPage() {
                 <p className="text-sm text-muted-foreground">分鏡腳本編輯</p>
               </div>
             </div>
-
           </div>
         </div>
       </header>
 
-      <ProjectStepNavigator
-        projectId={projectId}
-        project={currentProject}
-        currentStep="storyboard"
-      />
+      <ProjectStepNavigator projectId={projectId} project={currentProject} currentStep="storyboard" />
 
       <main className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="max-w-7xl mx-auto space-y-6">
           {generationNotice && (
-            <div
-              className={`rounded-lg border px-4 py-3 text-sm ${
-                generationNotice.type === 'success'
-                  ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-300'
-                  : generationNotice.type === 'warning'
-                    ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300'
-                    : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300'
-              }`}
-            >
+            <div className={`rounded-lg border px-4 py-3 text-sm ${generationNotice.type === 'success' ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-300' : generationNotice.type === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300' : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300'}`}>
               <div className="flex items-start justify-between gap-3">
                 <p>{generationNotice.message}</p>
-                <button
-                  type="button"
-                  onClick={() => setGenerationNotice(null)}
-                  className="text-xs opacity-70 hover:opacity-100"
-                >
-                  關閉
-                </button>
+                <button type="button" onClick={() => setGenerationNotice(null)} className="text-xs opacity-70 hover:opacity-100">關閉</button>
               </div>
             </div>
           )}
 
-          <div className="surface-soft p-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="surface-inset p-3">
-                <p className="text-kicker">Scenes</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{totalSceneCount}</p>
-                <p className="mt-1 text-xs text-muted-foreground">目前分鏡場景總數</p>
-              </div>
-              <div className="surface-inset p-3">
-                <p className="text-kicker">QA Pass</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{passSceneCount}</p>
-                <p className="mt-1 text-xs text-muted-foreground">可直接進入圖片生成</p>
-              </div>
-              <div className="surface-inset p-3">
-                <p className="text-kicker">Need Fix</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{blockedSceneCount + warnSceneCount}</p>
-                <p className="mt-1 text-xs text-muted-foreground">阻擋 + 警告場景數</p>
-              </div>
-            </div>
+          <section className="surface-hero overflow-hidden">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+              <div>
+                <p className="text-kicker">Storyboard Control Room</p>
+                <h2 className="mt-3 text-3xl font-semibold tracking-tight">Production-ready scene planning</h2>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
+                  把故事、連戲、風格 preset 和 scene QA 放在同一個工作檯。先穩住 continuity 與 style，再逐鏡補 narrative / generation 細節，後續圖片與影片流程會順很多。
+                </p>
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground">
-                建議先把 <strong>阻擋</strong> 場景降到 0 再往下一步，避免後面批次流程中斷。
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                {/* 暫時操作（undo / 修復） */}
-                {deletedSceneStack.length > 0 && (
-                  <Button type="button" variant="outline" size="sm" onClick={handleUndoDelete}>
-                    <Undo2 className="mr-1.5 h-3.5 w-3.5" />
-                    還原刪除
-                  </Button>
-                )}
-                {blockedSceneCount > 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAutoFixBlockedScenes}
-                    disabled={isAutoFixing || !!regeneratingSceneId}
-                  >
-                    {isAutoFixing && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
-                    一鍵修復阻擋 ({blockedSceneCount})
-                  </Button>
-                )}
-
-                {/* AI 工具分組 */}
-                {totalSceneCount > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground/60 select-none">AI</span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAnalyzeCreativity}
-                      disabled={isReviewing}
-                    >
-                      {isReviewing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
-                      分析廣告效果
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleGenerateHookVariants}
-                      disabled={isGeneratingHooks}
-                    >
-                      {isGeneratingHooks ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1.5 h-3.5 w-3.5" />}
-                      生成 Hook 變體
-                    </Button>
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <div className="surface-inset p-4">
+                    <p className="text-kicker">Scene Health</p>
+                    <div className="mt-3 flex items-end gap-2">
+                      <p className="text-3xl font-semibold text-foreground">{totalSceneCount}</p>
+                      <p className="pb-1 text-sm text-muted-foreground">scenes</p>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge className="bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"><ShieldCheck className="mr-1 h-3.5 w-3.5" />pass {passSceneCount}</Badge>
+                      <Badge className="bg-amber-500/12 text-amber-700 dark:text-amber-300"><ShieldAlert className="mr-1 h-3.5 w-3.5" />fix {blockedSceneCount + warnSceneCount}</Badge>
+                    </div>
                   </div>
-                )}
+                  <div className="surface-inset p-4">
+                    <p className="text-kicker">Continuity</p>
+                    <div className="mt-3 text-3xl font-semibold text-foreground">{storyboard?.sharedAnchors?.length || 0}</div>
+                    <p className="mt-1 text-sm text-muted-foreground">shared anchors</p>
+                    <p className="mt-3 text-xs text-muted-foreground">{storyboard?.sharedContinuityDirectives?.length || 0} directives 已定義</p>
+                  </div>
+                  <div className="surface-inset p-4">
+                    <p className="text-kicker">Style Preset</p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <Palette className="h-5 w-5 text-primary" />
+                      <p className="text-base font-semibold text-foreground">{activeStyleProfile?.name || '未設定'}</p>
+                    </div>
+                    <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{activeStyleProfile?.continuityStrategy || activeStyleProfile?.stylePrompt || '選一個 preset 讓整批 scene 共用同一個生成語言。'}</p>
+                  </div>
+                </div>
+              </div>
 
-                {/* 主流程 */}
-                <Link href={`/project/${projectId}/images`}>
-                  <Button size="sm" disabled={totalSceneCount === 0}>
-                    下一步：生成分鏡圖片
-                    <ArrowRight className="ml-1 h-4 w-4" />
-                  </Button>
-                </Link>
+              <div className="surface-inset h-fit p-4">
+                <p className="text-kicker">Action Rail</p>
+                <div className="mt-3 space-y-2">
+                  {deletedSceneStack.length > 0 && (
+                    <Button type="button" variant="outline" size="sm" onClick={handleUndoDelete} className="w-full justify-start">
+                      <Undo2 className="mr-1.5 h-3.5 w-3.5" />還原刪除
+                    </Button>
+                  )}
+                  {blockedSceneCount > 0 && (
+                    <Button type="button" variant="outline" size="sm" onClick={handleAutoFixBlockedScenes} disabled={isAutoFixing || !!regeneratingSceneId} className="w-full justify-start">
+                      {isAutoFixing && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}一鍵修復阻擋 ({blockedSceneCount})
+                    </Button>
+                  )}
+                  {totalSceneCount > 0 && (
+                    <>
+                      <Button type="button" variant="outline" size="sm" onClick={handleAnalyzeCreativity} disabled={isReviewing} className="w-full justify-start">
+                        {isReviewing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}分析廣告效果
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={handleGenerateHookVariants} disabled={isGeneratingHooks} className="w-full justify-start">
+                        {isGeneratingHooks ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1.5 h-3.5 w-3.5" />}生成 Hook 變體
+                      </Button>
+                    </>
+                  )}
+                  <Link href={`/project/${projectId}/images`}>
+                    <Button size="sm" disabled={totalSceneCount === 0} className="w-full justify-between">
+                      下一步：生成分鏡圖片
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+                <p className="mt-4 text-xs leading-relaxed text-muted-foreground">建議先把 block 降到 0，再批次生成 image / video，會比較像 production pipeline 而不是逐格救火。</p>
               </div>
             </div>
+          </section>
+
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
+            <section className="surface-soft p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-kicker">Global Continuity</p>
+                  <p className="mt-1 text-sm text-muted-foreground">把全片共用 anchor / directive 寫在這裡，圖片與影片提示詞都能沿用。</p>
+                </div>
+                <Badge variant="outline" className="gap-1.5"><Link2 className="h-3.5 w-3.5" />global lock</Badge>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <label className="text-xs text-muted-foreground">Shared anchors（每行一條）</label>
+                  <textarea className="mt-1 w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground dark:bg-slate-900/65" rows={6} value={(currentProject.storyboard?.sharedAnchors || []).join('\n')} onChange={(e) => updateProject(projectId, { storyboard: { ...currentProject.storyboard!, sharedAnchors: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean), updatedAt: new Date().toISOString() } })} placeholder="例如：主商品永遠在畫面右半部可辨識 / 品牌藍白燈光語彙不變" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Shared directives（格式：label: directive）</label>
+                  <textarea className="mt-1 w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground dark:bg-slate-900/65" rows={6} value={(currentProject.storyboard?.sharedContinuityDirectives || []).map((item) => `${item.anchorLabel}: ${item.directive}`).join('\n')} onChange={(e) => updateProject(projectId, { storyboard: { ...currentProject.storyboard!, sharedContinuityDirectives: e.target.value.split('\n').map((line) => { const [label, ...rest] = line.split(':'); return { anchorLabel: (label || '').trim(), directive: rest.join(':').trim() }; }).filter((item) => item.directive), updatedAt: new Date().toISOString() } })} placeholder="wardrobe: 人物服裝 silhouette 不變\nlogo: 包裝文字不可改拼寫" />
+                </div>
+              </div>
+            </section>
+
+            {currentProject.storyboard && (
+              <section className="space-y-4">
+                <StyleProfileSelector
+                  selectedProfileId={currentProject.storyboard.selectedStyleProfileId || DEFAULT_STYLE_PROFILE_ID}
+                  customProfiles={currentProject.storyboard.customStyleProfiles || []}
+                  onChange={(nextProfileId) => updateProject(projectId, {
+                    storyboard: {
+                      ...currentProject.storyboard!,
+                      selectedStyleProfileId: nextProfileId,
+                      productionPresetId: nextProfileId,
+                      updatedAt: new Date().toISOString(),
+                    },
+                  })}
+                  onCustomProfilesChange={(profiles) => updateProject(projectId, {
+                    storyboard: {
+                      ...currentProject.storyboard!,
+                      customStyleProfiles: profiles,
+                      updatedAt: new Date().toISOString(),
+                    },
+                  })}
+                  disabled={isGenerating}
+                />
+              </section>
+            )}
           </div>
 
-          {/* 故事輸入 */}
           <div className="surface-soft overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setIsPromptCollapsed(prev => !prev)}
-              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-            >
+            <button type="button" onClick={() => setIsPromptCollapsed(prev => !prev)} className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
               <div className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">
-                  {totalSceneCount > 0 ? '重新生成分鏡腳本' : '生成分鏡腳本'}
-                </span>
-                {totalSceneCount > 0 && (
-                  <span className="text-xs text-muted-foreground">（會覆蓋現有場景）</span>
-                )}
+                <span className="text-sm font-medium">{totalSceneCount > 0 ? '重新生成分鏡腳本' : '生成分鏡腳本'}</span>
+                {totalSceneCount > 0 && <span className="text-xs text-muted-foreground">（會覆蓋現有場景）</span>}
               </div>
-              {isPromptCollapsed
-                ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                : <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              }
+              {isPromptCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
             </button>
             {!isPromptCollapsed && (
               <div className="border-t border-border/40">
-                <StoryPromptInput
-                  onGenerate={async (...args) => {
-                    await handleGenerate(...args);
-                    setIsPromptCollapsed(true);
-                  }}
-                  isLoading={isGenerating}
-                  initialTargetDurationSec={currentProject?.targetDurationSec}
-                  initialPrompt={currentProject?.storyboard?.originalPrompt}
-                />
+                <StoryPromptInput onGenerate={async (...args) => { await handleGenerate(...args); setIsPromptCollapsed(true); }} isLoading={isGenerating} initialTargetDurationSec={currentProject?.targetDurationSec} initialPrompt={currentProject?.storyboard?.originalPrompt} />
               </div>
             )}
           </div>
 
-          {/* 節奏時間軸 */}
           {totalSceneCount > 0 && (
-            <PacingTimeline
-              scenes={currentProject.storyboard?.scenes || []}
-              onSceneClick={(sceneId) => {
-                const el = document.getElementById(`scene-row-${sceneId}`);
-                el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }}
-            />
+            <section className="surface-soft p-4">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-kicker">Scene Summary</p>
+                  <h3 className="mt-2 text-xl font-semibold tracking-tight">Scene list / pacing / generation health</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">這一區先看整體節奏，再往下逐鏡修欄位。</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="gap-1.5"><Rows3 className="h-3.5 w-3.5" />{totalSceneCount} scenes</Badge>
+                  <Badge variant="outline" className="gap-1.5"><Wand2 className="h-3.5 w-3.5" />{activeStyleProfile?.name || 'No preset'}</Badge>
+                </div>
+              </div>
+              <PacingTimeline scenes={currentProject.storyboard?.scenes || []} onSceneClick={(sceneId) => { const el = document.getElementById(`scene-row-${sceneId}`); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} />
+            </section>
           )}
 
-          {/* Hook 變體面板 */}
-          {(hookVariants.length > 0 || isGeneratingHooks) && (
-            <HookVariantPanel
-              variants={hookVariants}
-              onApply={handleApplyHookVariant}
-              isLoading={isGeneratingHooks}
-            />
-          )}
+          {(hookVariants.length > 0 || isGeneratingHooks) && <HookVariantPanel variants={hookVariants} onApply={handleApplyHookVariant} isLoading={isGeneratingHooks} />}
 
-          {/* 創意評估摘要 */}
           {creativeReview && (
             <div className="surface-soft rounded-xl p-4 text-sm">
               <p className="text-kicker mb-2">Creative Review</p>
@@ -904,7 +783,6 @@ export default function StoryboardPage() {
             </div>
           )}
 
-          {/* 分鏡表格 */}
           <StoryboardTable
             scenes={currentProject.storyboard?.scenes || []}
             onUpdateScene={handleUpdateScene}
@@ -917,7 +795,6 @@ export default function StoryboardPage() {
             onReorderScenes={handleReorderScenes}
             isRegeneratingSceneId={regeneratingSceneId}
           />
-
         </div>
       </main>
     </>

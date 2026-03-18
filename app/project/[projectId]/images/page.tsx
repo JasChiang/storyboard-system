@@ -831,6 +831,8 @@ export default function ImagesPage() {
                         nextSceneDescription={nextScene?.description}
                         externalGeneratingStart={selectedSceneGenerationState.isGeneratingStart}
                         externalGeneratingEnd={selectedSceneGenerationState.isGeneratingEnd}
+                        sharedAnchors={currentProject.storyboard?.sharedAnchors}
+                        sharedContinuityDirectives={currentProject.storyboard?.sharedContinuityDirectives}
                       />
                     </div>
                   )}
@@ -857,6 +859,8 @@ export default function ImagesPage() {
               scenes={processableScenes}
               projectReferences={currentProject.storyboard?.projectReferences}
               styleProfile={activeStyleProfile}
+              sharedAnchors={currentProject.storyboard?.sharedAnchors}
+              sharedContinuityDirectives={currentProject.storyboard?.sharedContinuityDirectives}
               onBatchComplete={handleBatchComplete}
             />
 

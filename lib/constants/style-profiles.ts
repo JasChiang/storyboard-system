@@ -6,6 +6,19 @@ export const PRESET_STYLE_PROFILES: StyleProfile[] = [
   {
     id: 'preset-product-hero-studio',
     name: '商品主視覺棚拍',
+    usage: 'Hero packshot / launch KV / product intro opener',
+    productionPreset: 'Commercial hero preset: one-product dominant frame, logo-legible, motion-safe geometry, packshot-ready finish.',
+    continuityStrategy: 'Lock product geometry and branding first; allow only lighting/composition refinement across shots.',
+    defaultRenderLane: 'hero',
+    recommendedStages: ['image_start', 'image_end', 'video'],
+    stagePromptOverrides: {
+      image_start: 'Rendering style: Premium commercial product photography starter frame. Composition goal: hero-first packshot readability, logo legibility, negative space for copy, controlled studio lighting, stable geometry for downstream camera motion.',
+      image_end: 'Rendering style: Premium commercial product photography end frame. Composition goal: preserve hero packshot identity while only applying explicit framing delta or state change.',
+      video: 'Rendering style: Premium commercial product photography motion preset. Composition goal: preserve exact product geometry, reflections, and logo placement while supporting smooth camera move interpolation.',
+    },
+    stageNegativeOverrides: {
+      video: 'No distorted logos, no melted geometry, no duplicated product parts, no abrupt lighting shift, no identity drift, no extra branding.',
+    },
     stylePrompt:
       'Premium commercial product photography with video-ready starter frame, clean composition, controlled studio lighting, high texture fidelity, crisp edges, accurate logo/material details, and stable geometry for downstream camera motion.',
     negativePrompt:
@@ -15,6 +28,15 @@ export const PRESET_STYLE_PROFILES: StyleProfile[] = [
   {
     id: 'preset-lifestyle-commercial',
     name: '生活情境商業風',
+    usage: 'Lifestyle demo / usage scenario / social ad narrative',
+    productionPreset: 'Commercial lifestyle preset: believable environment, product-in-use readability, social-video-safe continuity.',
+    continuityStrategy: 'Keep world layout and wardrobe logic stable; product remains readable hero inside real-life context.',
+    defaultRenderLane: 'performance',
+    recommendedStages: ['image_start', 'video'],
+    stagePromptOverrides: {
+      image_start: 'Rendering style: Lifestyle commercial starter frame. Composition goal: believable real-world use case, product clearly readable, natural daylight or practical lighting, stable world layout for sequence expansion.',
+      video: 'Rendering style: Lifestyle commercial motion preset. Composition goal: preserve spatial continuity and actor-product interaction clarity while keeping the product readable during movement.',
+    },
     stylePrompt:
       'Lifestyle commercial look optimized for image-to-video, natural daylight, warm but realistic color grading, believable environment, clear subject readability, and stable world layout while product remains the hero.',
     negativePrompt:
@@ -51,6 +73,16 @@ export const PRESET_STYLE_PROFILES: StyleProfile[] = [
   {
     id: 'preset-video-ready-product-demo',
     name: '影片導向・產品示範',
+    usage: 'Feature demo / explainer / review insert / how-to',
+    productionPreset: 'Demo preset: tripod-safe framing, interaction zone visibility, hand-product readability, edit-friendly continuity.',
+    continuityStrategy: 'Prioritize hand-to-product relationship and visible controls over stylization.',
+    defaultRenderLane: 'performance',
+    recommendedStages: ['image_start', 'image_end', 'video'],
+    stagePromptOverrides: {
+      image_start: 'Rendering style: Product demonstration starter frame. Composition goal: clear hands, visible controls, legible logo/text, tripod-safe composition, stable geometry.',
+      image_end: 'Rendering style: Product demonstration end frame. Composition goal: preserve same environment and hand-product relation while applying only the requested delta.',
+      video: 'Rendering style: Product demonstration motion preset. Composition goal: preserve hand/product interaction continuity, legible controls, and stable reflections throughout motion.',
+    },
     stylePrompt:
       'Product demonstration starter frame, tripod-friendly composition, accurate proportions, legible logo/text, controlled reflections, stable environment geometry, and clear hand-product interaction zone for downstream motion.',
     negativePrompt:

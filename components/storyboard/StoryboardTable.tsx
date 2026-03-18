@@ -4,7 +4,8 @@ import { useRef, useState } from 'react';
 import { Scene } from '@/lib/types/storyboard';
 import { SceneRow } from './SceneRow';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { GripVertical, Plus, Rows3, ShieldAlert, Sparkles } from 'lucide-react';
 
 interface StoryboardTableProps {
   scenes: Scene[];
@@ -67,6 +68,10 @@ export function StoryboardTable({
     setDragOverId(null);
   };
 
+  const qaBlocked = scenes.filter((scene) => scene.qaStatus === 'block').length;
+  const qaWarn = scenes.filter((scene) => scene.qaStatus === 'warn').length;
+  const endFrameCount = scenes.filter((scene) => scene.requiresEndFrame).length;
+
   if (scenes.length === 0) {
     return (
       <div className="surface-panel p-12">
@@ -80,57 +85,54 @@ export function StoryboardTable({
 
   return (
     <div className="surface-panel overflow-hidden">
-      <div className="border-b border-border/70 bg-gradient-to-r from-white/80 via-slate-50/70 to-white/70 px-6 py-5 dark:from-slate-900/60 dark:to-slate-800/40">
-        <div className="flex items-center justify-between">
+      <div className="border-b border-border/70 bg-gradient-to-r from-white/85 via-slate-50/80 to-white/75 px-6 py-5 dark:from-slate-900/60 dark:to-slate-800/40">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <p className="text-kicker">Storyboard Table</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight">分鏡腳本</h2>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              已生成 {scenes.length} 個場景，可逐場編輯內容與轉場設定{onReorderScenes ? '，可拖拉排序' : ''}
+            <p className="text-kicker">Scene List</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">Storyboard Scene Breakdown</h2>
+            <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+              每列都是 production row：上半部看敘事與連戲，下半部看生成與 QA。{onReorderScenes ? '支援拖拉排序，方便先排節奏再微調內容。' : ''}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {onAppendScene && (
-              <Button type="button" variant="outline" size="sm" onClick={onAppendScene}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
-                新增場景
-              </Button>
-            )}
-            <div className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
-              {scenes.length} Scenes
+
+          <div className="flex flex-col items-start gap-3 xl:items-end">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="gap-1.5"><Rows3 className="h-3.5 w-3.5" />{scenes.length} Scenes</Badge>
+              <Badge variant="outline" className="gap-1.5"><Sparkles className="h-3.5 w-3.5" />{endFrameCount} End-frame scenes</Badge>
+              {(qaBlocked > 0 || qaWarn > 0) && (
+                <Badge className="gap-1.5 bg-amber-500/12 text-amber-700 dark:text-amber-300"><ShieldAlert className="h-3.5 w-3.5" />{qaBlocked + qaWarn} Need review</Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {onReorderScenes && (
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-white/70 px-3 py-1 text-xs text-slate-600 dark:bg-slate-900/60 dark:text-slate-300">
+                  <GripVertical className="h-3.5 w-3.5" />
+                  Drag to reorder
+                </div>
+              )}
+              {onAppendScene && (
+                <Button type="button" variant="outline" size="sm" onClick={onAppendScene}>
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  新增場景
+                </Button>
+              )}
             </div>
           </div>
         </div>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-[1150px] w-full">
+        <table className="min-w-[1480px] w-full">
           <thead className="bg-slate-100/80 dark:bg-slate-900/60">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                場景
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                描述
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                鏡頭運動
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                對話/旁白
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                時長
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                首尾幀
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                轉場
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                操作
-              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">Scene</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">Narrative / Continuity / Generation / QA</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">Camera</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">Dialogue</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">Duration</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">Start / End</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 whitespace-nowrap">Transition</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">

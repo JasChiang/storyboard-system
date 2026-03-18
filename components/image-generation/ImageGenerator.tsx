@@ -5,7 +5,7 @@ import { Sparkles, Settings2 } from 'lucide-react';
 import { ReferenceUploader } from './ReferenceUploader';
 import { ImagePreview } from './ImagePreview';
 import { Button } from '@/components/ui/button';
-import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
+import type { Scene, ProjectReference, StyleProfile, SharedContinuityDirective } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/lib/prompts/image-static';
 import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
@@ -52,6 +52,8 @@ interface ImageGeneratorProps {
     nextSceneDescription?: string;
     externalGeneratingStart?: boolean;
     externalGeneratingEnd?: boolean;
+    sharedAnchors?: string[];
+    sharedContinuityDirectives?: SharedContinuityDirective[];
 }
 
 export function ImageGenerator({
@@ -68,6 +70,8 @@ export function ImageGenerator({
     nextSceneDescription,
     externalGeneratingStart = false,
     externalGeneratingEnd = false,
+    sharedAnchors = [],
+    sharedContinuityDirectives = [],
 }: ImageGeneratorProps) {
     const contentProjectReferences = projectReferences.filter(ref => ref.type !== 'style');
     const styleProjectReferences = projectReferences.filter(ref => ref.type === 'style');
@@ -132,8 +136,12 @@ export function ImageGenerator({
     const requiredScopedRefs = sceneScopedContentRefs.filter((ref) => requiredProjectRefIds.has(ref.id));
     const optionalScopedRefs = sceneScopedContentRefs.filter((ref) => !requiredProjectRefIds.has(ref.id));
     const continuityMemoryLines = useMemo(
-        () => buildContinuityMemoryLines(scene, allScenes),
-        [allScenes, scene]
+        () => buildContinuityMemoryLines(scene, allScenes, {
+            stage: 'image_start',
+            sharedAnchors,
+            sharedContinuityDirectives,
+        }),
+        [allScenes, scene, sharedAnchors, sharedContinuityDirectives]
     );
     const scenePreferredAspectRatio = useMemo(() => {
         const withDefault = sceneScopedContentRefs.find((ref) => ref.ipProfile?.generationDefaults?.preferredOutputAspectRatio);
@@ -225,6 +233,8 @@ export function ImageGenerator({
         const hasAnyContentRefs = requiredScopedRefs.length > 0 || optionalScopedRefs.length > 0;
         return buildPrioritizedReferenceUrls({
             model: imageModel,
+            stage: options?.includeStartFrameForEnd ? 'image_end' : 'image_start',
+            priorityMode: scene.referencePriorityByStage?.[options?.includeStartFrameForEnd ? 'image_end' : 'image_start'] || scene.referencePriorityMode,
             continuityReferenceUrl: options?.includePreviousSceneContinuation ? previousEndFrameUrl : undefined,
             startFrameReferenceUrl: options?.includeStartFrameForEnd
                 ? (previousEndFrameUrl || scene.generatedImage?.url)
@@ -330,7 +340,7 @@ export function ImageGenerator({
 
             const minimalParts: string[] = [];
             pushReferenceHardConstraints(minimalParts);
-            minimalParts.push(...buildStyleDirectiveLines(styleProfile));
+            minimalParts.push(...buildStyleDirectiveLines(styleProfile, { stage: 'image_end' }));
             minimalParts.push(...buildSceneDirectiveLines(scene));
             minimalParts.push(...continuityMemoryLines);
 
@@ -415,7 +425,7 @@ export function ImageGenerator({
             );
         }
         pushReferenceHardConstraints(parts);
-        parts.push(...buildStyleDirectiveLines(styleProfile));
+        parts.push(...buildStyleDirectiveLines(styleProfile, { stage: isEndFrame ? 'image_end' : 'image_start' }));
         parts.push(...buildSceneDirectiveLines(scene));
         parts.push(...continuityMemoryLines);
 

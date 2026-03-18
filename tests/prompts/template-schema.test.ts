@@ -11,6 +11,11 @@ const REQUIRED_SCENE_FIELDS = [
   'continuityLock',
   'shotIntent',
   'continuityAnchor',
+  'renderLane',
+  'productionRisk',
+  'reservedForPost',
+  'deliveryIntent',
+  'referencePriorityMode',
   'requiresEndFrame',
   'endFrameDelta',
   'dialogue',
@@ -26,7 +31,14 @@ describe('storyboard template schemas', () => {
   it('all templates contain downstream generation contract fields', () => {
     for (const template of TEMPLATES) {
       const schema = template.outputSchema as Record<string, unknown>;
-      const scenes = (schema.properties as Record<string, unknown>)?.scenes as Record<string, unknown>;
+      const props = (schema.properties || {}) as Record<string, unknown>;
+      const rootRequired = Array.isArray(schema.required) ? schema.required as string[] : [];
+      expect(props.sharedAnchors, `${template.id} missing sharedAnchors`).toBeDefined();
+      expect(props.sharedContinuityDirectives, `${template.id} missing sharedContinuityDirectives`).toBeDefined();
+      expect(rootRequired.includes('sharedAnchors'), `${template.id} missing required sharedAnchors`).toBe(true);
+      expect(rootRequired.includes('sharedContinuityDirectives'), `${template.id} missing required sharedContinuityDirectives`).toBe(true);
+
+      const scenes = props.scenes as Record<string, unknown>;
       const sceneItem = scenes?.items as Record<string, unknown>;
       const sceneRequired = Array.isArray(sceneItem?.required) ? sceneItem.required as string[] : [];
       const sceneProps = (sceneItem?.properties || {}) as Record<string, unknown>;

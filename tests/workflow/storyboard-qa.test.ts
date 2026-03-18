@@ -16,6 +16,11 @@ function buildScene(overrides: Partial<Scene> = {}): Scene {
     continuityLock: 'Keep product and room geometry unchanged',
     shotIntent: 'Shift attention from character to product detail',
     continuityAnchor: 'Product remains on the same table position',
+    renderLane: 'hero',
+    productionRisk: 'medium',
+    reservedForPost: '',
+    deliveryIntent: 'demo',
+    referencePriorityMode: 'stage_balanced',
     changeFromPrev: 'N/A',
     charactersUsed: ['<Alice>'],
     productsUsed: ['<ProductX>'],
@@ -39,6 +44,8 @@ function buildStoryboard(sceneOverrides: Partial<Scene> = {}): Storyboard {
     originalPrompt: 'Generate a short product storyboard',
     templateUsed: 'default',
     scenes: [buildScene(sceneOverrides)],
+    sharedAnchors: ['Product silhouette stays stable'],
+    sharedContinuityDirectives: [{ anchorLabel: 'logo', directive: 'Keep logo spelling unchanged' }],
     projectReferences: [
       {
         id: 'ref-alice',
@@ -117,6 +124,25 @@ describe('storyboard QA', () => {
     );
 
     expect(result.issues.some((issue) => issue.code === 'missing_entity_tags')).toBe(true);
+    expect(result.sceneReports[0]?.status).toBe('warn');
+  });
+
+  it('flags new production contract fields when missing', () => {
+    const result = validateStoryboard(
+      buildStoryboard({
+        renderLane: undefined,
+        productionRisk: undefined,
+        reservedForPost: undefined,
+        deliveryIntent: undefined,
+        referencePriorityMode: undefined,
+      })
+    );
+
+    expect(result.issues.some((issue) => issue.code === 'missing_render_lane')).toBe(true);
+    expect(result.issues.some((issue) => issue.code === 'missing_production_risk')).toBe(true);
+    expect(result.issues.some((issue) => issue.code === 'missing_reserved_for_post')).toBe(true);
+    expect(result.issues.some((issue) => issue.code === 'missing_delivery_intent')).toBe(true);
+    expect(result.issues.some((issue) => issue.code === 'missing_reference_priority_mode')).toBe(true);
     expect(result.sceneReports[0]?.status).toBe('warn');
   });
 

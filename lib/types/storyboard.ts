@@ -21,6 +21,17 @@ export interface TransitionToNext {
 }
 
 // 場景資料結構
+export type WorkflowStage = 'storyboard' | 'image_start' | 'image_end' | 'video' | 'export';
+export type RenderLane = 'hero' | 'performance' | 'continuity' | 'plate' | 'insert' | 'utility';
+export type ProductionRisk = 'low' | 'medium' | 'high';
+export type ReferencePriorityMode = 'identity_first' | 'continuity_first' | 'style_first' | 'stage_balanced';
+
+export interface SharedContinuityDirective {
+  anchorLabel: string;
+  directive: string;
+  appliesToStages?: WorkflowStage[];
+}
+
 export interface Scene {
   id: string;
   sceneNumber: number;
@@ -36,6 +47,12 @@ export interface Scene {
   beatGoal?: string;             // 此鏡頭要完成的敘事目標
   shotIntent?: string;           // 鏡頭意圖（情緒/資訊焦點）
   continuityAnchor?: string;     // 跨鏡頭連續性的錨點（姿勢/構圖/道具狀態）
+  renderLane?: RenderLane;       // Production lane：hero / continuity / insert ...
+  productionRisk?: ProductionRisk; // 製作風險等級
+  reservedForPost?: string;      // 留給後期處理的項目（字幕/packshot cleanup/VFX）
+  deliveryIntent?: string;       // 此鏡交付用途（thumbnail / CTA / demo / bridge）
+  referencePriorityMode?: ReferencePriorityMode; // 此鏡偏好的參考優先序
+  referencePriorityByStage?: Partial<Record<WorkflowStage, ReferencePriorityMode>>;
   requiredReferences?: string[]; // 本鏡頭必用參考標記（如 ["<Alice>", "<ProductX>"]）
   changeFromPrev?: string;       // 相對前一場景的變化摘要（用於連貫生成）
   charactersUsed?: string[];     // 本場景使用的角色標記（如 <Alice>）
@@ -104,6 +121,10 @@ export interface Storyboard {
   id: string;
   projectId: string;
   title: string;
+  productionPresetId?: string;
+  productionNotes?: string;
+  sharedAnchors?: string[];
+  sharedContinuityDirectives?: SharedContinuityDirective[];
   originalPrompt: string;        // 使用者原始輸入
   templateUsed: string;          // 使用的提示詞模板
   scenes: Scene[];
@@ -143,6 +164,13 @@ export interface StyleProfile {
   name: string;
   stylePrompt: string;
   negativePrompt?: string;
+  usage?: string;
+  productionPreset?: string;
+  defaultRenderLane?: RenderLane;
+  continuityStrategy?: string;
+  recommendedStages?: WorkflowStage[];
+  stagePromptOverrides?: Partial<Record<WorkflowStage, string>>;
+  stageNegativeOverrides?: Partial<Record<WorkflowStage, string>>;
   styleReferenceIds?: string[];
   isPreset?: boolean;
 }
@@ -235,5 +263,7 @@ export interface HookVariant {
 // API 回應類型
 export interface StoryboardGenerationResponse {
   title: string;
+  sharedAnchors?: string[];
+  sharedContinuityDirectives?: SharedContinuityDirective[];
   scenes: Omit<Scene, 'id' | 'referenceImage' | 'generatedImage' | 'motionPrompt' | 'generatedVideo' | 'generatedVoiceover'>[];
 }

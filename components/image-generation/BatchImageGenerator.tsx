@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
-import type { Scene, ProjectReference, StyleProfile } from '@/lib/types/storyboard';
+import type { Scene, ProjectReference, StyleProfile, SharedContinuityDirective } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription } from '@/lib/prompts/image-static';
 import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
@@ -26,6 +26,8 @@ interface BatchImageGeneratorProps {
     scenes: Scene[];
     projectReferences?: ProjectReference[];
     styleProfile?: StyleProfile;
+    sharedAnchors?: string[];
+    sharedContinuityDirectives?: SharedContinuityDirective[];
     onBatchComplete: (
         results: Map<string, { url: string; prompt: string; startSeed?: number; endFrameUrl?: string; endFramePrompt?: string; endFrameSeed?: number }>
     ) => void;
@@ -53,6 +55,8 @@ export function BatchImageGenerator({
     scenes,
     projectReferences = [],
     styleProfile,
+    sharedAnchors = [],
+    sharedContinuityDirectives = [],
     onBatchComplete
 }: BatchImageGeneratorProps) {
     const contentProjectReferences = projectReferences.filter(ref => ref.type !== 'style');
@@ -129,7 +133,11 @@ export function BatchImageGenerator({
             || sceneScopedContentRefs.length > 0
             || selectedStyleReferenceUrls.length > 0
         );
-        const continuityMemoryLines = buildContinuityMemoryLines(scene, scenes);
+        const continuityMemoryLines = buildContinuityMemoryLines(scene, scenes, {
+            stage: isEndFrame ? 'image_end' : 'image_start',
+            sharedAnchors,
+            sharedContinuityDirectives,
+        });
         const pushReferenceHardConstraints = (target: string[]) => {
             if (!hasReferenceInputs) return;
             target.push('Priority order: 1) locked reference identity/geometry/logo-text fidelity 2) scene composition directives 3) style treatment.');
@@ -166,7 +174,7 @@ export function BatchImageGenerator({
         };
 
         pushReferenceHardConstraints(parts);
-        parts.push(...buildStyleDirectiveLines(styleProfile));
+        parts.push(...buildStyleDirectiveLines(styleProfile, { stage: isEndFrame ? 'image_end' : 'image_start' }));
         parts.push(...buildSceneDirectiveLines(scene));
         parts.push(...continuityMemoryLines);
 
@@ -278,6 +286,8 @@ export function BatchImageGenerator({
         const hasAnyContentRefs = requiredContentRefs.length > 0 || optionalContentRefs.length > 0;
         const referenceImages = buildPrioritizedReferenceUrls({
             model: imageModel,
+            stage: isEndFrame ? 'image_end' : 'image_start',
+            priorityMode: scene.referencePriorityByStage?.[isEndFrame ? 'image_end' : 'image_start'] || scene.referencePriorityMode,
             continuityReferenceUrl: options?.continuityReferenceUrl,
             startFrameReferenceUrl: options?.primaryReferenceUrl,
             sceneReferenceUrl: scene.referenceImage,

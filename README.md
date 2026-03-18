@@ -18,6 +18,8 @@
   - **智慧描述最佳化**：自動過濾多餘的外觀描述，專注於動作與構圖，避免與參考圖衝突。
 - **專業模板**：內建標準分鏡、廣告短片、音樂錄影帶 (MV) 等多種腳本模板。
 - **結構化輸出**：生成包含場景描述、運鏡指示、對話與時長的標準 JSON 格式。
+- **Production-ready shot fields**：每鏡可記錄 `renderLane`、`productionRisk`、`deliveryIntent`、`reservedForPost`、`referencePriorityMode`。
+- **Shared continuity directives**：分鏡層級可設定共用 `sharedAnchors` 與 `sharedContinuityDirectives`，自動帶進圖片/影片提示詞。
 
 ### 2. 🎨 一致性圖片生成 (Consistent Image Generation)
 - **Fal AI SDK 整合**：採用官方 `@fal-ai/client` SDK，提供更穩定的生成體驗與錯誤處理。

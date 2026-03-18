@@ -9,6 +9,11 @@ type SceneDirectiveSource = Pick<
   | 'continuityLock'
   | 'shotIntent'
   | 'continuityAnchor'
+  | 'renderLane'
+  | 'productionRisk'
+  | 'reservedForPost'
+  | 'deliveryIntent'
+  | 'referencePriorityMode'
   | 'changeFromPrev'
 >;
 
@@ -30,6 +35,11 @@ export function buildSceneDirectiveLines(scene: SceneDirectiveSource): string[] 
   pushIfPresent(lines, 'Subject motion bounds', scene.subjectMotion);
   pushIfPresent(lines, 'Continuity lock', scene.continuityLock);
   pushIfPresent(lines, 'Cross-shot continuity anchor', scene.continuityAnchor);
+  pushIfPresent(lines, 'Render lane', scene.renderLane);
+  pushIfPresent(lines, 'Production risk', scene.productionRisk);
+  pushIfPresent(lines, 'Reserved for post', scene.reservedForPost);
+  pushIfPresent(lines, 'Delivery intent', scene.deliveryIntent);
+  pushIfPresent(lines, 'Reference priority mode', scene.referencePriorityMode);
   pushIfPresent(lines, 'Change from previous shot', scene.changeFromPrev);
 
   const cameraMovement = normalize(scene.cameraMovement);

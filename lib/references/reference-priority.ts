@@ -1,5 +1,5 @@
 import type { ImageGenerationModel } from '@/lib/constants/image-models';
-import type { ProjectReference } from '@/lib/types/storyboard';
+import type { ProjectReference, ReferencePriorityMode, WorkflowStage } from '@/lib/types/storyboard';
 
 const MAX_REFERENCE_IMAGES: Record<ImageGenerationModel, number> = {
   'nano-banana-pro': 6,
@@ -17,6 +17,8 @@ interface BuildPrioritizedReferenceUrlsInput {
   prioritizeContentRefs?: boolean;
   strictRequiredOnlyWhenPresent?: boolean;
   includeStyleReferenceImages?: boolean;
+  stage?: WorkflowStage;
+  priorityMode?: ReferencePriorityMode;
 }
 
 function appendUniqueUrl(target: string[], raw?: string | null) {
@@ -25,6 +27,10 @@ function appendUniqueUrl(target: string[], raw?: string | null) {
   if (!normalized) return;
   if (target.includes(normalized)) return;
   target.push(normalized);
+}
+
+function appendRefs(target: string[], refs: ProjectReference[]) {
+  refs.forEach((ref) => appendUniqueUrl(target, ref.url));
 }
 
 export function buildPrioritizedReferenceUrls(
@@ -38,36 +44,62 @@ export function buildPrioritizedReferenceUrls(
     input.strictRequiredOnlyWhenPresent && hasRequiredContentRefs
   );
 
-  if (input.prioritizeContentRefs) {
-    for (const ref of requiredContentRefs) {
-      appendUniqueUrl(ordered, ref.url);
-    }
-    appendUniqueUrl(ordered, input.sceneReferenceUrl);
-    if (includeOptionalContentRefs) {
-      for (const ref of optionalContentRefs) {
-        appendUniqueUrl(ordered, ref.url);
-      }
-    }
-    appendUniqueUrl(ordered, input.continuityReferenceUrl);
-    appendUniqueUrl(ordered, input.startFrameReferenceUrl);
-  } else {
-    appendUniqueUrl(ordered, input.continuityReferenceUrl);
-    appendUniqueUrl(ordered, input.startFrameReferenceUrl);
-    appendUniqueUrl(ordered, input.sceneReferenceUrl);
-    for (const ref of requiredContentRefs) {
-      appendUniqueUrl(ordered, ref.url);
-    }
-    if (includeOptionalContentRefs) {
-      for (const ref of optionalContentRefs) {
-        appendUniqueUrl(ordered, ref.url);
-      }
-    }
-  }
+  const mode = input.priorityMode || (
+    input.stage === 'video'
+      ? 'continuity_first'
+      : input.stage === 'image_end'
+        ? 'continuity_first'
+        : input.prioritizeContentRefs
+          ? 'identity_first'
+          : 'stage_balanced'
+  );
 
-  if (input.includeStyleReferenceImages !== false) {
-    for (const styleUrl of input.styleReferenceUrls || []) {
-      appendUniqueUrl(ordered, styleUrl);
-    }
+  const appendIdentity = () => {
+    appendRefs(ordered, requiredContentRefs);
+    if (includeOptionalContentRefs) appendRefs(ordered, optionalContentRefs);
+    appendUniqueUrl(ordered, input.sceneReferenceUrl);
+  };
+  const appendContinuity = () => {
+    appendUniqueUrl(ordered, input.continuityReferenceUrl);
+    appendUniqueUrl(ordered, input.startFrameReferenceUrl);
+  };
+  const appendStyle = () => {
+    if (input.includeStyleReferenceImages === false) return;
+    (input.styleReferenceUrls || []).forEach((styleUrl) => appendUniqueUrl(ordered, styleUrl));
+  };
+
+  switch (mode) {
+    case 'continuity_first':
+      appendContinuity();
+      appendIdentity();
+      appendStyle();
+      break;
+    case 'style_first':
+      appendStyle();
+      appendIdentity();
+      appendContinuity();
+      break;
+    case 'stage_balanced':
+      if (input.stage === 'image_start') {
+        appendIdentity();
+        appendStyle();
+        appendContinuity();
+      } else if (input.stage === 'image_end' || input.stage === 'video') {
+        appendContinuity();
+        appendIdentity();
+        appendStyle();
+      } else {
+        appendIdentity();
+        appendContinuity();
+        appendStyle();
+      }
+      break;
+    case 'identity_first':
+    default:
+      appendIdentity();
+      appendContinuity();
+      appendStyle();
+      break;
   }
 
   const cap = MAX_REFERENCE_IMAGES[input.model] ?? 4;

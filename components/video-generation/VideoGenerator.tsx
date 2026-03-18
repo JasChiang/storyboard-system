@@ -6,7 +6,7 @@ import { ModelSelector } from './ModelSelector';
 import { MotionPromptEditor } from './MotionPromptEditor';
 import { VideoPreview } from './VideoPreview';
 import { Button } from '@/components/ui/button';
-import type { Scene, ProjectReference } from '@/lib/types/storyboard';
+import type { Scene, ProjectReference, SharedContinuityDirective } from '@/lib/types/storyboard';
 import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { getSceneRelevantReferences } from '@/lib/references/scene-references';
 import { buildKlingPrompt } from '@/lib/video/adapters/kling';
@@ -25,6 +25,8 @@ interface VideoGeneratorProps {
     externalGenerating?: boolean;
     projectReferences?: ProjectReference[];
     allScenes?: Scene[];
+    sharedAnchors?: string[];
+    sharedContinuityDirectives?: SharedContinuityDirective[];
     onPromptDraftChanged?: (draftPrompt: string, notes?: string) => void;
     onVideoGenerated: (
         videoUrl: string,
@@ -62,6 +64,8 @@ export function VideoGenerator({
     externalGenerating = false,
     projectReferences = [],
     allScenes = [],
+    sharedAnchors = [],
+    sharedContinuityDirectives = [],
     onPromptDraftChanged,
     onVideoGenerated
 }: VideoGeneratorProps) {
@@ -106,8 +110,12 @@ export function VideoGenerator({
         [scene, contentRefs]
     );
     const continuityMemoryLines = useMemo(
-        () => buildContinuityMemoryLines(scene, allScenes),
-        [allScenes, scene]
+        () => buildContinuityMemoryLines(scene, allScenes, {
+            stage: 'video',
+            sharedAnchors,
+            sharedContinuityDirectives,
+        }),
+        [allScenes, scene, sharedAnchors, sharedContinuityDirectives]
     );
     const generationBlockers = useMemo(
         () => getSceneGenerationBlockers({
