@@ -49,15 +49,17 @@ export function buildPrioritizedReferenceUrls(
       ? 'continuity_first'
       : input.stage === 'image_end'
         ? 'continuity_first'
-        : input.prioritizeContentRefs
-          ? 'identity_first'
-          : 'stage_balanced'
+        : input.stage === 'image_start'
+          ? (input.prioritizeContentRefs ? 'identity_first' : 'stage_balanced')
+          : input.prioritizeContentRefs
+            ? 'identity_first'
+            : 'continuity_first'
   );
 
   const appendIdentity = () => {
     appendRefs(ordered, requiredContentRefs);
-    if (includeOptionalContentRefs) appendRefs(ordered, optionalContentRefs);
     appendUniqueUrl(ordered, input.sceneReferenceUrl);
+    if (includeOptionalContentRefs) appendRefs(ordered, optionalContentRefs);
   };
   const appendContinuity = () => {
     appendUniqueUrl(ordered, input.continuityReferenceUrl);
@@ -71,7 +73,9 @@ export function buildPrioritizedReferenceUrls(
   switch (mode) {
     case 'continuity_first':
       appendContinuity();
-      appendIdentity();
+      appendUniqueUrl(ordered, input.sceneReferenceUrl);
+      appendRefs(ordered, requiredContentRefs);
+      if (includeOptionalContentRefs) appendRefs(ordered, optionalContentRefs);
       appendStyle();
       break;
     case 'style_first':
