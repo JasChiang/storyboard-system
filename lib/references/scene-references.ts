@@ -1,4 +1,4 @@
-import type { ProjectReference, Scene } from '@/lib/types/storyboard';
+import type { ProjectReference, Scene, ViewIntent } from '@/lib/types/storyboard';
 
 const TAG_PATTERN = /<([^>]+)>/g;
 
@@ -46,8 +46,34 @@ export function getSceneRequiredTags(
   return tags;
 }
 
+export function inferSceneViewIntent(
+  scene: Pick<Scene, 'description' | 'viewIntent'> & Partial<Pick<Scene, 'cameraMovement' | 'shotIntent' | 'startComposition'>>
+): ViewIntent {
+  if (scene.viewIntent && scene.viewIntent !== 'auto') return scene.viewIntent;
+  const haystack = [scene.description, scene.cameraMovement, scene.shotIntent, scene.startComposition]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  if (/top view|top-down|bird'?s-eye|俯視|頂視|平鋪/.test(haystack)) return 'top';
+  if (/back view|from behind|rear|背面|背影/.test(haystack)) return 'back';
+  if (/three[-\s]?quarter|3\/4|angled hero|斜角|三分之四/.test(haystack)) return 'three_quarter';
+  if (/profile|side view|側面|側拍|側臉/.test(haystack)) return 'side';
+  if (/front view|front-facing|facing camera|正面|面向鏡頭/.test(haystack)) return 'front';
+  return 'auto';
+}
+
+function rankReferenceForViewIntent(reference: ProjectReference, intent: ViewIntent): number {
+  if (!reference.angle || intent === 'auto') return 1;
+  if (reference.angle === intent) return 4;
+  if (intent === 'three_quarter' && (reference.angle === 'front' || reference.angle === 'side')) return 3;
+  if (intent === 'front' && reference.angle === 'three_quarter') return 2;
+  if (intent === 'side' && reference.angle === 'three_quarter') return 2;
+  if (intent === 'back' && reference.angle === 'side') return 2;
+  return 0;
+}
+
 export function getSceneRelevantReferences(
-  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed' | 'requiredReferences'>,
+  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed' | 'requiredReferences'> & Partial<Pick<Scene, 'cameraMovement' | 'shotIntent' | 'startComposition' | 'viewIntent'>>,
   references: ProjectReference[],
   options?: {
     fallbackPolicy?: 'environment_only' | 'non_environment' | 'all_selected';
@@ -68,12 +94,14 @@ export function getSceneRelevantReferences(
   };
 
   const requiredTags = getSceneRequiredTags(scene);
+  const viewIntent = inferSceneViewIntent(scene);
+
   if (requiredTags.size > 0) {
     const requiredMatched = references.filter((reference) => {
       const tag = getReferenceTag(reference);
       return tag ? requiredTags.has(tag) : false;
     });
-    return requiredMatched;
+    return [...requiredMatched].sort((a, b) => rankReferenceForViewIntent(b, viewIntent) - rankReferenceForViewIntent(a, viewIntent));
   }
 
   const sceneTags = getSceneEntityTags(scene);
@@ -86,8 +114,10 @@ export function getSceneRelevantReferences(
     return tag ? sceneTags.has(tag) : false;
   });
 
-  if (matched.length > 0) return matched;
+  if (matched.length > 0) {
+    return [...matched].sort((a, b) => rankReferenceForViewIntent(b, viewIntent) - rankReferenceForViewIntent(a, viewIntent));
+  }
 
   // If entity tags do not match any reference, use fallback policy.
-  return fallbackReferences();
+  return [...fallbackReferences()].sort((a, b) => rankReferenceForViewIntent(b, viewIntent) - rankReferenceForViewIntent(a, viewIntent));
 }

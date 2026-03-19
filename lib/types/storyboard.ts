@@ -25,6 +25,7 @@ export type WorkflowStage = 'storyboard' | 'image_start' | 'image_end' | 'video'
 export type RenderLane = 'hero' | 'performance' | 'continuity' | 'plate' | 'insert' | 'utility';
 export type ProductionRisk = 'low' | 'medium' | 'high';
 export type ReferencePriorityMode = 'identity_first' | 'continuity_first' | 'style_first' | 'stage_balanced';
+export type ViewIntent = 'auto' | 'front' | 'side' | 'back' | 'three_quarter' | 'top';
 
 export interface SharedContinuityDirective {
   anchorLabel: string;
@@ -47,6 +48,7 @@ export interface Scene {
   beatGoal?: string;             // 此鏡頭要完成的敘事目標
   shotIntent?: string;           // 鏡頭意圖（情緒/資訊焦點）
   continuityAnchor?: string;     // 跨鏡頭連續性的錨點（姿勢/構圖/道具狀態）
+  viewIntent?: ViewIntent;       // 本鏡頭預期採用的主視角（front / side / 3/4 ...）
   renderLane?: RenderLane;       // Production lane：hero / continuity / insert ...
   productionRisk?: ProductionRisk; // 製作風險等級
   reservedForPost?: string;      // 留給後期處理的項目（字幕/packshot cleanup/VFX）

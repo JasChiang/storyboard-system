@@ -9,6 +9,7 @@ import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
 import { buildSceneDirectiveLines } from '@/lib/prompts/scene-directives';
 import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
 import { getReferenceTag, getSceneRelevantReferences, getSceneRequiredTags } from '@/lib/references/scene-references';
+import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
@@ -92,11 +93,10 @@ export function BatchImageGenerator({
 
     const buildImagePrompt = (scene: Scene, isEndFrame: boolean = false) => {
         const parts: string[] = [];
-        const sceneScopedContentRefs = getSceneRelevantReferences(scene, contentProjectReferences, {
-            // Batch mode has no per-scene manual selector; when tags are incomplete,
-            // keep character/product refs instead of dropping to environment-only.
+        const routedSceneRefs = splitSceneReferencesByPriority(scene, contentProjectReferences, {
             fallbackPolicy: 'non_environment',
         });
+        const sceneScopedContentRefs = routedSceneRefs.all;
         const hasCharacterRefs = sceneScopedContentRefs.some((ref) => ref.type === 'character');
         const hasProductRefs = sceneScopedContentRefs.some((ref) => ref.type === 'product');
         const hasIdentityRefs = hasCharacterRefs || hasProductRefs;
@@ -107,6 +107,12 @@ export function BatchImageGenerator({
         });
         const lockedReferenceLine = requiredContentRefs.length > 0
             ? `Locked references for this shot: ${requiredContentRefs.map((ref) => ref.name ? `<${ref.name}>` : ref.type).join(', ')}.`
+            : '';
+        const primaryRefLine = routedSceneRefs.primary.length > 0
+            ? `Primary reference views for this shot: ${routedSceneRefs.primary.map((ref) => `${ref.name ? `<${ref.name}>` : ref.type}${ref.angle ? `(${ref.angle})` : ''}`).join(', ')}.`
+            : '';
+        const secondaryRefLine = routedSceneRefs.secondary.length > 0
+            ? `Secondary supporting references: ${routedSceneRefs.secondary.map((ref) => `${ref.name ? `<${ref.name}>` : ref.type}${ref.angle ? `(${ref.angle})` : ''}`).join(', ')}.`
             : '';
         const consistencyGuardrails = [
             'Describe the scene in natural language, not keyword stuffing.',
@@ -165,6 +171,9 @@ export function BatchImageGenerator({
             target.push(
                 '不論套用任何風格模板，僅可改變渲染語彙，不可改變鎖定主體的身份與零件拓撲（角色臉型髮型與身形比例、商品門片/門縫/把手/底腳/按鍵與 Logo 位置）。'
             );
+            target.push(`View intent for this shot: ${routedSceneRefs.viewIntent}. Match the image viewpoint accordingly.`);
+            if (primaryRefLine) target.push(primaryRefLine);
+            if (secondaryRefLine) target.push(secondaryRefLine);
             if (lockedReferenceLine) {
                 target.push(lockedReferenceLine);
             }
@@ -274,9 +283,10 @@ export function BatchImageGenerator({
         isEndFrame: boolean = false,
         options?: { primaryReferenceUrl?: string; continuityReferenceUrl?: string }
     ) => {
-        const sceneScopedContentRefs = getSceneRelevantReferences(scene, contentProjectReferences, {
+        const routedSceneRefs = splitSceneReferencesByPriority(scene, contentProjectReferences, {
             fallbackPolicy: 'non_environment',
         });
+        const sceneScopedContentRefs = routedSceneRefs.all;
         const requiredTags = getSceneRequiredTags(scene);
         const requiredContentRefs = sceneScopedContentRefs.filter((ref) => {
             const tag = getReferenceTag(ref);
@@ -291,8 +301,8 @@ export function BatchImageGenerator({
             continuityReferenceUrl: options?.continuityReferenceUrl,
             startFrameReferenceUrl: options?.primaryReferenceUrl,
             sceneReferenceUrl: scene.referenceImage,
-            requiredContentRefs,
-            optionalContentRefs,
+            requiredContentRefs: routedSceneRefs.primary.filter((ref) => requiredTags.has(getReferenceTag(ref))),
+            optionalContentRefs: routedSceneRefs.primary.filter((ref) => !requiredTags.has(getReferenceTag(ref))).concat(routedSceneRefs.secondary),
             styleReferenceUrls: selectedStyleReferenceUrls,
             prioritizeContentRefs: !isEndFrame,
             strictRequiredOnlyWhenPresent: true,

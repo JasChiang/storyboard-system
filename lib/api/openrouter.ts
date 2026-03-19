@@ -1,9 +1,9 @@
-import { PromptTemplate, StoryboardGenerationResponse, ProjectReference, Scene, TransitionType, CreativeReview, HookVariant, type RenderLane, type ProductionRisk, type ReferencePriorityMode, type SharedContinuityDirective } from '../types/storyboard';
+import { PromptTemplate, StoryboardGenerationResponse, ProjectReference, Scene, TransitionType, CreativeReview, HookVariant, type RenderLane, type ProductionRisk, type ReferencePriorityMode, type SharedContinuityDirective, type ViewIntent } from '../types/storyboard';
 import { OpenRouterResponse } from '../types/api-responses';
 import { buildSystemPrompt } from '../prompts/prompt-builder';
 import { buildConsolidatedReferenceRules } from '../references/consistency-rules';
 import { sanitizeStaticFrameDescription } from '../prompts/image-static';
-import { STORYBOARD_CONTRACT_PROMPT_BLOCK, STORYBOARD_PRODUCTION_RISKS, STORYBOARD_REFERENCE_PRIORITY_MODES, STORYBOARD_RENDER_LANES } from '../prompts/storyboard-contract';
+import { STORYBOARD_CONTRACT_PROMPT_BLOCK, STORYBOARD_PRODUCTION_RISKS, STORYBOARD_REFERENCE_PRIORITY_MODES, STORYBOARD_RENDER_LANES, STORYBOARD_VIEW_INTENTS } from '../prompts/storyboard-contract';
 import type {
   ElevenLabsMusicPromptIdea,
   IndexTtsEmotionalStrengths,
@@ -454,6 +454,7 @@ export async function generateStoryboardScript(
       const renderLane = normalizeEnum<RenderLane>(scene.renderLane, STORYBOARD_RENDER_LANES, 'hero');
       const productionRisk = normalizeEnum<ProductionRisk>(scene.productionRisk, STORYBOARD_PRODUCTION_RISKS, 'medium');
       const referencePriorityMode = normalizeEnum<ReferencePriorityMode>(scene.referencePriorityMode, STORYBOARD_REFERENCE_PRIORITY_MODES, 'stage_balanced');
+      const viewIntent = normalizeEnum<ViewIntent>(scene.viewIntent, STORYBOARD_VIEW_INTENTS, 'auto');
 
       return {
         sceneNumber: Number.isFinite(sceneNumberValue) ? sceneNumberValue : index + 1,
@@ -473,6 +474,7 @@ export async function generateStoryboardScript(
         beatGoal: typeof scene.beatGoal === 'string' ? scene.beatGoal.trim() : '',
         shotIntent: typeof scene.shotIntent === 'string' ? scene.shotIntent.trim() : '',
         continuityAnchor: typeof scene.continuityAnchor === 'string' ? scene.continuityAnchor.trim() : '',
+        viewIntent,
         renderLane,
         productionRisk,
         reservedForPost: stringValue(scene.reservedForPost),

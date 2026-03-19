@@ -1,6 +1,7 @@
 export const STORYBOARD_RENDER_LANES = ['hero', 'performance', 'continuity', 'plate', 'insert', 'utility'] as const;
 export const STORYBOARD_PRODUCTION_RISKS = ['low', 'medium', 'high'] as const;
 export const STORYBOARD_REFERENCE_PRIORITY_MODES = ['identity_first', 'continuity_first', 'style_first', 'stage_balanced'] as const;
+export const STORYBOARD_VIEW_INTENTS = ['auto', 'front', 'side', 'back', 'three_quarter', 'top'] as const;
 export const STORYBOARD_WORKFLOW_STAGES = ['storyboard', 'image_start', 'image_end', 'video', 'export'] as const;
 export const STORYBOARD_TRANSITION_TYPES = ['cut', 'dissolve', 'fade_black', 'fade_white', 'continuation', 'match_cut', 'wipe', 'push'] as const;
 
@@ -14,6 +15,7 @@ const sceneProperties = {
   continuityLock: { type: 'string', description: '此鏡頭不允許改變的連續性約束' },
   shotIntent: { type: 'string', description: '鏡頭在整體敘事中的任務（一句話）' },
   continuityAnchor: { type: 'string', description: '跨鏡頭必須維持的一個關鍵連續性錨點' },
+  viewIntent: { type: 'string', enum: [...STORYBOARD_VIEW_INTENTS], description: '本鏡頭預期使用的主視角（auto/front/side/back/three_quarter/top）' },
   renderLane: { type: 'string', enum: [...STORYBOARD_RENDER_LANES], description: 'production lane：hero / performance / continuity / plate / insert / utility' },
   productionRisk: { type: 'string', enum: [...STORYBOARD_PRODUCTION_RISKS], description: '此鏡的製作風險等級' },
   reservedForPost: { type: 'string', description: '留給後期處理的項目（字幕、cleanup、VFX、packshot finish）' },
@@ -63,6 +65,7 @@ const sceneRequired = [
   'continuityLock',
   'shotIntent',
   'continuityAnchor',
+  'viewIntent',
   'renderLane',
   'productionRisk',
   'reservedForPost',
@@ -120,7 +123,7 @@ export const STORYBOARD_CONTRACT_PROMPT_BLOCK = `
 - JSON 頂層必須包含：title、sharedAnchors、sharedContinuityDirectives、scenes。
 - sharedAnchors：輸出 0-N 條全片共用 anchor；沒有就輸出 []。
 - sharedContinuityDirectives：輸出 0-N 條 { anchorLabel, directive, appliesToStages? }；沒有就輸出 []。
-- 每個 scene 都必須輸出：sceneIntent / startComposition / subjectMotion / continuityLock / shotIntent / continuityAnchor。
+- 每個 scene 都必須輸出：sceneIntent / startComposition / subjectMotion / continuityLock / shotIntent / continuityAnchor / viewIntent。
 - 每個 scene 都必須輸出 production 欄位：renderLane / productionRisk / reservedForPost / deliveryIntent / referencePriorityMode。
 - renderLane 只能是：hero | performance | continuity | plate | insert | utility。
 - productionRisk 只能是：low | medium | high。

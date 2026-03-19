@@ -11,7 +11,8 @@ import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
 import { buildSceneDirectiveLines } from '@/lib/prompts/scene-directives';
 import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
-import { getReferenceTag, getSceneRelevantReferences, getSceneRequiredTags } from '@/lib/references/scene-references';
+import { getReferenceTag, getSceneRelevantReferences, getSceneRequiredTags, inferSceneViewIntent } from '@/lib/references/scene-references';
+import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
@@ -109,6 +110,10 @@ export function ImageGenerator({
     const sceneRequiredRefsKey = (scene.requiredReferences || []).join('|');
     const sceneReferenceScope = {
         description: scene.description,
+        cameraMovement: scene.cameraMovement,
+        shotIntent: scene.shotIntent,
+        startComposition: scene.startComposition,
+        viewIntent: scene.viewIntent,
         charactersUsed: scene.charactersUsed || [],
         productsUsed: scene.productsUsed || [],
         requiredReferences: scene.requiredReferences || [],
@@ -128,11 +133,11 @@ export function ImageGenerator({
         return new Set(ids);
     }, [contentProjectReferences, requiredReferenceTags]);
     const selectedContentRefs = contentProjectReferences.filter(ref => selectedProjectRefs.includes(ref.id));
-    const sceneScopedContentRefs = getSceneRelevantReferences(sceneReferenceScope, selectedContentRefs, {
-        // ImageGenerator has explicit user selection UI; never silently drop selected references
-        // just because scene tags are incomplete.
+    const routedSceneRefs = splitSceneReferencesByPriority(sceneReferenceScope, selectedContentRefs, {
         fallbackPolicy: 'all_selected',
     });
+    const sceneScopedContentRefs = routedSceneRefs.all;
+    const sceneViewIntent = routedSceneRefs.viewIntent;
     const requiredScopedRefs = sceneScopedContentRefs.filter((ref) => requiredProjectRefIds.has(ref.id));
     const optionalScopedRefs = sceneScopedContentRefs.filter((ref) => !requiredProjectRefIds.has(ref.id));
     const continuityMemoryLines = useMemo(
@@ -160,6 +165,10 @@ export function ImageGenerator({
         const sceneMatched = getSceneRelevantReferences(
             {
                 description: scene.description,
+                cameraMovement: scene.cameraMovement,
+                shotIntent: scene.shotIntent,
+                startComposition: scene.startComposition,
+                viewIntent: scene.viewIntent,
                 charactersUsed: scene.charactersUsed || [],
                 productsUsed: scene.productsUsed || [],
                 requiredReferences: scene.requiredReferences || [],
@@ -240,8 +249,8 @@ export function ImageGenerator({
                 ? (previousEndFrameUrl || scene.generatedImage?.url)
                 : undefined,
             sceneReferenceUrl: referenceImage,
-            requiredContentRefs: requiredScopedRefs,
-            optionalContentRefs: optionalScopedRefs,
+            requiredContentRefs: routedSceneRefs.primary.filter((ref) => requiredProjectRefIds.has(ref.id)).concat(routedSceneRefs.primary.filter((ref) => !requiredProjectRefIds.has(ref.id))),
+            optionalContentRefs: routedSceneRefs.secondary,
             styleReferenceUrls: selectedStyleReferenceUrls,
             // Start-frame generation should anchor identity refs before continuity/style cues.
             prioritizeContentRefs: !options?.includeStartFrameForEnd,
@@ -279,6 +288,12 @@ export function ImageGenerator({
         const lockedReferenceLine = requiredScopedRefs.length > 0
             ? `Locked references for this shot: ${requiredScopedRefs.map((ref) => ref.name ? `<${ref.name}>` : ref.type).join(', ')}.`
             : '';
+        const primaryRefLine = routedSceneRefs.primary.length > 0
+            ? `Primary reference views for this shot: ${routedSceneRefs.primary.map((ref) => `${ref.name ? `<${ref.name}>` : ref.type}${ref.angle ? `(${ref.angle})` : ''}`).join(', ')}.`
+            : '';
+        const secondaryRefLine = routedSceneRefs.secondary.length > 0
+            ? `Secondary supporting references: ${routedSceneRefs.secondary.map((ref) => `${ref.name ? `<${ref.name}>` : ref.type}${ref.angle ? `(${ref.angle})` : ''}`).join(', ')}.`
+            : '';
         const pushReferenceHardConstraints = (target: string[]) => {
             if (!hasReferenceInputs) return;
             target.push('Priority order: 1) locked reference identity/geometry/logo-text fidelity 2) scene composition directives 3) style treatment.');
@@ -306,6 +321,9 @@ export function ImageGenerator({
             target.push(
                 '不論套用任何風格模板，僅可改變渲染語彙，不可改變鎖定主體的身份與零件拓撲（角色臉型髮型與身形比例、商品門片/門縫/把手/底腳/按鍵與 Logo 位置）。'
             );
+            target.push(`View intent for this shot: ${sceneViewIntent}. Match the image viewpoint accordingly.`);
+            if (primaryRefLine) target.push(primaryRefLine);
+            if (secondaryRefLine) target.push(secondaryRefLine);
             if (lockedReferenceLine) {
                 target.push(lockedReferenceLine);
             }

@@ -336,6 +336,7 @@ function SceneDetailEditor({
           {activeTab === 'generation' && (
             <InfoBlock icon={Wand2} label="生成">
               <MetaLine label="鏡頭運動" value={scene.cameraMovement} />
+              <MetaLine label="視角意圖" value={scene.viewIntent} />
               <MetaLine label="參考優先序" value={scene.referencePriorityMode} />
               <MetaLine label="製作風險" value={scene.productionRisk} />
               <MetaLine label="交付用途" value={scene.deliveryIntent} />
@@ -430,9 +431,12 @@ function SceneDetailEditor({
 
         <InfoBlock icon={Wand2} label="Generation">
           <input className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm dark:bg-slate-900/70" value={editedScene.cameraMovement} onChange={(e) => setEditedScene({ ...editedScene, cameraMovement: e.target.value })} />
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <select className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm dark:bg-slate-900/70" value={editedScene.renderLane || 'hero'} onChange={(e) => setEditedScene({ ...editedScene, renderLane: e.target.value as Scene['renderLane'] })}>
-              <option value="hero">renderLane：hero</option><option value="performance">performance</option><option value="continuity">continuity</option><option value="plate">plate</option><option value="insert">insert</option><option value="utility">utility</option>
+              <option value="hero">路線：hero</option><option value="performance">performance</option><option value="continuity">continuity</option><option value="plate">plate</option><option value="insert">insert</option><option value="utility">utility</option>
+            </select>
+            <select className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm dark:bg-slate-900/70" value={editedScene.viewIntent || 'auto'} onChange={(e) => setEditedScene({ ...editedScene, viewIntent: e.target.value as Scene['viewIntent'] })}>
+              <option value="auto">視角：自動</option><option value="front">正面</option><option value="three_quarter">3/4 側</option><option value="side">側面</option><option value="back">背面</option><option value="top">頂視</option>
             </select>
             <select className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm dark:bg-slate-900/70" value={editedScene.productionRisk || 'medium'} onChange={(e) => setEditedScene({ ...editedScene, productionRisk: e.target.value as Scene['productionRisk'] })}>
               <option value="low">risk：low</option><option value="medium">risk：medium</option><option value="high">risk：high</option>

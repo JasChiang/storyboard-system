@@ -139,6 +139,7 @@ ${productRefs.map(r => `   - 使用 \`<${r.name || '商品'}>\` 指代該商品`
    - 每個場景需輸出 \`changeFromPrev\`（若為第一場可填 "N/A"）
    - 每個場景需輸出 \`shotIntent\`（一句話描述鏡頭在敘事上的任務）
    - 每個場景需輸出 \`continuityAnchor\`（跨鏡頭必須維持的單一重點）
+   - 每個場景需輸出 \`viewIntent\`（auto/front/side/back/three_quarter/top，用來決定本鏡主參考視角）
    - 每個場景需輸出 \`requiredReferences\`（本鏡頭必須使用的標記陣列）
 
 7. **一致性合併優先序**：
@@ -155,7 +156,7 @@ ${productRefs.map(r => `   - 使用 \`<${r.name || '商品'}>\` 指代該商品`
     }
 
     prompt += `\n\n## 輸出結構契約（所有模板皆適用）
-- 每個場景必須輸出 \`sceneIntent\`、\`startComposition\`、\`subjectMotion\`、\`continuityLock\`、\`shotIntent\`、\`continuityAnchor\`
+- 每個場景必須輸出 \`sceneIntent\`、\`startComposition\`、\`subjectMotion\`、\`continuityLock\`、\`shotIntent\`、\`continuityAnchor\`、\`viewIntent\`
 - 每個場景必須輸出 \`charactersUsed\`、\`productsUsed\`、\`changeFromPrev\`、\`requiredReferences\`
 - \`requiredReferences\` 僅可使用 \`<名稱>\` 標記；若本鏡頭沒有必用參考，請輸出空陣列 \`[]\`
 - 每個場景必須輸出 \`transitionToNext\` 物件（至少包含 \`type\` 與 \`reason\`）
