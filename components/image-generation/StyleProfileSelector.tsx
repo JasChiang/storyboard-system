@@ -7,7 +7,7 @@ import {
   PRESET_STYLE_PROFILES,
 } from '@/lib/constants/style-profiles';
 import { Badge } from '@/components/ui/badge';
-import { Check, Palette, Plus, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Palette, Plus, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface StyleProfileSelectorProps {
@@ -28,7 +28,8 @@ export function StyleProfileSelector({
   const [newProfileName, setNewProfileName] = useState('');
   const [newStylePrompt, setNewStylePrompt] = useState('');
   const [newNegativePrompt, setNewNegativePrompt] = useState('');
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isPickerExpanded, setIsPickerExpanded] = useState(false);
+  const [isCustomFormExpanded, setIsCustomFormExpanded] = useState(false);
 
   const allProfiles = useMemo(
     () => [...PRESET_STYLE_PROFILES, ...customProfiles],
@@ -61,7 +62,7 @@ export function StyleProfileSelector({
     setNewProfileName('');
     setNewStylePrompt('');
     setNewNegativePrompt('');
-    setIsExpanded(false);
+    setIsCustomFormExpanded(false);
   };
 
   return (
@@ -82,9 +83,23 @@ export function StyleProfileSelector({
         </Badge>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
-        <div className="grid gap-3 md:grid-cols-2">
-          {allProfiles.map((profile) => {
+      <div className="grid gap-3">
+        <button
+          type="button"
+          onClick={() => setIsPickerExpanded((prev) => !prev)}
+          disabled={disabled}
+          className="flex w-full items-center justify-between rounded-2xl border border-border/70 bg-white/70 px-4 py-3 text-left transition hover:bg-slate-50 disabled:opacity-60 dark:bg-slate-900/60 dark:hover:bg-slate-800/70"
+        >
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Preset Picker</p>
+            <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">目前使用：{activeProfile.name}</p>
+          </div>
+          {isPickerExpanded ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
+        </button>
+
+        {isPickerExpanded && (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {allProfiles.map((profile) => {
             const isActive = profile.id === activeProfileId;
             return (
               <button
@@ -152,10 +167,11 @@ export function StyleProfileSelector({
                 </div>
               </button>
             );
-          })}
-        </div>
+            })}
+          </div>
+        )}
 
-        <div className="surface-inset space-y-3 p-4">
+        <div className="surface-inset min-w-0 space-y-3 break-words p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
@@ -183,7 +199,14 @@ export function StyleProfileSelector({
             ))}
           </div>
 
-          {activeProfile.productionPreset && (
+          <div>
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Summary</p>
+            <p className="mt-1 break-words text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+              {activeProfile.continuityStrategy || activeProfile.productionPreset || activeProfile.stylePrompt}
+            </p>
+          </div>
+
+          {isPickerExpanded && activeProfile.productionPreset && (
             <div>
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Production preset</p>
               <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
@@ -192,7 +215,7 @@ export function StyleProfileSelector({
             </div>
           )}
 
-          {activeProfile.continuityStrategy && (
+          {isPickerExpanded && activeProfile.continuityStrategy && (
             <div>
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Continuity strategy</p>
               <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
@@ -201,17 +224,19 @@ export function StyleProfileSelector({
             </div>
           )}
 
-          <div>
-            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Style prompt</p>
-            <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-              {activeProfile.stylePrompt}
-            </p>
-          </div>
+          {isPickerExpanded && (
+            <div>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Style prompt</p>
+              <p className="mt-1 break-words text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                {activeProfile.stylePrompt}
+              </p>
+            </div>
+          )}
 
-          {activeProfile.negativePrompt && (
+          {isPickerExpanded && activeProfile.negativePrompt && (
             <div>
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Negative guardrails</p>
-              <p className="mt-1 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+              <p className="mt-1 break-words text-sm leading-relaxed text-slate-500 dark:text-slate-400">
                 {activeProfile.negativePrompt}
               </p>
             </div>
@@ -220,15 +245,15 @@ export function StyleProfileSelector({
       </div>
 
       <button
-        onClick={() => setIsExpanded((prev) => !prev)}
+        onClick={() => setIsCustomFormExpanded((prev) => !prev)}
         disabled={disabled}
         className="inline-flex items-center gap-2 text-xs font-medium text-primary hover:underline disabled:opacity-60"
       >
         <Plus className="h-3.5 w-3.5" />
-        {isExpanded ? '收合自訂模板' : '新增自訂模板'}
+        新增自訂模板
       </button>
 
-      {isExpanded && (
+      {isCustomFormExpanded && (
         <div className="surface-inset grid gap-3 p-4 lg:grid-cols-2">
           <div className="space-y-3 lg:col-span-2">
             <input
