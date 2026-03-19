@@ -152,7 +152,7 @@ export function StoryPromptInput({
 
   return (
     <div className="surface-panel p-6">
-      <p className="text-kicker">Story Input</p>
+      <p className="text-kicker">故事輸入</p>
       <h2 className="mb-4 mt-2 text-2xl font-semibold tracking-tight">故事需求輸入</h2>
 
       <div className="space-y-4">
@@ -235,7 +235,7 @@ export function StoryPromptInput({
         {references.length > 0 && (
           <div className="surface-inset border border-emerald-200/60 p-3 dark:border-emerald-500/25">
             <p className="text-sm text-emerald-700 dark:text-emerald-300">
-              ✅ 已設定 {references.length} 張參考圖。Anchor / usage role 會一起送進 continuity draft，AI 生成的分鏡描述會使用 &lt;角色名&gt; 或 &lt;商品名&gt; 格式標記，不會重複描述外觀。
+              ✅ 已設定 {references.length} 張參考圖。錨點 / 使用角色會一起送進連戲草稿，AI 生成的分鏡描述會使用 &lt;角色名&gt; 或 &lt;商品名&gt; 格式標記，不會重複描述外觀。
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {referenceTagSummary.map((item) => (

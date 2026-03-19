@@ -18,6 +18,19 @@ interface StyleProfileSelectorProps {
   disabled?: boolean;
 }
 
+const GROUP_ORDER = ['商業', '影片', '解說', '風格', '進階', '自訂'] as const;
+
+function getGroupLabel(profile: StyleProfile): string {
+  if (!profile.isPreset) return '自訂';
+  const [group] = profile.name.split('・');
+  return group || '其他';
+}
+
+function getDisplayName(profile: StyleProfile): string {
+  const parts = profile.name.split('・');
+  return parts.length > 1 ? parts.slice(1).join('・') : profile.name;
+}
+
 export function StyleProfileSelector({
   selectedProfileId,
   customProfiles = [],
@@ -35,6 +48,24 @@ export function StyleProfileSelector({
     () => [...PRESET_STYLE_PROFILES, ...customProfiles],
     [customProfiles]
   );
+
+  const groupedProfiles = useMemo(() => {
+    const groups = new Map<string, StyleProfile[]>();
+    allProfiles.forEach((profile) => {
+      const group = getGroupLabel(profile);
+      const current = groups.get(group) || [];
+      current.push(profile);
+      groups.set(group, current);
+    });
+    return Array.from(groups.entries()).sort((a, b) => {
+      const ai = GROUP_ORDER.indexOf(a[0] as typeof GROUP_ORDER[number]);
+      const bi = GROUP_ORDER.indexOf(b[0] as typeof GROUP_ORDER[number]);
+      if (ai === -1 && bi === -1) return a[0].localeCompare(b[0], 'zh-Hant');
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [allProfiles]);
 
   const activeProfileId = selectedProfileId || DEFAULT_STYLE_PROFILE_ID;
   const activeProfile =
@@ -69,17 +100,17 @@ export function StyleProfileSelector({
     <div className="surface-soft space-y-4 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-kicker">Style Direction</p>
+          <p className="text-kicker">風格方向</p>
           <h3 className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Preset Picker
+            風格預設
           </h3>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            用 production-ready 風格模板鎖住整批畫面語言，避免每個 scene 各自漂走。
+            用 production-ready 風格模板鎖住整批畫面語言，避免每個場景各自漂走。
           </p>
         </div>
         <Badge variant="outline" className="gap-1.5">
           <Palette className="h-3.5 w-3.5" />
-          {activeProfile.isPreset ? 'Preset' : 'Custom'}
+          {activeProfile.isPreset ? '預設' : '自訂'}
         </Badge>
       </div>
 
@@ -91,83 +122,93 @@ export function StyleProfileSelector({
           className="flex w-full items-center justify-between rounded-2xl border border-border/70 bg-white/70 px-4 py-3 text-left transition hover:bg-slate-50 disabled:opacity-60 dark:bg-slate-900/60 dark:hover:bg-slate-800/70"
         >
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Preset Picker</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">風格預設</p>
             <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">目前使用：{activeProfile.name}</p>
           </div>
           {isPickerExpanded ? <ChevronUp className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
         </button>
 
         {isPickerExpanded && (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {allProfiles.map((profile) => {
-            const isActive = profile.id === activeProfileId;
-            return (
-              <button
-                key={profile.id}
-                type="button"
-                onClick={() => onChange(profile.id)}
-                disabled={disabled}
-                className={cn(
-                  'group relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-200',
-                  'bg-white/80 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.55)] dark:bg-slate-900/70',
-                  isActive
-                    ? 'border-primary/40 ring-2 ring-primary/15 shadow-[0_20px_44px_-28px_rgba(37,99,235,0.35)]'
-                    : 'border-border/70 hover:-translate-y-0.5 hover:border-primary/25',
-                  disabled && 'cursor-not-allowed opacity-60'
-                )}
-              >
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-sky-400/70 via-violet-400/70 to-cyan-300/70" />
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        {profile.name}
-                      </p>
-                      <Badge
-                        variant="outline"
+          <div className="space-y-4">
+            {groupedProfiles.map(([group, profiles]) => (
+              <div key={group} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{group}</p>
+                  <span className="text-xs text-slate-400">{profiles.length} 個</span>
+                </div>
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {profiles.map((profile) => {
+                    const isActive = profile.id === activeProfileId;
+                    return (
+                      <button
+                        key={profile.id}
+                        type="button"
+                        onClick={() => onChange(profile.id)}
+                        disabled={disabled}
                         className={cn(
-                          'h-5 px-1.5 py-0 text-[10px]',
-                          profile.isPreset
-                            ? 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-900/20 dark:text-sky-300'
-                            : 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/60 dark:bg-violet-900/20 dark:text-violet-300'
+                          'group relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-200',
+                          'bg-white/80 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.55)] dark:bg-slate-900/70',
+                          isActive
+                            ? 'border-primary/40 ring-2 ring-primary/15 shadow-[0_20px_44px_-28px_rgba(37,99,235,0.35)]'
+                            : 'border-border/70 hover:-translate-y-0.5 hover:border-primary/25',
+                          disabled && 'cursor-not-allowed opacity-60'
                         )}
                       >
-                        {profile.isPreset ? 'Preset' : 'Custom'}
-                      </Badge>
-                    </div>
-                    {profile.usage && (
-                      <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                        {profile.usage}
-                      </p>
-                    )}
-                  </div>
-                  <div
-                    className={cn(
-                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors',
-                      isActive
-                        ? 'border-primary/40 bg-primary text-primary-foreground'
-                        : 'border-border/70 bg-white/80 text-slate-400 dark:bg-slate-950/60'
-                    )}
-                  >
-                    {isActive ? <Check className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-                  </div>
-                </div>
+                        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-sky-400/70 via-violet-400/70 to-cyan-300/70" />
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                {getDisplayName(profile)}
+                              </p>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  'h-5 px-1.5 py-0 text-[10px]',
+                                  profile.isPreset
+                                    ? 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-900/20 dark:text-sky-300'
+                                    : 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/60 dark:bg-violet-900/20 dark:text-violet-300'
+                                )}
+                              >
+                                {profile.isPreset ? '預設' : '自訂'}
+                              </Badge>
+                            </div>
+                            {profile.usage && (
+                              <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                                {profile.usage}
+                              </p>
+                            )}
+                          </div>
+                          <div
+                            className={cn(
+                              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors',
+                              isActive
+                                ? 'border-primary/40 bg-primary text-primary-foreground'
+                                : 'border-border/70 bg-white/80 text-slate-400 dark:bg-slate-950/60'
+                            )}
+                          >
+                            {isActive ? <Check className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+                          </div>
+                        </div>
 
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {profile.defaultRenderLane && (
-                    <Badge variant="outline" className="h-5 px-1.5 py-0 text-[10px]">
-                      lane {profile.defaultRenderLane}
-                    </Badge>
-                  )}
-                  {profile.recommendedStages?.slice(0, 3).map((stage) => (
-                    <Badge key={stage} variant="outline" className="h-5 px-1.5 py-0 text-[10px]">
-                      {stage}
-                    </Badge>
-                  ))}
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {profile.defaultRenderLane && (
+                            <Badge variant="outline" className="h-5 px-1.5 py-0 text-[10px]">
+                              路線 {profile.defaultRenderLane}
+                            </Badge>
+                          )}
+                          {profile.recommendedStages?.slice(0, 3).map((stage) => (
+                            <Badge key={stage} variant="outline" className="h-5 px-1.5 py-0 text-[10px]">
+                              {stage}
+                            </Badge>
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              </button>
-            );
-            })}
+              </div>
+            ))}
           </div>
         )}
 
@@ -175,7 +216,7 @@ export function StyleProfileSelector({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-                Active preset
+                目前樣式
               </p>
               <h4 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
                 {activeProfile.name}
@@ -183,7 +224,7 @@ export function StyleProfileSelector({
             </div>
             <Badge variant="outline" className="gap-1.5">
               <Palette className="h-3.5 w-3.5" />
-              {activeProfile.isPreset ? 'Built-in' : 'Custom'}
+              {activeProfile.isPreset ? '內建' : '自訂'}
             </Badge>
           </div>
 
@@ -192,7 +233,7 @@ export function StyleProfileSelector({
               <Badge className="bg-cyan-500/12 text-cyan-700 dark:text-cyan-300">{activeProfile.usage}</Badge>
             )}
             {activeProfile.defaultRenderLane && (
-              <Badge variant="outline">lane {activeProfile.defaultRenderLane}</Badge>
+              <Badge variant="outline">路線 {activeProfile.defaultRenderLane}</Badge>
             )}
             {activeProfile.recommendedStages?.map((stage) => (
               <Badge key={stage} variant="outline">{stage}</Badge>
@@ -200,7 +241,7 @@ export function StyleProfileSelector({
           </div>
 
           <div>
-            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Summary</p>
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">摘要</p>
             <p className="mt-1 break-words text-sm leading-relaxed text-slate-600 dark:text-slate-400">
               {activeProfile.continuityStrategy || activeProfile.productionPreset || activeProfile.stylePrompt}
             </p>
@@ -208,7 +249,7 @@ export function StyleProfileSelector({
 
           {isPickerExpanded && activeProfile.productionPreset && (
             <div>
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Production preset</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">製作導向</p>
               <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 {activeProfile.productionPreset}
               </p>
@@ -217,7 +258,7 @@ export function StyleProfileSelector({
 
           {isPickerExpanded && activeProfile.continuityStrategy && (
             <div>
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Continuity strategy</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">連戲策略</p>
               <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 {activeProfile.continuityStrategy}
               </p>
@@ -226,7 +267,7 @@ export function StyleProfileSelector({
 
           {isPickerExpanded && (
             <div>
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Style prompt</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">風格提示詞</p>
               <p className="mt-1 break-words text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                 {activeProfile.stylePrompt}
               </p>
@@ -235,7 +276,7 @@ export function StyleProfileSelector({
 
           {isPickerExpanded && activeProfile.negativePrompt && (
             <div>
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Negative guardrails</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">負向限制</p>
               <p className="mt-1 break-words text-sm leading-relaxed text-slate-500 dark:text-slate-400">
                 {activeProfile.negativePrompt}
               </p>

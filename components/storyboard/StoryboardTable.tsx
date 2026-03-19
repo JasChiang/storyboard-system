@@ -286,7 +286,7 @@ function SceneDetailEditor({
                 <div className="absolute right-0 top-full z-20 mt-1 min-w-[170px] overflow-hidden rounded-xl border border-border/60 bg-white shadow-lg dark:bg-slate-800">
                   {onDuplicate && <button onClick={() => { onDuplicate(); setShowMore(false); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700"><Copy className="h-3.5 w-3.5" />複製場景</button>}
                   {onInsertAfter && <button onClick={() => { onInsertAfter(); setShowMore(false); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700"><Plus className="h-3.5 w-3.5" />下方插入場景</button>}
-                  <button onClick={handleCopyPrompt} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700"><Copy className="h-3.5 w-3.5" />複製 Prompt</button>
+                  <button onClick={handleCopyPrompt} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700"><Copy className="h-3.5 w-3.5" />複製提示詞</button>
                   {onResetScene && <button onClick={() => { onResetScene(); setShowMore(false); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/20"><RotateCcw className="h-3.5 w-3.5" />重置生成</button>}
                 </div>
               )}
@@ -296,12 +296,12 @@ function SceneDetailEditor({
 
         <div className="flex flex-wrap gap-2 border-b border-border/60 pb-3">
           {[
-            ['narrative', 'Narrative'],
-            ['continuity', 'Continuity'],
-            ['generation', 'Generation'],
-            ['dialogue', 'Dialogue'],
-            ['ending', 'End Frame'],
-            ['qa', 'QA / References'],
+            ['narrative', '敘事'],
+            ['continuity', '連戲'],
+            ['generation', '生成'],
+            ['dialogue', '對白'],
+            ['ending', '尾幀'],
+            ['qa', 'QA / 參考'],
           ].map(([key, label]) => (
             <button
               key={key}
@@ -316,49 +316,49 @@ function SceneDetailEditor({
 
         <div className="grid gap-4 xl:grid-cols-2">
           {activeTab === 'narrative' && (
-            <InfoBlock icon={Clapperboard} label="Narrative">
-              <MetaLine label="Scene intent" value={scene.sceneIntent} />
-              <MetaLine label="Shot intent" value={scene.shotIntent} />
-              <MetaLine label="Beat goal" value={scene.beatGoal} />
+            <InfoBlock icon={Clapperboard} label="敘事">
+              <MetaLine label="鏡頭意圖" value={scene.sceneIntent} />
+              <MetaLine label="拍攝目標" value={scene.shotIntent} />
+              <MetaLine label="段落任務" value={scene.beatGoal} />
             </InfoBlock>
           )}
 
           {activeTab === 'continuity' && (
-            <InfoBlock icon={Link2} label="Continuity">
-              <MetaLine label="Start composition" value={scene.startComposition} />
-              <MetaLine label="Subject motion" value={scene.subjectMotion} />
-              <MetaLine label="Continuity lock" value={scene.continuityLock} />
-              <MetaLine label="Anchor" value={scene.continuityAnchor} />
-              <MetaLine label="Change from prev" value={scene.changeFromPrev} />
+            <InfoBlock icon={Link2} label="連戲">
+              <MetaLine label="首幀構圖" value={scene.startComposition} />
+              <MetaLine label="主體動作" value={scene.subjectMotion} />
+              <MetaLine label="連戲鎖定" value={scene.continuityLock} />
+              <MetaLine label="連戲錨點" value={scene.continuityAnchor} />
+              <MetaLine label="相較前鏡變化" value={scene.changeFromPrev} />
             </InfoBlock>
           )}
 
           {activeTab === 'generation' && (
-            <InfoBlock icon={Wand2} label="Generation">
-              <MetaLine label="Camera movement" value={scene.cameraMovement} />
-              <MetaLine label="Reference priority" value={scene.referencePriorityMode} />
-              <MetaLine label="Production risk" value={scene.productionRisk} />
-              <MetaLine label="Delivery intent" value={scene.deliveryIntent} />
-              <MetaLine label="Reserved for post" value={scene.reservedForPost} tone="accent" />
+            <InfoBlock icon={Wand2} label="生成">
+              <MetaLine label="鏡頭運動" value={scene.cameraMovement} />
+              <MetaLine label="參考優先序" value={scene.referencePriorityMode} />
+              <MetaLine label="製作風險" value={scene.productionRisk} />
+              <MetaLine label="交付用途" value={scene.deliveryIntent} />
+              <MetaLine label="保留給後期" value={scene.reservedForPost} tone="accent" />
             </InfoBlock>
           )}
 
           {activeTab === 'dialogue' && (
-            <InfoBlock icon={MessageSquareText} label="Dialogue / Audio">
-              <MetaLine label="Dialogue" value={scene.dialogue} />
+            <InfoBlock icon={MessageSquareText} label="對白 / 音訊">
+              <MetaLine label="對白" value={scene.dialogue} />
             </InfoBlock>
           )}
 
           {activeTab === 'ending' && (
-            <InfoBlock icon={Film} label="End Frame / Transition">
-              <MetaLine label="Duration" value={`${scene.duration} 秒`} />
+            <InfoBlock icon={Film} label="尾幀 / 轉場">
+              <MetaLine label="時長" value={`${scene.duration} 秒`} />
               {scene.requiresEndFrame ? (
                 <>
-                  <MetaLine label="End frame description" value={scene.endFrameDescription} />
-                  <MetaLine label="End frame delta" value={scene.endFrameDelta} tone="accent" />
+                  <MetaLine label="尾幀描述" value={scene.endFrameDescription} />
+                  <MetaLine label="尾幀變化" value={scene.endFrameDelta} tone="accent" />
                 </>
               ) : (
-                <MetaLine label="End frame" value="未啟用" />
+                <MetaLine label="尾幀" value="未啟用" />
               )}
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${transitionInfo.color}`}>{transitionInfo.icon} {transitionInfo.label}</span>
@@ -368,7 +368,7 @@ function SceneDetailEditor({
           )}
 
           {activeTab === 'qa' && (
-            <InfoBlock icon={ShieldCheck} label="QA / References">
+            <InfoBlock icon={ShieldCheck} label="QA / 參考">
               {scene.qaIssues?.length ? scene.qaIssues.map((issue, index) => (
                 <div key={`${issue}-${index}`} className="flex items-start gap-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />

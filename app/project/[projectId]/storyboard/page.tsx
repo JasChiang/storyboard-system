@@ -679,7 +679,7 @@ export default function StoryboardPage() {
               <section className="surface-hero overflow-hidden">
                 <div className="grid gap-4">
                   <div className="min-w-0">
-                    <p className="text-kicker">Generate Storyboard</p>
+                    <p className="text-kicker">生成分鏡</p>
                     <h2 className="mt-2 text-2xl font-semibold tracking-tight">先輸入需求，再生成第一版分鏡</h2>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
                       正常流程會先選角色 / 商品 / 參考圖，輸入故事需求後生成第一版分鏡。生成完成後，頁面才會切換成分鏡編輯工作台。
@@ -689,10 +689,10 @@ export default function StoryboardPage() {
                     <p className="text-kicker">Current Setup</p>
                     <div className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
                       <div className="flex items-center justify-between gap-3"><span>1. 參考圖</span><span className="font-medium">{storyboard?.projectReferences?.length || 0} 張</span></div>
-                      <div className="flex items-center justify-between gap-3"><span>2. Style preset</span><span className="font-medium">{activeStyleProfile?.name || '未設定'}</span></div>
+                      <div className="flex items-center justify-between gap-3"><span>2. 風格預設</span><span className="font-medium">{activeStyleProfile?.name || '未設定'}</span></div>
                       <div className="flex items-center justify-between gap-3"><span>3. 分鏡狀態</span><span className="font-medium">尚未生成</span></div>
                     </div>
-                    <p className="mt-4 text-xs leading-relaxed text-muted-foreground">先設定參考與需求，再按下生成。完成後這頁會自動切到 scene editing 模式。</p>
+                    <p className="mt-4 text-xs leading-relaxed text-muted-foreground">先設定參考與需求，再按下生成。完成後這頁會自動切到分鏡編輯模式。</p>
                   </div>
                 </div>
               </section>
@@ -730,12 +730,12 @@ export default function StoryboardPage() {
                   )}
 
                   <section className="surface-soft p-4">
-                    <p className="text-kicker">After Generation</p>
+                    <p className="text-kicker">生成後</p>
                     <h3 className="mt-2 text-lg font-semibold">生成後進入分鏡工作台</h3>
                     <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                      <li>• 先看整體節奏與 scene summary</li>
-                      <li>• 再逐鏡微調 continuity / camera / dialogue</li>
-                      <li>• 確認沒有 block 後再進圖片生成</li>
+                      <li>• 先看整體節奏與場景摘要</li>
+                      <li>• 再逐鏡微調連戲 / 鏡頭 / 對白</li>
+                      <li>• 確認沒有阻擋後再進圖片生成</li>
                     </ul>
                   </section>
                 </section>
@@ -746,43 +746,43 @@ export default function StoryboardPage() {
               <section className="surface-hero overflow-hidden">
                 <div className="grid gap-4">
                   <div className="min-w-0">
-                    <p className="text-kicker">Storyboard Status</p>
+                    <p className="text-kicker">分鏡狀態</p>
                     <h2 className="mt-2 text-2xl font-semibold tracking-tight">先看整體狀態，再逐鏡修正</h2>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                      先確認 scene health、continuity 與 active preset，接著往下檢查節奏與逐鏡細節。
+                      先確認場景健康度、連戲與目前風格預設，接著往下檢查節奏與逐鏡細節。
                     </p>
 
                     <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_260px]">
                       <div className="surface-inset p-4">
-                        <p className="text-kicker">Scene Health</p>
+                        <p className="text-kicker">場景健康度</p>
                         <div className="mt-3 flex items-end gap-2">
                           <p className="text-3xl font-semibold text-foreground">{totalSceneCount}</p>
-                          <p className="pb-1 text-sm text-muted-foreground">scenes</p>
+                          <p className="pb-1 text-sm text-muted-foreground">場景</p>
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Badge className="bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"><ShieldCheck className="mr-1 h-3.5 w-3.5" />pass {passSceneCount}</Badge>
-                          <Badge className="bg-amber-500/12 text-amber-700 dark:text-amber-300"><ShieldAlert className="mr-1 h-3.5 w-3.5" />fix {blockedSceneCount + warnSceneCount}</Badge>
+                          <Badge className="bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"><ShieldCheck className="mr-1 h-3.5 w-3.5" />通過 {passSceneCount}</Badge>
+                          <Badge className="bg-amber-500/12 text-amber-700 dark:text-amber-300"><ShieldAlert className="mr-1 h-3.5 w-3.5" />待修 {blockedSceneCount + warnSceneCount}</Badge>
                         </div>
                       </div>
                       <div className="surface-inset p-4">
-                        <p className="text-kicker">Continuity</p>
+                        <p className="text-kicker">連戲</p>
                         <div className="mt-3 text-3xl font-semibold text-foreground">{storyboard?.sharedAnchors?.length || 0}</div>
-                        <p className="mt-1 text-sm text-muted-foreground">shared anchors</p>
-                        <p className="mt-3 text-xs text-muted-foreground">{storyboard?.sharedContinuityDirectives?.length || 0} directives 已定義</p>
+                        <p className="mt-1 text-sm text-muted-foreground">共用錨點</p>
+                        <p className="mt-3 text-xs text-muted-foreground">已定義 {storyboard?.sharedContinuityDirectives?.length || 0} 條指令</p>
                       </div>
                       <div className="surface-inset min-w-0 p-4 xl:col-span-2">
-                        <p className="text-kicker">Style Preset</p>
+                        <p className="text-kicker">風格預設</p>
                         <div className="mt-3 flex items-center gap-2">
                           <Palette className="h-5 w-5 text-primary" />
                           <p className="text-base font-semibold text-foreground">{activeStyleProfile?.name || '未設定'}</p>
                         </div>
-                        <p className="mt-3 break-words text-xs leading-relaxed text-muted-foreground">{activeStyleProfile?.continuityStrategy || activeStyleProfile?.stylePrompt || '選一個 preset 讓整批 scene 共用同一個生成語言。'}</p>
+                        <p className="mt-3 break-words text-xs leading-relaxed text-muted-foreground">{activeStyleProfile?.continuityStrategy || activeStyleProfile?.stylePrompt || '選一個風格預設，讓整批場景共用同一套生成語言。'}</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="surface-inset h-fit p-4 xl:max-w-[560px]">
-                    <p className="text-kicker">Quick Actions</p>
+                    <p className="text-kicker">快速操作</p>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       {deletedSceneStack.length > 0 && (
                         <Button type="button" variant="outline" size="sm" onClick={handleUndoDelete} className="w-full justify-start">
@@ -815,13 +815,13 @@ export default function StoryboardPage() {
               <section className="surface-soft p-4">
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-kicker">Scene Summary</p>
-                    <h3 className="mt-2 text-xl font-semibold tracking-tight">Scene list / pacing / generation health</h3>
+                    <p className="text-kicker">場景摘要</p>
+                    <h3 className="mt-2 text-xl font-semibold tracking-tight">場景列表 / 節奏 / 生成健康度</h3>
                     <p className="mt-1 text-sm text-muted-foreground">先看整體節奏，再決定優先修哪一鏡。</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="gap-1.5"><Rows3 className="h-3.5 w-3.5" />{totalSceneCount} scenes</Badge>
-                    <Badge variant="outline" className="gap-1.5"><Wand2 className="h-3.5 w-3.5" />{activeStyleProfile?.name || 'No preset'}</Badge>
+                    <Badge variant="outline" className="gap-1.5"><Rows3 className="h-3.5 w-3.5" />{totalSceneCount} 場景</Badge>
+                    <Badge variant="outline" className="gap-1.5"><Wand2 className="h-3.5 w-3.5" />{activeStyleProfile?.name || '未設定預設'}</Badge>
                   </div>
                 </div>
                 <PacingTimeline scenes={currentProject.storyboard?.scenes || []} onSceneClick={(sceneId) => { const el = document.getElementById(`scene-row-${sceneId}`); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} />
@@ -844,16 +844,16 @@ export default function StoryboardPage() {
                 <section className="surface-soft min-w-0 p-4 space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-kicker">Global Continuity</p>
-                      <p className="mt-1 text-sm text-muted-foreground">把全片共用 anchor / directive 寫在這裡，圖片與影片提示詞都能沿用。</p>
+                      <p className="text-kicker">全域連戲</p>
+                      <p className="mt-1 text-sm text-muted-foreground">把全片共用的錨點 / 指令寫在這裡，圖片與影片提示詞都能沿用。</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {hasProjectReferences && (
                         <Badge variant="outline" className="gap-1.5 border-emerald-300/70 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
-                          <Sparkles className="h-3.5 w-3.5" />auto-generated draft
+                          <Sparkles className="h-3.5 w-3.5" />自動產生草稿
                         </Badge>
                       )}
-                      <Badge variant="outline" className="gap-1.5"><Link2 className="h-3.5 w-3.5" />global lock</Badge>
+                      <Badge variant="outline" className="gap-1.5"><Link2 className="h-3.5 w-3.5" />全域鎖定</Badge>
                     </div>
                   </div>
                   {hasProjectReferences && (
@@ -875,11 +875,11 @@ export default function StoryboardPage() {
                   )}
                   <div className="grid gap-3 md:grid-cols-2">
                     <div>
-                      <label className="text-xs text-muted-foreground">Shared anchors（每行一條）</label>
+                      <label className="text-xs text-muted-foreground">共用錨點（每行一條）</label>
                       <textarea className="mt-1 w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground dark:bg-slate-900/65" rows={6} value={(currentProject.storyboard?.sharedAnchors || []).join('\n')} onChange={(e) => updateSharedAnchors(e.target.value)} placeholder="例如：主商品永遠在畫面右半部可辨識 / 品牌藍白燈光語彙不變" />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">Shared directives（格式：label: directive）</label>
+                      <label className="text-xs text-muted-foreground">共用指令（格式：標籤: 指令）</label>
                       <textarea className="mt-1 w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground dark:bg-slate-900/65" rows={6} value={(currentProject.storyboard?.sharedContinuityDirectives || []).map((item) => `${item.anchorLabel}: ${item.directive}`).join('\n')} onChange={(e) => updateSharedDirectives(e.target.value)} placeholder="wardrobe: 人物服裝 silhouette 不變\nlogo: 包裝文字不可改拼寫" />
                     </div>
                   </div>
@@ -933,7 +933,7 @@ export default function StoryboardPage() {
 
           {creativeReview && (
             <div className="surface-soft rounded-xl p-4 text-sm">
-              <p className="text-kicker mb-2">Creative Review</p>
+              <p className="text-kicker mb-2">創意檢視</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <div><span className="font-medium text-foreground">情感弧線：</span><span className="text-muted-foreground">{creativeReview.emotionalArc}</span></div>
                 <div><span className="font-medium text-foreground">節奏評估：</span><span className="text-muted-foreground">{creativeReview.pacing}</span></div>
