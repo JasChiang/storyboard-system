@@ -10,6 +10,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 120;
 
 type ViewAngle = 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
+type GenerationMode = 'quick' | 'video_ready';
 
 interface StructuredReferenceAnalysis {
   description: string;
@@ -128,11 +129,15 @@ function buildImagePrompt({
   type,
   prompt,
   styleHint,
+  angle,
+  generationMode,
 }: {
   name: string;
   type: CharacterLibraryItem['type'];
   prompt: string;
   styleHint?: string;
+  angle: ViewAngle;
+  generationMode: GenerationMode;
 }) {
   const typeText: Record<CharacterLibraryItem['type'], string> = {
     character: 'character design',
@@ -141,9 +146,24 @@ function buildImagePrompt({
     style: 'style key visual',
   };
 
+  const angleHints: Record<ViewAngle, string> = {
+    front: 'Front view, clear full silhouette, neutral pose.',
+    three_quarter: 'Three-quarter view, body and face clearly readable, neutral pose.',
+    side: 'Side profile view, silhouette and proportions clearly readable, neutral pose.',
+    back: 'Back view, silhouette and outfit clearly readable, neutral pose.',
+    top: 'Top view, shape and layout clearly readable.',
+    other: 'Neutral readable angle with clean silhouette.',
+  };
+
+  const modeHint = generationMode === 'video_ready'
+    ? 'Design this as a video-ready reference asset: stable anatomy, clean silhouette, consistent outfit blocks, no extra props, no dramatic pose, no cropped body parts.'
+    : 'Design this as a clean library preview asset with strong subject readability.';
+
   const parts = [
     `Create a single clean ${typeText[type]} for "${name}".`,
     prompt,
+    angleHints[angle],
+    modeHint,
     'One subject only, centered composition, plain studio-like background, no extra objects.',
     'No text, no watermark, no logo unless explicitly requested.',
     'High detail, production-ready reference image.',
@@ -256,6 +276,7 @@ export async function POST(req: NextRequest) {
     const prompt = String(body?.prompt || '').trim();
     const styleHint = typeof body?.styleHint === 'string' ? body.styleHint.trim() : '';
     const tags = sanitizeTags(body?.tags);
+    const generationMode: GenerationMode = body?.generationMode === 'video_ready' ? 'video_ready' : 'quick';
 
     if (!name) {
       return NextResponse.json({ error: 'name is required' }, { status: 400 });
@@ -273,41 +294,61 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing OPENROUTER_API_KEY on server' }, { status: 500 });
     }
 
-    const imagePrompt = buildImagePrompt({ name, type, prompt, styleHint });
-    const queue = await generateImage(
-      imagePrompt,
-      { aspectRatio: '1:1', resolution: '2K' },
-      { apiKey: falApiKey }
-    );
     const endpoint = process.env.FAL_IMAGE_MODEL || 'fal-ai/nano-banana-pro';
-    const generatedImageUrl = await waitForImageUrl(queue.request_id, endpoint, falApiKey);
-    const localBackup = await saveRemoteImageToLocalMedia(generatedImageUrl, {
-      category: 'character-library',
-      baseName: name,
-    });
+    const requestedAngles: ViewAngle[] = generationMode === 'video_ready'
+      ? ['front', 'three_quarter', 'side']
+      : ['front'];
 
-    const imageDataUri = await imageUrlToDataUri(generatedImageUrl);
-    const analysisRaw = await analyzeReferenceImage(
-      imageDataUri,
-      buildAnalysisPrompt(type, 'front'),
-      { apiKey: openrouterApiKey }
-    );
-    const analysis = parseStructuredAnalysis(analysisRaw);
+    const generatedViews: Array<{
+      angle: ViewAngle;
+      url: string;
+      archivedLocalPath: string;
+      analysis: StructuredReferenceAnalysis;
+      imagePrompt: string;
+    }> = [];
+
+    for (const angle of requestedAngles) {
+      const imagePrompt = buildImagePrompt({ name, type, prompt, styleHint, angle, generationMode });
+      const queue = await generateImage(
+        imagePrompt,
+        { aspectRatio: '1:1', resolution: '2K' },
+        { apiKey: falApiKey }
+      );
+      const generatedImageUrl = await waitForImageUrl(queue.request_id, endpoint, falApiKey);
+      const localBackup = await saveRemoteImageToLocalMedia(generatedImageUrl, {
+        category: 'character-library',
+        baseName: `${name}-${angle}`,
+      });
+
+      const imageDataUri = await imageUrlToDataUri(generatedImageUrl);
+      const analysisRaw = await analyzeReferenceImage(
+        imageDataUri,
+        buildAnalysisPrompt(type, angle),
+        { apiKey: openrouterApiKey }
+      );
+      const analysis = parseStructuredAnalysis(analysisRaw);
+
+      generatedViews.push({
+        angle,
+        url: generatedImageUrl,
+        archivedLocalPath: localBackup.relativePath,
+        analysis,
+        imagePrompt,
+      });
+    }
 
     const generatedProfile = await generateCharacterProfile(
       {
         name,
         type,
-        views: [
-          {
-            angle: 'front',
-            description: analysis.description,
-            mustKeepFeatures: analysis.mustKeep,
-            identityCore: analysis.identityCore,
-            styleTraits: analysis.styleTraits,
-            angleVisibility: analysis.angleVisibility,
-          },
-        ],
+        views: generatedViews.map((view) => ({
+          angle: view.angle,
+          description: view.analysis.description,
+          mustKeepFeatures: view.analysis.mustKeep,
+          identityCore: view.analysis.identityCore,
+          styleTraits: view.analysis.styleTraits,
+          angleVisibility: view.analysis.angleVisibility,
+        })),
       },
       { apiKey: openrouterApiKey }
     );
@@ -317,28 +358,37 @@ export async function POST(req: NextRequest) {
       id: crypto.randomUUID(),
       name,
       type,
-      status: 'draft',
+      status: generationMode === 'video_ready' ? 'reviewed' : 'draft',
       description: generatedProfile.description || `${name} 角色參考`,
-      guidelines: generatedProfile.guidelines || undefined,
-      tags,
-      views: [
-        {
-          angle: 'front',
-          url: generatedImageUrl,
-          archivedLocalPath: localBackup.relativePath,
-          description: analysis.description,
-          mustKeepFeatures: analysis.mustKeep,
-          identityCore: analysis.identityCore,
-          styleTraits: analysis.styleTraits,
-          angleVisibility: analysis.angleVisibility,
-        },
-      ],
+      guidelines: [
+        generatedProfile.guidelines || '',
+        generationMode === 'video_ready'
+          ? '影片模式：已建立多視角角色包，可直接作為分鏡/影片的一致性參考。建議優先以全部視角加入專案。'
+          : '快速模式：目前只有單一主視角，如要做影片建議再補 3/4 與側面視角。'
+      ].filter(Boolean).join('\n\n') || undefined,
+      tags: Array.from(new Set([
+        ...tags,
+        generationMode === 'video_ready' ? 'video-ready' : 'quick-gen',
+        ...requestedAngles,
+      ])),
+      views: generatedViews.map((view) => ({
+        angle: view.angle,
+        url: view.url,
+        archivedLocalPath: view.archivedLocalPath,
+        description: view.analysis.description,
+        mustKeepFeatures: view.analysis.mustKeep,
+        identityCore: view.analysis.identityCore,
+        styleTraits: view.analysis.styleTraits,
+        angleVisibility: view.analysis.angleVisibility,
+      })),
       ipProfile: {
         profileVersion: 1,
-        strictIdentity: true,
-        allowAccessoryChanges: true,
+        strictIdentity: generationMode === 'video_ready',
+        allowAccessoryChanges: generationMode !== 'video_ready',
         textLogoPolicy: 'forbid_new_text',
-        immutableRules: [],
+        immutableRules: generationMode === 'video_ready'
+          ? ['Keep face/product silhouette stable', 'Do not redesign wardrobe or visible branding', 'Do not add extra accessories unless explicitly requested']
+          : [],
         generationDefaults: {
           preferredVideoModel: 'kling',
           preferredOutputAspectRatio: '16:9',
@@ -354,8 +404,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       data: created,
       meta: {
-        imagePrompt,
-        imageBackupPath: localBackup.relativePath,
+        generationMode,
+        generatedAngles: requestedAngles,
+        imagePrompts: generatedViews.map((view) => ({ angle: view.angle, prompt: view.imagePrompt })),
+        imageBackupPaths: generatedViews.map((view) => ({ angle: view.angle, path: view.archivedLocalPath })),
       },
     }, { status: 201 });
   } catch (error) {
