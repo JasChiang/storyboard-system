@@ -295,10 +295,6 @@ export async function POST(req: NextRequest) {
     }
 
     const endpoint = process.env.FAL_IMAGE_MODEL || 'fal-ai/nano-banana-pro';
-    const requestedAngles: ViewAngle[] = generationMode === 'video_ready'
-      ? ['front', 'three_quarter', 'side']
-      : ['front'];
-
     const generatedViews: Array<{
       angle: ViewAngle;
       url: string;
@@ -307,34 +303,78 @@ export async function POST(req: NextRequest) {
       imagePrompt: string;
     }> = [];
 
-    for (const angle of requestedAngles) {
-      const imagePrompt = buildImagePrompt({ name, type, prompt, styleHint, angle, generationMode });
-      const queue = await generateImage(
-        imagePrompt,
-        { aspectRatio: '1:1', resolution: '2K' },
-        { apiKey: falApiKey }
-      );
-      const generatedImageUrl = await waitForImageUrl(queue.request_id, endpoint, falApiKey);
-      const localBackup = await saveRemoteImageToLocalMedia(generatedImageUrl, {
-        category: 'character-library',
-        baseName: `${name}-${angle}`,
-      });
+    const frontPrompt = buildImagePrompt({ name, type, prompt, styleHint, angle: 'front', generationMode });
+    const frontQueue = await generateImage(
+      frontPrompt,
+      { aspectRatio: '1:1', resolution: '2K' },
+      { apiKey: falApiKey }
+    );
+    const frontImageUrl = await waitForImageUrl(frontQueue.request_id, endpoint, falApiKey);
+    const frontBackup = await saveRemoteImageToLocalMedia(frontImageUrl, {
+      category: 'character-library',
+      baseName: `${name}-front`,
+    });
+    const frontImageDataUri = await imageUrlToDataUri(frontImageUrl);
+    const frontAnalysisRaw = await analyzeReferenceImage(
+      frontImageDataUri,
+      buildAnalysisPrompt(type, 'front'),
+      { apiKey: openrouterApiKey }
+    );
+    const frontAnalysis = parseStructuredAnalysis(frontAnalysisRaw);
 
-      const imageDataUri = await imageUrlToDataUri(generatedImageUrl);
-      const analysisRaw = await analyzeReferenceImage(
-        imageDataUri,
-        buildAnalysisPrompt(type, angle),
-        { apiKey: openrouterApiKey }
-      );
-      const analysis = parseStructuredAnalysis(analysisRaw);
+    generatedViews.push({
+      angle: 'front',
+      url: frontImageUrl,
+      archivedLocalPath: frontBackup.relativePath,
+      analysis: frontAnalysis,
+      imagePrompt: frontPrompt,
+    });
 
-      generatedViews.push({
-        angle,
-        url: generatedImageUrl,
-        archivedLocalPath: localBackup.relativePath,
-        analysis,
-        imagePrompt,
-      });
+    if (generationMode === 'video_ready') {
+      const followupAngles: ViewAngle[] = ['three_quarter', 'side'];
+      const identityAnchor = [
+        frontAnalysis.identityCore,
+        ...(frontAnalysis.mustKeep || []),
+        frontAnalysis.styleTraits,
+        frontAnalysis.materialLighting,
+      ].filter(Boolean).join('; ');
+
+      for (const angle of followupAngles) {
+        const imagePrompt = [
+          buildImagePrompt({ name, type, prompt, styleHint, angle, generationMode }),
+          `Use the provided front-view reference as the identity source for ${name}.`,
+          `Keep exact same identity, outfit, silhouette, materials, and rendering language as the front-view reference.`,
+          `Only change the viewpoint to ${angle}.`,
+          identityAnchor ? `Identity anchor: ${identityAnchor}.` : '',
+        ].filter(Boolean).join(' ');
+
+        const queue = await generateImage(
+          imagePrompt,
+          { aspectRatio: '1:1', resolution: '2K', referenceImage: frontImageUrl },
+          { apiKey: falApiKey }
+        );
+        const generatedImageUrl = await waitForImageUrl(queue.request_id, endpoint, falApiKey);
+        const localBackup = await saveRemoteImageToLocalMedia(generatedImageUrl, {
+          category: 'character-library',
+          baseName: `${name}-${angle}`,
+        });
+
+        const imageDataUri = await imageUrlToDataUri(generatedImageUrl);
+        const analysisRaw = await analyzeReferenceImage(
+          imageDataUri,
+          buildAnalysisPrompt(type, angle),
+          { apiKey: openrouterApiKey }
+        );
+        const analysis = parseStructuredAnalysis(analysisRaw);
+
+        generatedViews.push({
+          angle,
+          url: generatedImageUrl,
+          archivedLocalPath: localBackup.relativePath,
+          analysis,
+          imagePrompt,
+        });
+      }
     }
 
     const generatedProfile = await generateCharacterProfile(
@@ -369,7 +409,7 @@ export async function POST(req: NextRequest) {
       tags: Array.from(new Set([
         ...tags,
         generationMode === 'video_ready' ? 'video-ready' : 'quick-gen',
-        ...requestedAngles,
+        ...generatedViews.map((view) => view.angle),
       ])),
       views: generatedViews.map((view) => ({
         angle: view.angle,
@@ -405,7 +445,7 @@ export async function POST(req: NextRequest) {
       data: created,
       meta: {
         generationMode,
-        generatedAngles: requestedAngles,
+        generatedAngles: generatedViews.map((view) => view.angle),
         imagePrompts: generatedViews.map((view) => ({ angle: view.angle, prompt: view.imagePrompt })),
         imageBackupPaths: generatedViews.map((view) => ({ angle: view.angle, path: view.archivedLocalPath })),
       },
