@@ -455,6 +455,23 @@ export async function generateStoryboardScript(
       const productionRisk = normalizeEnum<ProductionRisk>(scene.productionRisk, STORYBOARD_PRODUCTION_RISKS, 'medium');
       const referencePriorityMode = normalizeEnum<ReferencePriorityMode>(scene.referencePriorityMode, STORYBOARD_REFERENCE_PRIORITY_MODES, 'stage_balanced');
       const viewIntent = normalizeEnum<ViewIntent>(scene.viewIntent, STORYBOARD_VIEW_INTENTS, 'auto');
+      const normalizedCharactersUsed = Array.isArray(scene.charactersUsed)
+        ? scene.charactersUsed.filter((v): v is string => typeof v === 'string')
+        : [];
+      const normalizedProductsUsed = Array.isArray(scene.productsUsed)
+        ? scene.productsUsed.filter((v): v is string => typeof v === 'string')
+        : [];
+      const normalizedHints: Record<string, ViewIntent> = {};
+      for (const tag of [...normalizedCharactersUsed, ...normalizedProductsUsed]) {
+        normalizedHints[tag] = viewIntent;
+      }
+      if (scene.referenceViewHints && typeof scene.referenceViewHints === 'object') {
+        for (const [key, value] of Object.entries(scene.referenceViewHints)) {
+          if (typeof value !== 'string') continue;
+          if (!(STORYBOARD_VIEW_INTENTS as readonly string[]).includes(value)) continue;
+          normalizedHints[key] = value as ViewIntent;
+        }
+      }
 
       return {
         sceneNumber: Number.isFinite(sceneNumberValue) ? sceneNumberValue : index + 1,
@@ -475,9 +492,7 @@ export async function generateStoryboardScript(
         shotIntent: typeof scene.shotIntent === 'string' ? scene.shotIntent.trim() : '',
         continuityAnchor: typeof scene.continuityAnchor === 'string' ? scene.continuityAnchor.trim() : '',
         viewIntent,
-        referenceViewHints: scene.referenceViewHints && typeof scene.referenceViewHints === 'object'
-          ? Object.fromEntries(Object.entries(scene.referenceViewHints).filter(([, v]) => typeof v === 'string'))
-          : {},
+        referenceViewHints: normalizedHints,
         renderLane,
         productionRisk,
         reservedForPost: stringValue(scene.reservedForPost),
@@ -486,12 +501,8 @@ export async function generateStoryboardScript(
         requiredReferences: Array.isArray(scene.requiredReferences)
           ? scene.requiredReferences.filter((v): v is string => typeof v === 'string')
           : [],
-        charactersUsed: Array.isArray(scene.charactersUsed)
-          ? scene.charactersUsed.filter((v): v is string => typeof v === 'string')
-          : [],
-        productsUsed: Array.isArray(scene.productsUsed)
-          ? scene.productsUsed.filter((v): v is string => typeof v === 'string')
-          : [],
+        charactersUsed: normalizedCharactersUsed,
+        productsUsed: normalizedProductsUsed,
         changeFromPrev: typeof scene.changeFromPrev === 'string'
           ? scene.changeFromPrev.trim()
           : (index === 0 ? 'N/A' : ''),

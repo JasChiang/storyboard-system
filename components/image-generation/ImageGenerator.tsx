@@ -108,6 +108,7 @@ export function ImageGenerator({
     const sceneCharactersKey = (scene.charactersUsed || []).join('|');
     const sceneProductsKey = (scene.productsUsed || []).join('|');
     const sceneRequiredRefsKey = (scene.requiredReferences || []).join('|');
+    const sceneReferenceHintsKey = JSON.stringify(scene.referenceViewHints || {});
     const sceneReferenceScope = {
         description: scene.description,
         cameraMovement: scene.cameraMovement,
@@ -158,10 +159,6 @@ export function ImageGenerator({
         const requiredOnly = contentProjectReferences
             .filter((ref) => requiredProjectRefIds.has(ref.id))
             .map((ref) => ref.id);
-        if (requiredOnly.length > 0) {
-            setSelectedProjectRefs((prev) => (areStringArraysEqual(prev, requiredOnly) ? prev : requiredOnly));
-            return;
-        }
 
         const sceneMatched = splitSceneReferencesByPriority(
             {
@@ -179,8 +176,9 @@ export function ImageGenerator({
             { fallbackPolicy: 'non_environment' }
         );
         const sceneMatchedIds = [...sceneMatched.primary, ...sceneMatched.secondary].map((ref) => ref.id);
-        if (sceneMatchedIds.length > 0) {
-            setSelectedProjectRefs((prev) => (areStringArraysEqual(prev, sceneMatchedIds) ? prev : sceneMatchedIds));
+        const recommended = Array.from(new Set([...sceneMatchedIds, ...requiredOnly]));
+        if (recommended.length > 0) {
+            setSelectedProjectRefs((prev) => (areStringArraysEqual(prev, recommended) ? prev : recommended));
             return;
         }
 
@@ -194,9 +192,11 @@ export function ImageGenerator({
         scene.charactersUsed,
         scene.productsUsed,
         scene.requiredReferences,
+        scene.viewIntent,
         sceneCharactersKey,
         sceneProductsKey,
         sceneRequiredRefsKey,
+        sceneReferenceHintsKey,
     ]);
 
     useEffect(() => {
