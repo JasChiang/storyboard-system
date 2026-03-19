@@ -942,19 +942,6 @@ export default function StoryboardPage() {
               </div>
             </div>
           )}
-
-          <StoryboardTable
-            scenes={currentProject.storyboard?.scenes || []}
-            onUpdateScene={handleUpdateScene}
-            onDeleteScene={handleDeleteScene}
-            onRegenerateScene={handleRegenerateScene}
-            onDuplicateScene={handleDuplicateScene}
-            onInsertSceneAfter={handleInsertSceneAfter}
-            onAppendScene={handleAppendScene}
-            onResetScene={handleResetScene}
-            onReorderScenes={handleReorderScenes}
-            isRegeneratingSceneId={regeneratingSceneId}
-          />
         </div>
       </main>
     </>
