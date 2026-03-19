@@ -2,7 +2,8 @@
  * 將場景數據轉換為時間軸編輯器格式
  */
 
-import type { Scene } from '@/lib/types/storyboard';
+import type { Scene, Storyboard } from '@/lib/types/storyboard';
+import { buildTimelineComposition, type TimelineComposition } from '@/lib/types/timeline';
 
 export interface TimelineAction {
   id: string;
@@ -25,6 +26,7 @@ export interface TimelineRow {
 export interface TimelineData {
   rows: TimelineRow[];
   duration: number;
+  composition?: TimelineComposition;
 }
 
 /**
@@ -39,7 +41,6 @@ export function scenesToTimeline(scenes: Scene[]): TimelineData {
     const start = currentTime;
     const end = currentTime + scene.duration;
 
-    // 影片/圖片軌道
     videoActions.push({
       id: `scene-${scene.id}`,
       start,
@@ -53,7 +54,6 @@ export function scenesToTimeline(scenes: Scene[]): TimelineData {
       },
     });
 
-    // 字幕軌道
     if (scene.dialogue || scene.description) {
       subtitleActions.push({
         id: `subtitle-${scene.id}`,
@@ -81,6 +81,14 @@ export function scenesToTimeline(scenes: Scene[]): TimelineData {
       },
     ],
     duration: currentTime,
+  };
+}
+
+export function storyboardToTimeline(storyboard: Storyboard): TimelineData {
+  const base = scenesToTimeline(storyboard.scenes);
+  return {
+    ...base,
+    composition: buildTimelineComposition(storyboard),
   };
 }
 

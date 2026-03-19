@@ -48,7 +48,7 @@ export default function CharacterLibraryPage() {
     }
   };
 
-  const handleSave = (character: Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => {
+  const handleSave = (character: Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'updatedAt' | 'usageCount' | 'version' | 'currentSnapshotId'>) => {
     void (async () => {
       if (editingCharacter) {
         await characterLibraryStorage.update(editingCharacter.id, character);

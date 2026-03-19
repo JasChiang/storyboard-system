@@ -92,7 +92,7 @@ class CharacterLibraryStorage {
     }
   }
 
-  async add(item: Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>): Promise<CharacterLibraryItem> {
+  async add(item: Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'updatedAt' | 'usageCount' | 'version' | 'currentSnapshotId'>): Promise<CharacterLibraryItem> {
     try {
       const response = await fetch('/api/data/character-library', {
         method: 'POST',
@@ -111,6 +111,8 @@ class CharacterLibraryStorage {
       const created: CharacterLibraryItem = {
         ...normalizeCharacterItem(item),
         id: crypto.randomUUID(),
+        version: 1,
+        currentSnapshotId: `snapshot-${crypto.randomUUID()}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         usageCount: 0,
@@ -136,9 +138,13 @@ class CharacterLibraryStorage {
       const library = this.getLocalLibrary();
       const index = library.items.findIndex((x) => x.id === id);
       if (index === -1) throw new Error('角色不存在');
+      const previous = library.items[index];
+      const shouldBumpVersion = Object.keys(updates).some((key) => key !== 'usageCount');
       library.items[index] = normalizeCharacterItem({
-        ...library.items[index],
+        ...previous,
         ...updates,
+        version: shouldBumpVersion ? (previous.version || 1) + 1 : previous.version || 1,
+        currentSnapshotId: shouldBumpVersion ? `snapshot-${crypto.randomUUID()}` : previous.currentSnapshotId,
         updatedAt: new Date().toISOString(),
       });
       this.saveLocalLibrary(library);

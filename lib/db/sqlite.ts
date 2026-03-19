@@ -69,14 +69,40 @@ function ensureDb() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       type TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
       usage_count INTEGER NOT NULL DEFAULT 0,
       item_json TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS generation_runs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      scene_id TEXT,
+      task_id TEXT,
+      stage TEXT NOT NULL,
+      provider TEXT,
+      model TEXT,
+      status TEXT NOT NULL,
+      input_url TEXT,
+      output_url TEXT,
+      prompt_text TEXT,
+      prompt_hash TEXT,
+      metadata_json TEXT,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      duration_ms INTEGER,
+      error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_generation_tasks_project_stage
       ON generation_tasks(project_id, stage, status);
+
+    CREATE INDEX IF NOT EXISTS idx_generation_runs_project_stage
+      ON generation_runs(project_id, stage, created_at DESC);
 
     CREATE INDEX IF NOT EXISTS idx_qa_reports_project
       ON storyboard_qa_reports(project_id, created_at DESC);
@@ -89,6 +115,12 @@ function ensureDb() {
     .map((column) => column.name);
   if (!projectColumns.includes('target_duration_sec')) {
     db.exec('ALTER TABLE projects ADD COLUMN target_duration_sec INTEGER');
+  }
+
+  const characterColumns = (db.prepare('PRAGMA table_info(character_library_items)').all() as Array<{ name: string }>)
+    .map((column) => column.name);
+  if (!characterColumns.includes('version')) {
+    db.exec('ALTER TABLE character_library_items ADD COLUMN version INTEGER NOT NULL DEFAULT 1');
   }
 
   return db;
@@ -410,6 +442,137 @@ export const sqliteTaskRepo = {
   },
 };
 
+export interface GenerationRun {
+  id: string;
+  projectId: string;
+  sceneId?: string;
+  taskId?: string;
+  stage: GenerationTaskStage | 'ffmpeg_render' | 'openreel_export' | 'blender_export';
+  provider?: string;
+  model?: string;
+  status: 'running' | 'completed' | 'failed';
+  inputUrl?: string;
+  outputUrl?: string;
+  promptText?: string;
+  promptHash?: string;
+  metadata?: Record<string, unknown>;
+  startedAt: string;
+  completedAt?: string;
+  durationMs?: number;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function rowToGenerationRun(row: DbRow): GenerationRun {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    sceneId: row.scene_id ? String(row.scene_id) : undefined,
+    taskId: row.task_id ? String(row.task_id) : undefined,
+    stage: String(row.stage) as GenerationRun['stage'],
+    provider: row.provider ? String(row.provider) : undefined,
+    model: row.model ? String(row.model) : undefined,
+    status: String(row.status) as GenerationRun['status'],
+    inputUrl: row.input_url ? String(row.input_url) : undefined,
+    outputUrl: row.output_url ? String(row.output_url) : undefined,
+    promptText: row.prompt_text ? String(row.prompt_text) : undefined,
+    promptHash: row.prompt_hash ? String(row.prompt_hash) : undefined,
+    metadata: row.metadata_json ? JSON.parse(String(row.metadata_json)) : undefined,
+    startedAt: String(row.started_at),
+    completedAt: row.completed_at ? String(row.completed_at) : undefined,
+    durationMs: row.duration_ms !== null && row.duration_ms !== undefined ? Number(row.duration_ms) : undefined,
+    error: row.error ? String(row.error) : undefined,
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+export const sqliteGenerationRunRepo = {
+  create(run: GenerationRun): GenerationRun {
+    const conn = ensureDb();
+    conn.prepare(`
+      INSERT INTO generation_runs (
+        id, project_id, scene_id, task_id, stage, provider, model, status,
+        input_url, output_url, prompt_text, prompt_hash, metadata_json,
+        started_at, completed_at, duration_ms, error, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      run.id,
+      run.projectId,
+      run.sceneId ?? null,
+      run.taskId ?? null,
+      run.stage,
+      run.provider ?? null,
+      run.model ?? null,
+      run.status,
+      run.inputUrl ?? null,
+      run.outputUrl ?? null,
+      run.promptText ?? null,
+      run.promptHash ?? null,
+      run.metadata ? JSON.stringify(run.metadata) : null,
+      run.startedAt,
+      run.completedAt ?? null,
+      run.durationMs ?? null,
+      run.error ?? null,
+      run.createdAt,
+      run.updatedAt
+    );
+    return run;
+  },
+
+  getById(id: string): GenerationRun | null {
+    const conn = ensureDb();
+    const row = conn.prepare('SELECT * FROM generation_runs WHERE id = ?').get(id) as DbRow | undefined;
+    return row ? rowToGenerationRun(row) : null;
+  },
+
+  update(id: string, updates: Partial<GenerationRun>): GenerationRun | null {
+    const current = this.getById(id);
+    if (!current) return null;
+    const merged: GenerationRun = {
+      ...current,
+      ...updates,
+      id,
+      updatedAt: new Date().toISOString(),
+    };
+    const conn = ensureDb();
+    conn.prepare(`
+      UPDATE generation_runs
+      SET project_id = ?, scene_id = ?, task_id = ?, stage = ?, provider = ?, model = ?, status = ?,
+          input_url = ?, output_url = ?, prompt_text = ?, prompt_hash = ?, metadata_json = ?,
+          started_at = ?, completed_at = ?, duration_ms = ?, error = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      merged.projectId,
+      merged.sceneId ?? null,
+      merged.taskId ?? null,
+      merged.stage,
+      merged.provider ?? null,
+      merged.model ?? null,
+      merged.status,
+      merged.inputUrl ?? null,
+      merged.outputUrl ?? null,
+      merged.promptText ?? null,
+      merged.promptHash ?? null,
+      merged.metadata ? JSON.stringify(merged.metadata) : null,
+      merged.startedAt,
+      merged.completedAt ?? null,
+      merged.durationMs ?? null,
+      merged.error ?? null,
+      merged.updatedAt,
+      id
+    );
+    return merged;
+  },
+
+  listByProject(projectId: string, limit = 100): GenerationRun[] {
+    const conn = ensureDb();
+    const rows = conn.prepare('SELECT * FROM generation_runs WHERE project_id = ? ORDER BY created_at DESC LIMIT ?').all(projectId, limit) as DbRow[];
+    return rows.map(rowToGenerationRun);
+  },
+};
+
 export interface StoryboardQaIssue {
   sceneId?: string;
   sceneNumber?: number;
@@ -475,6 +638,7 @@ function rowToCharacterItem(row: DbRow): CharacterLibraryItem {
     id: String(row.id),
     name: String(row.name),
     type: String(row.type) as CharacterLibraryItem['type'],
+    version: Number(row.version || 1),
     usageCount: Number(row.usage_count || 0),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
@@ -502,12 +666,13 @@ export const sqliteCharacterLibraryRepo = {
     const conn = ensureDb();
     conn.prepare(`
       INSERT INTO character_library_items (
-        id, name, type, usage_count, item_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        id, name, type, version, usage_count, item_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       item.id,
       item.name,
       item.type,
+      item.version,
       item.usageCount,
       JSON.stringify(item),
       item.createdAt,
@@ -527,16 +692,23 @@ export const sqliteCharacterLibraryRepo = {
       updatedAt: new Date().toISOString(),
       createdAt: existing.createdAt,
       usageCount: typeof updates.usageCount === 'number' ? updates.usageCount : existing.usageCount,
+      version: typeof updates.version === 'number'
+        ? updates.version
+        : (Object.keys(updates).filter((key) => key !== 'usageCount').length > 0 ? existing.version + 1 : existing.version),
+      currentSnapshotId: typeof updates.currentSnapshotId === 'string'
+        ? updates.currentSnapshotId
+        : (Object.keys(updates).filter((key) => key !== 'usageCount').length > 0 ? `snapshot-${crypto.randomUUID()}` : existing.currentSnapshotId),
     };
 
     const conn = ensureDb();
     conn.prepare(`
       UPDATE character_library_items
-      SET name = ?, type = ?, usage_count = ?, item_json = ?, updated_at = ?
+      SET name = ?, type = ?, version = ?, usage_count = ?, item_json = ?, updated_at = ?
       WHERE id = ?
     `).run(
       merged.name,
       merged.type,
+      merged.version,
       merged.usageCount,
       JSON.stringify(merged),
       merged.updatedAt,

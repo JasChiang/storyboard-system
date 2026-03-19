@@ -42,6 +42,10 @@ export interface CharacterLibraryItem {
   // 多視角參考圖
   views: CharacterLibraryView[];
 
+  // Versioning
+  version: number;                 // 角色庫 item 版本（更新 views / 規則時遞增）
+  currentSnapshotId?: string;      // 快照 id，供專案引用時鎖定來源版本
+
   // 中繼資料
   ipProfile?: CharacterIpProfile;     // IP 套件設定（版本、硬規則、預設參數）
   createdAt: string;
@@ -102,6 +106,8 @@ export function characterLibraryItemToProjectReference(
     ipProfile: item.ipProfile,
     sourceCharacterLibraryItemId: item.id,
     sourceCharacterStatus: normalizeCharacterStatus(item.status),
+    sourceCharacterLibraryVersion: item.version,
+    sourceCharacterSnapshotId: item.currentSnapshotId,
     isAnchor: inferFallbackAnchorRole(item),
     usageRole,
   };
@@ -138,6 +144,8 @@ export function characterLibraryItemToProjectReferences(
       ipProfile: item.ipProfile,
       sourceCharacterLibraryItemId: item.id,
       sourceCharacterStatus: normalizeCharacterStatus(item.status),
+      sourceCharacterLibraryVersion: item.version,
+      sourceCharacterSnapshotId: item.currentSnapshotId,
       isAnchor: inferFallbackAnchorRole(item),
       usageRole,
     };

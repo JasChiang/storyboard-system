@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateImage, checkQueueStatus, getImageResult } from '@/lib/api/fal';
 import { analyzeReferenceImage, generateCharacterProfile } from '@/lib/api/openrouter';
 import { sqliteCharacterLibraryRepo } from '@/lib/db/sqlite';
+import { buildCharacterLibraryItem } from '@/lib/characters/normalize';
 import { saveRemoteImageToLocalMedia } from '@/lib/storage/local-media';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
 
@@ -312,7 +313,7 @@ export async function POST(req: NextRequest) {
     );
 
     const now = new Date().toISOString();
-    const created = sqliteCharacterLibraryRepo.create({
+    const created = sqliteCharacterLibraryRepo.create(buildCharacterLibraryItem({
       id: crypto.randomUUID(),
       name,
       type,
@@ -348,7 +349,7 @@ export async function POST(req: NextRequest) {
       usageCount: 0,
       createdAt: now,
       updatedAt: now,
-    });
+    }, now));
 
     return NextResponse.json({
       data: created,

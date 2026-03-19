@@ -191,6 +191,14 @@ async function refreshItemViewsForSelection(
 function applyWorkflowSelection(reference: ProjectReference, selection: SelectionItem): ProjectReference {
   return normalizeProjectReferenceWorkflow({
     ...reference,
+    referenceVersionSeed: [
+      reference.sourceCharacterLibraryItemId,
+      reference.sourceCharacterLibraryVersion,
+      reference.sourceCharacterSnapshotId,
+      reference.url,
+      reference.identityCore,
+      ...(reference.mustKeepFeatures || []),
+    ].filter(Boolean).join('|') || undefined,
     isAnchor: Boolean(selection.isAnchor),
     usageRole: selection.isAnchor ? 'anchor' : (selection.usageRole || reference.usageRole || 'supporting'),
   });

@@ -1,5 +1,6 @@
 import type { Storyboard, Scene, TransitionType } from '@/lib/types/storyboard';
 import type { EditingSuggestion } from '@/lib/types/project';
+import { buildTimelineComposition } from '@/lib/types/timeline';
 import { resolveContinuationSource } from '@/lib/utils/transition';
 
 const SCHEMA_VERSION = '1.0.0';
@@ -415,6 +416,13 @@ export function convertToOpenReelProjectFile(
   const musicTrackId = generateId('track');
   let captionsTrackId: string | null = null;
 
+  const composition = buildTimelineComposition(storyboard, {
+    includeSubtitles: true,
+    includeVoiceovers: true,
+    includeMusic: true,
+    editingSuggestion: options?.editingSuggestion,
+  });
+
   let currentTime = 0;
   storyboard.scenes.forEach((scene, index) => {
     const previousScene = index > 0 ? storyboard.scenes[index - 1] : null;
@@ -814,7 +822,7 @@ export function convertToOpenReelProjectFile(
   const timeline: OpenReelTimeline = {
     tracks,
     subtitles: [],
-    duration: timelineDuration,
+    duration: Math.max(timelineDuration, composition.durationSec),
     markers,
   };
 

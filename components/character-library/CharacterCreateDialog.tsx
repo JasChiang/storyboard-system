@@ -11,7 +11,7 @@ import { CHARACTER_STATUS_LABELS, type CharacterLibraryStatus } from '@/lib/char
 interface CharacterCreateDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (character: Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => void | Promise<void>;
+  onSave: (character: Omit<CharacterLibraryItem, 'id' | 'createdAt' | 'updatedAt' | 'usageCount' | 'version' | 'currentSnapshotId'>) => void | Promise<void>;
   editingCharacter?: CharacterLibraryItem;
 }
 

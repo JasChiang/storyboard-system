@@ -13,6 +13,8 @@ export function buildCharacterLibraryItem(input: Partial<CharacterLibraryItem>, 
     views: Array.isArray(input.views) ? input.views : [],
     ipProfile: input.ipProfile,
     usageCount: typeof input.usageCount === 'number' ? input.usageCount : 0,
+    version: typeof input.version === 'number' && input.version > 0 ? Math.floor(input.version) : 1,
+    currentSnapshotId: input.currentSnapshotId || `snapshot-${crypto.randomUUID()}`,
     createdAt: input.createdAt || now,
     updatedAt: now,
   });

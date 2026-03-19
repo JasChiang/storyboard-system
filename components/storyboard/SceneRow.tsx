@@ -390,9 +390,9 @@ export function SceneRow({
       </td>
 
       <td className="px-4 py-4 align-top">
-        <div className="max-w-[680px] space-y-3">
+        <div className="max-w-full min-w-0 space-y-3 break-words">
           <div>
-            <div className="text-sm font-medium leading-6 text-slate-900 dark:text-slate-100">{scene.description || '—'}</div>
+            <div className="break-words text-sm font-medium leading-6 text-slate-900 dark:text-slate-100">{scene.description || '—'}</div>
             {scene.hookScore && (
               <div className="mt-2 flex items-center gap-1" title={scene.hookScoreReason || `Hook 強度 ${scene.hookScore}/5`}>
                 {Array.from({ length: 5 }, (_, i) => (
@@ -406,14 +406,14 @@ export function SceneRow({
           {(scene.charactersUsed?.length || scene.productsUsed?.length || scene.requiredReferences?.length || scene.deliveryIntent || scene.productionRisk) && (
             <div className="flex flex-wrap gap-1.5">
               {scene.productionRisk && <Badge className={scene.productionRisk === 'high' ? 'bg-rose-500/12 text-rose-700 dark:text-rose-300' : scene.productionRisk === 'medium' ? 'bg-amber-500/12 text-amber-700 dark:text-amber-300' : 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300'}>risk {scene.productionRisk}</Badge>}
-              {scene.deliveryIntent && <Badge className="bg-cyan-500/12 text-cyan-700 dark:text-cyan-300">{scene.deliveryIntent}</Badge>}
-              {(scene.charactersUsed || []).map((tag) => <Badge key={`c-${tag}`} variant="outline">{tag}</Badge>)}
-              {(scene.productsUsed || []).map((tag) => <Badge key={`p-${tag}`} className="bg-emerald-500/12 text-emerald-700 dark:text-emerald-300">{tag}</Badge>)}
-              {(scene.requiredReferences || []).map((tag) => <Badge key={`r-${tag}`} className="bg-violet-500/12 text-violet-700 dark:text-violet-300">必用 {tag}</Badge>)}
+              {scene.deliveryIntent && <Badge className="max-w-full break-all bg-cyan-500/12 text-cyan-700 dark:text-cyan-300">{scene.deliveryIntent}</Badge>}
+              {(scene.charactersUsed || []).map((tag) => <Badge key={`c-${tag}`} variant="outline" className="max-w-full break-all">{tag}</Badge>)}
+              {(scene.productsUsed || []).map((tag) => <Badge key={`p-${tag}`} className="max-w-full break-all bg-emerald-500/12 text-emerald-700 dark:text-emerald-300">{tag}</Badge>)}
+              {(scene.requiredReferences || []).map((tag) => <Badge key={`r-${tag}`} className="max-w-full break-all bg-violet-500/12 text-violet-700 dark:text-violet-300">必用 {tag}</Badge>)}
             </div>
           )}
 
-          <div className="grid gap-3 xl:grid-cols-2">
+          <div className="grid min-w-0 gap-3 xl:grid-cols-2">
             <InfoBlock icon={Clapperboard} label="Narrative">
               <MetaLine label="Scene intent" value={scene.sceneIntent} />
               <MetaLine label="Shot intent" value={scene.shotIntent} />
@@ -460,10 +460,10 @@ export function SceneRow({
       </td>
 
       <td className="px-4 py-4 align-top">
-        <div className="max-w-[220px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">{scene.cameraMovement || '—'}</div>
+        <div className="max-w-full break-words rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">{scene.cameraMovement || '—'}</div>
       </td>
       <td className="px-4 py-4 align-top">
-        <div className="max-w-xs rounded-xl border border-border/50 bg-white/70 px-3 py-2 text-sm leading-relaxed text-slate-700 dark:bg-slate-950/40 dark:text-slate-200">
+        <div className="max-w-full break-words rounded-xl border border-border/50 bg-white/70 px-3 py-2 text-sm leading-relaxed text-slate-700 dark:bg-slate-950/40 dark:text-slate-200">
           {scene.dialogue ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
@@ -490,7 +490,7 @@ export function SceneRow({
         )}
       </td>
       <td className="px-4 py-4 align-top">
-        <div className="space-y-2 rounded-xl border border-border/60 bg-white/70 p-3 dark:bg-slate-950/40">
+        <div className="max-w-full break-words space-y-2 rounded-xl border border-border/60 bg-white/70 p-3 dark:bg-slate-950/40">
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium whitespace-nowrap ${transitionInfo.color}`}>{transitionInfo.icon} {transitionInfo.label}</span>
           {scene.transitionToNext?.reason && <div className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">{scene.transitionToNext.reason}</div>}
           {(scene.transitionToNext?.useEndFrameAsNextStart || scene.transitionToNext?.type === 'continuation') && <div className="text-xs font-medium text-green-600 dark:text-green-400">→ 延續至下一幕</div>}

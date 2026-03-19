@@ -41,10 +41,11 @@ export function inferFallbackUsageRole(item: Pick<CharacterLibraryItem, 'type'>)
   return 'supporting';
 }
 
-export function normalizeCharacterItem<T extends Partial<CharacterLibraryItem>>(item: T): T & Pick<CharacterLibraryItem, 'status'> {
+export function normalizeCharacterItem<T extends Partial<CharacterLibraryItem>>(item: T): T & Pick<CharacterLibraryItem, 'status' | 'version'> {
   return {
     ...item,
     status: normalizeCharacterStatus(item.status),
+    version: typeof item.version === 'number' && item.version > 0 ? Math.floor(item.version) : 1,
   };
 }
 

@@ -238,7 +238,10 @@ export interface ProjectReference {
   ipProfile?: IpProfile;         // 來自角色庫的 IP 套件設定
   structuredIdentityLock?: StructuredIdentityLock; // 結構化保真鎖（可選，缺省時由既有欄位自動推導）
   sourceCharacterLibraryItemId?: string;
+  sourceCharacterLibraryVersion?: number;
+  sourceCharacterSnapshotId?: string;
   sourceCharacterStatus?: 'draft' | 'reviewed' | 'production_ready' | 'archived';
+  referenceVersionSeed?: string;   // 鎖定專案引用時使用的版本快照種子
   isAnchor?: boolean;
   usageRole?: 'anchor' | 'supporting' | 'style_support';
 }

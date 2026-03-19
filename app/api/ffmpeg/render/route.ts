@@ -10,8 +10,10 @@ import { copyFile, mkdir, writeFile, unlink, rm } from 'fs/promises';
 import { createWriteStream, existsSync } from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
-import type { Scene } from '@/lib/types/storyboard';
+import type { Scene, Storyboard } from '@/lib/types/storyboard';
 import type { EditingSuggestion, SceneEditSuggestion } from '@/lib/types/project';
+import { buildTimelineComposition } from '@/lib/types/timeline';
+import { completeGenerationRun, startGenerationRun } from '@/lib/workflow/run-logger';
 
 // 設定 FFmpeg 路径
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -21,6 +23,7 @@ export const maxDuration = 300; // 最长5分钟
 interface RenderRequest {
   projectId: string;
   scenes: Scene[];
+  storyboardId?: string;
   projectTitle: string;
   includeSubtitles?: boolean;
   includeAudio?: boolean;
@@ -427,11 +430,13 @@ async function mixAudioIntoVideo(
 export async function POST(request: NextRequest) {
   const tempDir = path.resolve(process.cwd(), 'temp', `render-${Date.now()}`);
 
+  let activeRunId: string | null = null;
   try {
     const body: RenderRequest = await request.json();
     const {
       projectId,
       scenes,
+      storyboardId,
       includeSubtitles = true,
       includeAudio = true,
       generatedMusic,
@@ -461,6 +466,49 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const storyboardForTimeline: Storyboard = {
+      id: storyboardId || `storyboard-${projectId}`,
+      projectId,
+      title: body.projectTitle,
+      originalPrompt: '',
+      templateUsed: 'runtime-ffmpeg',
+      scenes,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      generatedMusic: generatedMusic
+        ? {
+            url: generatedMusic.url,
+            model: 'elevenlabs-music',
+            prompt: 'ffmpeg-render-bgm',
+            durationSeconds: generatedMusic.durationSeconds,
+            timestamp: new Date().toISOString(),
+          }
+        : undefined,
+      audioMixSettings,
+    };
+    const timelineComposition = buildTimelineComposition(storyboardForTimeline, {
+      includeSubtitles,
+      includeVoiceovers: includeAudio,
+      includeMusic: includeAudio,
+      editingSuggestion,
+    });
+    const run = startGenerationRun({
+      projectId,
+      stage: 'ffmpeg_render',
+      provider: 'ffmpeg',
+      model: 'libx264+aac',
+      promptText: JSON.stringify({
+        includeSubtitles,
+        includeAudio,
+        sceneCount: scenes.length,
+      }),
+      metadata: {
+        timelineComposition,
+        audioMixSettings,
+      },
+    });
+    activeRunId = run.id;
 
     console.log(`[FFmpeg] 開始渲染專案: ${projectId}`);
     console.log(`[FFmpeg] 場景数: ${renderableScenes.length}`);
@@ -623,6 +671,17 @@ export async function POST(request: NextRequest) {
     console.log('[FFmpeg] 步驟 4: 清理暫時文件');
     await rm(tempDir, { recursive: true, force: true });
 
+    if (activeRunId) {
+      completeGenerationRun(activeRunId, {
+        status: 'completed',
+        outputUrl: `/renders/${projectId}.mp4`,
+        metadata: {
+          duration: timeline.totalDuration,
+          scenes: processedScenes.length,
+        },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       videoUrl: `/renders/${projectId}.mp4`,
@@ -636,6 +695,14 @@ export async function POST(request: NextRequest) {
     // 清理暫時文件
     if (existsSync(tempDir)) {
       await rm(tempDir, { recursive: true, force: true }).catch(console.error);
+    }
+
+    if (activeRunId) {
+      completeGenerationRun(activeRunId, {
+        status: 'failed',
+        error: error instanceof Error ? error.message : '渲染失敗',
+        metadata: error instanceof Error ? { stack: error.stack } : undefined,
+      });
     }
 
     return NextResponse.json(

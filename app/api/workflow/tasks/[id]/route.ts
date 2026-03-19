@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sqliteTaskRepo, type GenerationTask } from '@/lib/db/sqlite';
+import { sqliteGenerationRunRepo, sqliteTaskRepo, type GenerationTask } from '@/lib/db/sqlite';
 
 export const runtime = 'nodejs';
 
@@ -33,6 +33,25 @@ export async function PATCH(
 
     if (!updated) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
+
+    const existingRun = sqliteGenerationRunRepo.listByProject(updated.projectId, 200)
+      .find((run) => run.taskId === updated.id);
+    if (existingRun) {
+      const completedAt = updated.status === 'completed' || updated.status === 'failed'
+        ? new Date().toISOString()
+        : existingRun.completedAt;
+      sqliteGenerationRunRepo.update(existingRun.id, {
+        status: updated.status === 'failed' ? 'failed' : updated.status === 'completed' ? 'completed' : 'running',
+        outputUrl: updated.outputUrl,
+        error: updated.error,
+        metadata: {
+          ...(existingRun.metadata || {}),
+          ...(updated.metadata || {}),
+        },
+        completedAt,
+        durationMs: completedAt ? Math.max(0, Date.parse(completedAt) - Date.parse(existingRun.startedAt)) : existingRun.durationMs,
+      });
     }
 
     return NextResponse.json({ data: updated });

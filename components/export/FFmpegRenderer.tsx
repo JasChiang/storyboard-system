@@ -57,6 +57,7 @@ export function FFmpegRenderer({
         },
         body: JSON.stringify({
           projectId,
+          storyboardId: storyboard.id,
           scenes,
           projectTitle: projectName,
           includeSubtitles,

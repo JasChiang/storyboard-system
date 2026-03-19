@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sqliteTaskRepo, type GenerationTask, type GenerationTaskStage, type GenerationTaskStatus } from '@/lib/db/sqlite';
+import { sqliteTaskRepo, sqliteGenerationRunRepo, type GenerationTask, type GenerationTaskStage, type GenerationTaskStatus } from '@/lib/db/sqlite';
 import { checkQueueStatus, getImageResult, getVideoResult } from '@/lib/api/fal';
+import { hashPrompt } from '@/lib/workflow/run-logger';
 
 export const runtime = 'nodejs';
 const MISSING_RECOVERY_METADATA_TIMEOUT_MS = 45_000;
@@ -189,6 +190,27 @@ export async function POST(req: NextRequest) {
       attempts: body.attempts,
       metadata: body.metadata,
     });
+
+    if (created.status === 'running') {
+      const now = new Date().toISOString();
+      sqliteGenerationRunRepo.create({
+        id: crypto.randomUUID(),
+        projectId: created.projectId,
+        sceneId: created.sceneId,
+        taskId: created.id,
+        stage: created.stage,
+        provider: created.stage === 'video' || created.stage.startsWith('image_') ? 'fal' : 'workflow',
+        model: created.model,
+        status: 'running',
+        inputUrl: created.inputUrl,
+        promptText: created.prompt,
+        promptHash: hashPrompt(created.prompt),
+        metadata: created.metadata,
+        startedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
 
     return NextResponse.json({ data: created }, { status: 201 });
   } catch (error) {
