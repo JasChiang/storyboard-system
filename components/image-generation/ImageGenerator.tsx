@@ -11,7 +11,7 @@ import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
 import { buildSceneDirectiveLines } from '@/lib/prompts/scene-directives';
 import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
-import { getReferenceTag, getSceneRelevantReferences, getSceneRequiredTags, inferSceneViewIntent } from '@/lib/references/scene-references';
+import { getReferenceTag, getSceneRequiredTags } from '@/lib/references/scene-references';
 import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
@@ -162,7 +162,7 @@ export function ImageGenerator({
             return;
         }
 
-        const sceneMatched = getSceneRelevantReferences(
+        const sceneMatched = splitSceneReferencesByPriority(
             {
                 description: scene.description,
                 cameraMovement: scene.cameraMovement,
@@ -173,10 +173,12 @@ export function ImageGenerator({
                 productsUsed: scene.productsUsed || [],
                 requiredReferences: scene.requiredReferences || [],
             },
-            contentProjectReferences
-        ).map((ref) => ref.id);
-        if (sceneMatched.length > 0) {
-            setSelectedProjectRefs((prev) => (areStringArraysEqual(prev, sceneMatched) ? prev : sceneMatched));
+            contentProjectReferences,
+            { fallbackPolicy: 'non_environment' }
+        );
+        const sceneMatchedIds = [...sceneMatched.primary, ...sceneMatched.secondary].map((ref) => ref.id);
+        if (sceneMatchedIds.length > 0) {
+            setSelectedProjectRefs((prev) => (areStringArraysEqual(prev, sceneMatchedIds) ? prev : sceneMatchedIds));
             return;
         }
 
@@ -237,9 +239,16 @@ export function ImageGenerator({
         [effectiveStartFrameUrl, projectReferences, scene]
     );
 
-    // 取得選中的專案參考圖 URL
+    // 取得選中的專案參考圖 URL（以 UI 勾選結果為唯一真實來源）
     const getSelectedReferenceUrls = (options?: { includeStartFrameForEnd?: boolean; includePreviousSceneContinuation?: boolean }): string[] => {
-        const hasAnyContentRefs = requiredScopedRefs.length > 0 || optionalScopedRefs.length > 0;
+        const selectedRoutedRefs = splitSceneReferencesByPriority(sceneReferenceScope, selectedContentRefs, {
+            fallbackPolicy: 'all_selected',
+        });
+        const selectedPrimaryRefs = selectedRoutedRefs.primary;
+        const selectedSecondaryRefs = selectedRoutedRefs.secondary;
+        const selectedRequiredRefs = selectedPrimaryRefs.filter((ref) => requiredProjectRefIds.has(ref.id));
+        const selectedOptionalPrimaryRefs = selectedPrimaryRefs.filter((ref) => !requiredProjectRefIds.has(ref.id));
+        const hasAnyContentRefs = selectedPrimaryRefs.length > 0 || selectedSecondaryRefs.length > 0;
         return buildPrioritizedReferenceUrls({
             model: imageModel,
             stage: options?.includeStartFrameForEnd ? 'image_end' : 'image_start',
@@ -249,10 +258,9 @@ export function ImageGenerator({
                 ? (previousEndFrameUrl || scene.generatedImage?.url)
                 : undefined,
             sceneReferenceUrl: referenceImage,
-            requiredContentRefs: routedSceneRefs.primary.filter((ref) => requiredProjectRefIds.has(ref.id)).concat(routedSceneRefs.primary.filter((ref) => !requiredProjectRefIds.has(ref.id))),
-            optionalContentRefs: routedSceneRefs.secondary,
+            requiredContentRefs: [...selectedRequiredRefs, ...selectedOptionalPrimaryRefs],
+            optionalContentRefs: selectedSecondaryRefs,
             styleReferenceUrls: selectedStyleReferenceUrls,
-            // Start-frame generation should anchor identity refs before continuity/style cues.
             prioritizeContentRefs: !options?.includeStartFrameForEnd,
             strictRequiredOnlyWhenPresent: true,
             includeStyleReferenceImages: !hasAnyContentRefs,
@@ -1125,21 +1133,24 @@ export function ImageGenerator({
             {contentProjectReferences.length > 0 && (
                 <div className="surface-panel space-y-3 p-4">
                     <div className="flex items-center justify-between gap-2">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">內容參考圖</label>
+                        <div>
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">內容參考圖</label>
+                            <p className="mt-1 text-xs text-slate-500">本鏡視角：{sceneViewIntent}。系統會優先選主參考，再補輔助參考。</p>
+                        </div>
                         <div className="flex items-center gap-2">
                             <button
-                                onClick={() => setSelectedProjectRefs(contentProjectReferences.map((ref) => ref.id))}
+                                onClick={() => setSelectedProjectRefs([...routedSceneRefs.primary, ...routedSceneRefs.secondary].map((ref) => ref.id))}
                                 disabled={isAnyGenerationLoading}
                                 className="rounded-full border border-border/70 bg-white/70 px-2.5 py-1 text-xs text-slate-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900/60 dark:text-slate-200"
                             >
-                                全選
+                                重設推薦
                             </button>
                             <button
                                 onClick={() => setSelectedProjectRefs(Array.from(requiredProjectRefIds))}
                                 disabled={isAnyGenerationLoading}
                                 className="rounded-full border border-border/70 bg-white/70 px-2.5 py-1 text-xs text-slate-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900/60 dark:text-slate-200"
                             >
-                                清空
+                                只留必用
                             </button>
                         </div>
                     </div>
@@ -1173,12 +1184,17 @@ export function ImageGenerator({
                                     />
                                     <div className="absolute bottom-0 left-0 right-0 bg-black/70 p-1">
                                         <p className="truncate text-[10px] text-white">
-                                            {ref.name ? `<${ref.name}>` : ref.type}
+                                            {ref.name ? `<${ref.name}>` : ref.type}{ref.angle ? ` · ${ref.angle}` : ''}
                                         </p>
                                     </div>
                                     {isRequired && (
                                         <div className="absolute left-1 top-1 rounded-full bg-amber-500/90 px-1.5 py-0.5 text-[9px] font-semibold text-white">
                                             必用
+                                        </div>
+                                    )}
+                                    {!isRequired && routedSceneRefs.primary.some((item) => item.id === ref.id) && (
+                                        <div className="absolute left-1 top-1 rounded-full bg-indigo-500/90 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                                            主參考
                                         </div>
                                     )}
                                     {isSelected && (
@@ -1193,6 +1209,8 @@ export function ImageGenerator({
                     <p className="text-xs text-slate-500">
                         已選 {selectedProjectRefs.length}/{contentProjectReferences.length} 張
                         {requiredProjectRefIds.size > 0 ? `（含 ${requiredProjectRefIds.size} 張必用參考）` : ''}
+                        {routedSceneRefs.primary.length > 0 ? `｜主參考 ${routedSceneRefs.primary.length} 張` : ''}
+                        {routedSceneRefs.secondary.length > 0 ? `｜輔助參考 ${routedSceneRefs.secondary.length} 張` : ''}
                     </p>
                 </div>
             )}

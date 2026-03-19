@@ -407,6 +407,7 @@ export function SceneRow({
             <div className="flex flex-wrap gap-1.5">
               {scene.productionRisk && <Badge className={scene.productionRisk === 'high' ? 'bg-rose-500/12 text-rose-700 dark:text-rose-300' : scene.productionRisk === 'medium' ? 'bg-amber-500/12 text-amber-700 dark:text-amber-300' : 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300'}>risk {scene.productionRisk}</Badge>}
               {scene.deliveryIntent && <Badge className="max-w-full break-all bg-cyan-500/12 text-cyan-700 dark:text-cyan-300">{scene.deliveryIntent}</Badge>}
+              {scene.viewIntent && scene.viewIntent !== 'auto' && <Badge className="max-w-full break-all bg-indigo-500/12 text-indigo-700 dark:text-indigo-300">視角 {scene.viewIntent}</Badge>}
               {(scene.charactersUsed || []).map((tag) => <Badge key={`c-${tag}`} variant="outline" className="max-w-full break-all">{tag}</Badge>)}
               {(scene.productsUsed || []).map((tag) => <Badge key={`p-${tag}`} className="max-w-full break-all bg-emerald-500/12 text-emerald-700 dark:text-emerald-300">{tag}</Badge>)}
               {(scene.requiredReferences || []).map((tag) => <Badge key={`r-${tag}`} className="max-w-full break-all bg-violet-500/12 text-violet-700 dark:text-violet-300">必用 {tag}</Badge>)}
