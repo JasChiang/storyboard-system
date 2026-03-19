@@ -15,7 +15,12 @@ const sceneProperties = {
   continuityLock: { type: 'string', description: '此鏡頭不允許改變的連續性約束' },
   shotIntent: { type: 'string', description: '鏡頭在整體敘事中的任務（一句話）' },
   continuityAnchor: { type: 'string', description: '跨鏡頭必須維持的一個關鍵連續性錨點' },
-  viewIntent: { type: 'string', enum: [...STORYBOARD_VIEW_INTENTS], description: '本鏡頭預期使用的主視角（auto/front/side/back/three_quarter/top）' },
+  viewIntent: { type: 'string', enum: [...STORYBOARD_VIEW_INTENTS], description: '本鏡頭整體主視角（auto/front/side/back/three_quarter/top）' },
+  referenceViewHints: {
+    type: 'object',
+    description: '每個角色/商品標記各自的視角需求，如 {"<台灣男性>":"front","<Galaxy S26>":"back"}',
+    additionalProperties: { type: 'string', enum: [...STORYBOARD_VIEW_INTENTS] },
+  },
   renderLane: { type: 'string', enum: [...STORYBOARD_RENDER_LANES], description: 'production lane：hero / performance / continuity / plate / insert / utility' },
   productionRisk: { type: 'string', enum: [...STORYBOARD_PRODUCTION_RISKS], description: '此鏡的製作風險等級' },
   reservedForPost: { type: 'string', description: '留給後期處理的項目（字幕、cleanup、VFX、packshot finish）' },
@@ -66,6 +71,7 @@ const sceneRequired = [
   'shotIntent',
   'continuityAnchor',
   'viewIntent',
+  'referenceViewHints',
   'renderLane',
   'productionRisk',
   'reservedForPost',
@@ -123,7 +129,7 @@ export const STORYBOARD_CONTRACT_PROMPT_BLOCK = `
 - JSON 頂層必須包含：title、sharedAnchors、sharedContinuityDirectives、scenes。
 - sharedAnchors：輸出 0-N 條全片共用 anchor；沒有就輸出 []。
 - sharedContinuityDirectives：輸出 0-N 條 { anchorLabel, directive, appliesToStages? }；沒有就輸出 []。
-- 每個 scene 都必須輸出：sceneIntent / startComposition / subjectMotion / continuityLock / shotIntent / continuityAnchor / viewIntent。
+- 每個 scene 都必須輸出：sceneIntent / startComposition / subjectMotion / continuityLock / shotIntent / continuityAnchor / viewIntent / referenceViewHints。
 - 每個 scene 都必須輸出 production 欄位：renderLane / productionRisk / reservedForPost / deliveryIntent / referencePriorityMode。
 - renderLane 只能是：hero | performance | continuity | plate | insert | utility。
 - productionRisk 只能是：low | medium | high。
@@ -131,5 +137,6 @@ export const STORYBOARD_CONTRACT_PROMPT_BLOCK = `
 - 若沒有明確後期需求，reservedForPost 也要輸出空字串 ""，不能省略。
 - 若沒有明確交付目的，deliveryIntent 也要輸出空字串 ""，不能省略。
 - 若沒有必用參考，requiredReferences 必須輸出 []，不能省略。
+- 若場景同時有角色與商品，referenceViewHints 應針對每個標記明確輸出其視角需求；例如人物正面、商品背面，必須分開標記，不能只靠單一 viewIntent。
 - 若 requiresEndFrame = false，endFrameDescription 與 endFrameDelta 必須是空字串。
 `;

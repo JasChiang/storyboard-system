@@ -337,6 +337,7 @@ function SceneDetailEditor({
             <InfoBlock icon={Wand2} label="生成">
               <MetaLine label="鏡頭運動" value={scene.cameraMovement} />
               <MetaLine label="視角意圖" value={scene.viewIntent} />
+              <MetaLine label="主體視角提示" value={scene.referenceViewHints ? Object.entries(scene.referenceViewHints).map(([key, value]) => `${key}:${value}`).join('、') : ''} />
               <MetaLine label="參考優先序" value={scene.referencePriorityMode} />
               <MetaLine label="製作風險" value={scene.productionRisk} />
               <MetaLine label="交付用途" value={scene.deliveryIntent} />
@@ -443,11 +444,23 @@ function SceneDetailEditor({
             </select>
           </div>
           <select className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm dark:bg-slate-900/70" value={editedScene.referencePriorityMode || 'stage_balanced'} onChange={(e) => setEditedScene({ ...editedScene, referencePriorityMode: e.target.value as Scene['referencePriorityMode'] })}>
-            <option value="stage_balanced">referencePriority：stage_balanced</option>
+            <option value="stage_balanced">參考優先：stage_balanced</option>
             <option value="identity_first">identity_first</option>
             <option value="continuity_first">continuity_first</option>
             <option value="style_first">style_first</option>
           </select>
+          <textarea className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm dark:bg-slate-900/70" value={editedScene.referenceViewHints ? Object.entries(editedScene.referenceViewHints).map(([k,v]) => `${k}:${v}`).join('\n') : ''} onChange={(e) => {
+            const entries = e.target.value
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .map((line) => {
+                const [key, ...rest] = line.split(':');
+                const value = (rest.join(':').trim() || 'auto') as NonNullable<Scene['viewIntent']>;
+                return [key.trim(), value] as const;
+              });
+            setEditedScene({ ...editedScene, referenceViewHints: Object.fromEntries(entries) });
+          }} placeholder="<台灣男性>:front\n<Galaxy S26>:back" rows={3} />
           <textarea className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm dark:bg-slate-900/70" value={editedScene.deliveryIntent || ''} onChange={(e) => setEditedScene({ ...editedScene, deliveryIntent: e.target.value })} placeholder="deliveryIntent" rows={2} />
           <textarea className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm dark:bg-slate-900/70" value={editedScene.reservedForPost || ''} onChange={(e) => setEditedScene({ ...editedScene, reservedForPost: e.target.value })} placeholder="reservedForPost" rows={2} />
         </InfoBlock>

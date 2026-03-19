@@ -475,6 +475,9 @@ export async function generateStoryboardScript(
         shotIntent: typeof scene.shotIntent === 'string' ? scene.shotIntent.trim() : '',
         continuityAnchor: typeof scene.continuityAnchor === 'string' ? scene.continuityAnchor.trim() : '',
         viewIntent,
+        referenceViewHints: scene.referenceViewHints && typeof scene.referenceViewHints === 'object'
+          ? Object.fromEntries(Object.entries(scene.referenceViewHints).filter(([, v]) => typeof v === 'string'))
+          : {},
         renderLane,
         productionRisk,
         reservedForPost: stringValue(scene.reservedForPost),

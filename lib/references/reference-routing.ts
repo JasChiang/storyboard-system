@@ -1,5 +1,5 @@
 import type { ProjectReference, Scene, ViewIntent } from '@/lib/types/storyboard';
-import { inferSceneViewIntent, getSceneRelevantReferences } from '@/lib/references/scene-references';
+import { getReferenceTag, inferSceneViewIntent, getSceneRelevantReferences } from '@/lib/references/scene-references';
 
 function rankReference(reference: ProjectReference, intent: ViewIntent): number {
   if (!reference.angle || intent === 'auto') return 1;
@@ -11,8 +11,17 @@ function rankReference(reference: ProjectReference, intent: ViewIntent): number 
   return 0;
 }
 
+function getReferenceSpecificIntent(scene: Partial<Pick<Scene, 'referenceViewHints' | 'viewIntent'>>, reference: ProjectReference, fallback: ViewIntent): ViewIntent {
+  const refTag = getReferenceTag(reference);
+  if (refTag && scene.referenceViewHints && typeof scene.referenceViewHints === 'object') {
+    const hinted = scene.referenceViewHints[refTag];
+    if (hinted) return hinted;
+  }
+  return fallback;
+}
+
 export function splitSceneReferencesByPriority(
-  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed' | 'requiredReferences'> & Partial<Pick<Scene, 'cameraMovement' | 'shotIntent' | 'startComposition' | 'viewIntent'>>,
+  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed' | 'requiredReferences'> & Partial<Pick<Scene, 'cameraMovement' | 'shotIntent' | 'startComposition' | 'viewIntent' | 'referenceViewHints'>>,
   references: ProjectReference[],
   options?: { fallbackPolicy?: 'environment_only' | 'non_environment' | 'all_selected' }
 ) {
@@ -27,14 +36,41 @@ export function splitSceneReferencesByPriority(
     };
   }
 
-  const sorted = [...relevant].sort((a, b) => rankReference(b, viewIntent) - rankReference(a, viewIntent));
-  const primary = sorted.filter((ref) => rankReference(ref, viewIntent) >= 3);
-  const secondary = sorted.filter((ref) => rankReference(ref, viewIntent) < 3);
+  const sorted = [...relevant].sort((a, b) => rankReference(b, getReferenceSpecificIntent(scene, b, viewIntent)) - rankReference(a, getReferenceSpecificIntent(scene, a, viewIntent)));
+  let primary = sorted.filter((ref) => rankReference(ref, getReferenceSpecificIntent(scene, ref, viewIntent)) >= 3);
+  let secondary = sorted.filter((ref) => rankReference(ref, getReferenceSpecificIntent(scene, ref, viewIntent)) < 3);
+
+  const hasCharactersInScene = (scene.charactersUsed || []).length > 0;
+  const hasProductsInScene = (scene.productsUsed || []).length > 0;
+  const requiredTags = new Set((scene.requiredReferences || []).map((tag) => tag.trim()).filter(Boolean));
+
+  const ensureEntityCoverage = (type: ProjectReference['type']) => {
+    const alreadyCovered = primary.some((ref) => ref.type === type);
+    if (alreadyCovered) return;
+    const candidate = sorted.find((ref) => {
+      if (ref.type !== type) return false;
+      const refTag = getReferenceTag(ref);
+      if (!refTag) return true;
+      if (requiredTags.size === 0) return true;
+      return requiredTags.has(refTag) || (type === 'character' && (scene.charactersUsed || []).includes(refTag)) || (type === 'product' && (scene.productsUsed || []).includes(refTag));
+    });
+    if (!candidate) return;
+    primary = [...primary, candidate];
+    secondary = secondary.filter((ref) => ref.id !== candidate.id);
+  };
+
+  if (hasCharactersInScene) ensureEntityCoverage('character');
+  if (hasProductsInScene) ensureEntityCoverage('product');
+
+  if (primary.length === 0) {
+    primary = sorted.slice(0, 1);
+    secondary = sorted.slice(1);
+  }
 
   return {
     viewIntent,
-    primary: primary.length > 0 ? primary : sorted.slice(0, 1),
-    secondary: primary.length > 0 ? secondary : sorted.slice(1),
-    all: sorted,
+    primary,
+    secondary,
+    all: [...primary, ...secondary.filter((ref) => !primary.some((item) => item.id === ref.id))],
   };
 }
