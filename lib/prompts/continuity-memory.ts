@@ -1,4 +1,4 @@
-import type { Scene, SharedContinuityDirective, WorkflowStage } from '@/lib/types/storyboard';
+import type { Scene, SharedContinuityDirective, TransitionToNext, WorkflowStage } from '@/lib/types/storyboard';
 
 interface ContinuityMemoryOptions {
   lookbackShots?: number;
@@ -18,7 +18,7 @@ function clip(value: string, max = 120): string {
 
 export function buildContinuityMemoryLines(
   currentScene: Pick<Scene, 'id' | 'sceneNumber'>,
-  orderedScenes: Array<Pick<Scene, 'id' | 'sceneNumber' | 'continuityAnchor' | 'continuityLock' | 'changeFromPrev' | 'requiredReferences'>>,
+  orderedScenes: Array<Pick<Scene, 'id' | 'sceneNumber' | 'continuityAnchor' | 'continuityLock' | 'requiredReferences' | 'transitionToNext'>>,
   options?: ContinuityMemoryOptions
 ): string[] {
   if (!Array.isArray(orderedScenes) || orderedScenes.length === 0) return [];
@@ -26,15 +26,20 @@ export function buildContinuityMemoryLines(
   if (currentIndex <= 0) return [];
 
   const lookback = Math.max(1, Math.min(8, options?.lookbackShots ?? 4));
-  const startIndex = Math.max(0, currentIndex - lookback);
-  const previousScenes = orderedScenes.slice(startIndex, currentIndex);
+  const previousScenes: Array<Pick<Scene, 'id' | 'sceneNumber' | 'continuityAnchor' | 'continuityLock' | 'requiredReferences' | 'transitionToNext'>> = [];
+
+  for (let index = currentIndex - 1; index >= 0 && previousScenes.length < lookback; index -= 1) {
+    const candidate = orderedScenes[index];
+    if (!shouldCarryContinuityForward(candidate.transitionToNext)) break;
+    previousScenes.unshift(candidate);
+  }
+
   const lines: string[] = [];
 
   previousScenes.forEach((scene) => {
     const parts: string[] = [];
     const continuityAnchor = normalize(scene.continuityAnchor);
     const continuityLock = normalize(scene.continuityLock);
-    const changeFromPrev = normalize(scene.changeFromPrev);
     const requiredRefs = Array.isArray(scene.requiredReferences)
       ? scene.requiredReferences.map((tag) => normalize(tag)).filter(Boolean)
       : [];
@@ -44,9 +49,6 @@ export function buildContinuityMemoryLines(
     }
     if (continuityLock) {
       parts.push(`lock=${clip(continuityLock, 80)}`);
-    }
-    if (changeFromPrev && changeFromPrev !== 'N/A') {
-      parts.push(`delta=${clip(changeFromPrev, 64)}`);
     }
     if (requiredRefs.length > 0) {
       parts.push(`refs=${clip(requiredRefs.slice(0, 3).join(', '), 64)}`);
@@ -71,4 +73,12 @@ export function buildContinuityMemoryLines(
     ...sharedDirectives.map((item) => `Shared directive${item.anchorLabel ? ` [${item.anchorLabel}]` : ''}: ${normalize(item.directive)}`),
     'Keep unresolved anchors and continuity locks stable unless this shot explicitly changes them.',
   ];
+}
+
+function shouldCarryContinuityForward(transition?: TransitionToNext): boolean {
+  if (!transition) return false;
+  if (transition.continuitySourceMode === 'none') return false;
+  if (transition.type === 'continuation') return true;
+  if (!transition.type && transition.useEndFrameAsNextStart === true) return true;
+  return false;
 }

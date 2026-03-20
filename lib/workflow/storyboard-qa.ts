@@ -1,5 +1,6 @@
 import type { Storyboard, Scene } from '@/lib/types/storyboard';
 import type { StoryboardQaIssue } from '@/lib/db/sqlite';
+import { getSceneReferencePlan } from '@/lib/references/reference-plan';
 
 const HIGH = 30;
 const MEDIUM = 12;
@@ -70,6 +71,9 @@ export function validateStoryboard(storyboard: Storyboard): {
     const hasShotIntent = Boolean(scene.shotIntent?.trim());
     const hasContinuityAnchor = Boolean(scene.continuityAnchor?.trim());
     const hasChangeFromPrev = Boolean(scene.changeFromPrev?.trim());
+    const hasHookScore = typeof scene.hookScore === 'number';
+    const hasHookScoreReason = typeof scene.hookScoreReason === 'string' && scene.hookScoreReason.trim().length > 0;
+    const hasRetentionRisk = typeof scene.retentionRisk === 'string' && scene.retentionRisk.trim().length > 0;
     const hasRenderLane = Boolean(scene.renderLane?.trim());
     const hasProductionRisk = Boolean(scene.productionRisk?.trim());
     const hasReservedForPost = typeof scene.reservedForPost === 'string';
@@ -80,6 +84,8 @@ export function validateStoryboard(storyboard: Storyboard): {
     const normalizedRequiredTags = (scene.requiredReferences || [])
       .map((tag) => normalizeTag(typeof tag === 'string' ? tag : ''))
       .filter(Boolean);
+    const hasExplicitReferencePlan = Array.isArray(scene.referencePlan) && scene.referencePlan.length > 0;
+    const referencePlan = getSceneReferencePlan(scene, storyboard.projectReferences || []);
 
     // ===== Block（只保留流程必要檢查）=====
     if ((scene.transitionToNext?.type === 'continuation' || scene.transitionToNext?.useEndFrameAsNextStart) && !scene.requiresEndFrame && !continuationUsesStartOnly) {
@@ -112,6 +118,19 @@ export function validateStoryboard(storyboard: Storyboard): {
         issues.push(issue('high', 'required_references_not_found', `requiredReferences 找不到對應專案參考：${missingRequiredTags.join(', ')}`, scene));
       }
     }
+    const invalidPlanTags = referencePlan.filter((item) => !TAG_PATTERN.test((item.tag || '').trim()));
+    if (invalidPlanTags.length > 0) {
+      issues.push(issue('high', 'invalid_reference_plan_tags', `referencePlan 含有無效 tag：${invalidPlanTags.map((item) => item.tag).join(', ')}`, scene));
+    }
+    if (availableReferenceTags.size > 0) {
+      const missingPlanRefs = referencePlan
+        .map((item) => normalizeTag(item.tag))
+        .filter(Boolean)
+        .filter((tag) => !availableReferenceTags.has(tag));
+      if (missingPlanRefs.length > 0) {
+        issues.push(issue('high', 'reference_plan_refs_not_found', `referencePlan 找不到對應專案參考：${missingPlanRefs.join(', ')}`, scene));
+      }
+    }
 
     // ===== Warn（品質提醒，不阻擋流程）=====
     if (hasRenderLane && !['hero', 'performance', 'continuity', 'plate', 'insert', 'utility'].includes(scene.renderLane!)) {
@@ -128,6 +147,15 @@ export function validateStoryboard(storyboard: Storyboard): {
     }
     if (!hasSceneIntent) {
       issues.push(issue('medium', 'missing_scene_intent', '缺少 sceneIntent，會降低鏡頭敘事聚焦。', scene));
+    }
+    if (!hasHookScore) {
+      issues.push(issue('medium', 'missing_hook_score', '缺少 hookScore，無法預估此鏡吸引力。', scene));
+    }
+    if (!hasHookScoreReason) {
+      issues.push(issue('medium', 'missing_hook_score_reason', '缺少 hookScoreReason，無法理解 Hook 判斷依據。', scene));
+    }
+    if (!hasRetentionRisk) {
+      issues.push(issue('medium', 'missing_retention_risk', '缺少 retentionRisk，無法預估觀眾流失風險。', scene));
     }
     if (!hasStartComposition) {
       issues.push(issue('medium', 'missing_start_composition', '缺少 startComposition，首幀構圖錨點不足。', scene));
@@ -146,6 +174,13 @@ export function validateStoryboard(storyboard: Storyboard): {
     }
     if (!hasRequiredReferences) {
       issues.push(issue('medium', 'missing_required_references', '缺少 requiredReferences 欄位，無法精準限制本鏡頭必用參考。', scene));
+    }
+    if (!hasExplicitReferencePlan && (hasCharactersTag || hasProductsTag || normalizedRequiredTags.length > 0)) {
+      issues.push(issue('medium', 'missing_reference_plan', '場景有角色/商品參考，但缺少 referencePlan，後續視角路由會退回推測模式。', scene));
+    }
+    const missingVisibleFeatures = referencePlan.filter((item) => item.requestedView !== 'auto' && item.requestedView !== 'front' && !item.visibleFeatures?.trim());
+    if (missingVisibleFeatures.length > 0) {
+      issues.push(issue('medium', 'reference_plan_missing_visible_features', `referencePlan 缺少非正面視角的 visibleFeatures：${missingVisibleFeatures.map((item) => `${item.tag}:${item.requestedView}`).join(', ')}`, scene));
     }
     if (!hasRenderLane) {
       issues.push(issue('medium', 'missing_render_lane', '缺少 renderLane，生產 lane 無法穩定路由。', scene));
@@ -167,6 +202,9 @@ export function validateStoryboard(storyboard: Storyboard): {
     }
     if (index > 0 && !hasChangeFromPrev) {
       issues.push(issue('medium', 'missing_change_from_prev', '缺少 changeFromPrev，連場變化語意不完整。', scene));
+    }
+    if (index === 0 && typeof scene.hookScore === 'number' && scene.hookScore < 4) {
+      issues.push(issue('medium', 'weak_opening_hook', '第一場 hookScore 低於 4，開場吸引力偏弱。', scene));
     }
   });
 

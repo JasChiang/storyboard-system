@@ -2,6 +2,8 @@ import { PromptTemplate, StoryboardGenerationResponse, ProjectReference, Scene, 
 import { OpenRouterResponse } from '../types/api-responses';
 import { buildSystemPrompt } from '../prompts/prompt-builder';
 import { buildConsolidatedReferenceRules } from '../references/consistency-rules';
+import { getSceneReferencePlan } from '../references/reference-plan';
+import { normalizeTag } from '../references/scene-references';
 import { sanitizeStaticFrameDescription } from '../prompts/image-static';
 import { STORYBOARD_CONTRACT_PROMPT_BLOCK, STORYBOARD_PRODUCTION_RISKS, STORYBOARD_REFERENCE_PRIORITY_MODES, STORYBOARD_RENDER_LANES, STORYBOARD_VIEW_INTENTS } from '../prompts/storyboard-contract';
 import type {
@@ -15,6 +17,7 @@ import type {
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_APP_ORIGIN = 'http://localhost:3000';
 const JSON_SCHEMA_UNSUPPORTED_PATTERN = /(json_schema|response_format|strict|unsupported|not supported|invalid schema)/i;
+const JSON_SCHEMA_FALLBACK_PROVIDER_PATTERN = /(provider returned error|invalid request|invalid input|bad request|schema)/i;
 
 type OpenRouterMessage = { role: 'system' | 'user'; content: string };
 type OpenRouterJsonSchema = Record<string, unknown>;
@@ -106,7 +109,13 @@ async function callOpenRouterJson<T>({
 
     if (!response.ok) {
       const errorDetails = await readOpenRouterError(response);
-      if (index === 0 && JSON_SCHEMA_UNSUPPORTED_PATTERN.test(errorDetails)) {
+      if (
+        index === 0
+        && (
+          JSON_SCHEMA_UNSUPPORTED_PATTERN.test(errorDetails)
+          || (response.status === 400 && JSON_SCHEMA_FALLBACK_PROVIDER_PATTERN.test(errorDetails))
+        )
+      ) {
         fallbackReason = errorDetails;
         continue;
       }
@@ -345,9 +354,37 @@ export async function generateStoryboardScript(
   const normalizeStoryboard = (input: unknown): StoryboardGenerationResponse => {
     const raw = (input && typeof input === 'object') ? (input as Record<string, unknown>) : {};
     const scenesRaw = Array.isArray(raw.scenes) ? raw.scenes : [];
+    const referenceCanonicalTagMap = new Map<string, string>();
+    (references || []).forEach((reference) => {
+      if (!reference.name || typeof reference.name !== 'string') return;
+      const normalized = normalizeTag(reference.name);
+      if (normalized) {
+        referenceCanonicalTagMap.set(normalized, `<${reference.name.trim()}>`);
+      }
+    });
     const normalizeStringArray = (value: unknown) => Array.isArray(value)
       ? value.filter((v): v is string => typeof v === 'string').map((v) => v.trim()).filter(Boolean)
       : [];
+    const toCanonicalTag = (value: string) => {
+      const normalized = normalizeTag(value);
+      if (!normalized) return '';
+      return referenceCanonicalTagMap.get(normalized) || `<${value.replace(/^<|>$/g, '').trim()}>`;
+    };
+    const normalizeTaggedArray = (value: unknown) => {
+      if (!Array.isArray(value)) return [];
+      const result: string[] = [];
+      const seen = new Set<string>();
+      value.forEach((entry) => {
+        if (typeof entry !== 'string') return;
+        const canonical = toCanonicalTag(entry);
+        if (!canonical) return;
+        const normalized = normalizeTag(canonical);
+        if (!normalized || seen.has(normalized)) return;
+        seen.add(normalized);
+        result.push(canonical);
+      });
+      return result;
+    };
     const normalizeEnum = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T => {
       const normalized = typeof value === 'string' ? value.trim() as T : fallback;
       return allowed.includes(normalized) ? normalized : fallback;
@@ -455,25 +492,43 @@ export async function generateStoryboardScript(
       const productionRisk = normalizeEnum<ProductionRisk>(scene.productionRisk, STORYBOARD_PRODUCTION_RISKS, 'medium');
       const referencePriorityMode = normalizeEnum<ReferencePriorityMode>(scene.referencePriorityMode, STORYBOARD_REFERENCE_PRIORITY_MODES, 'stage_balanced');
       const viewIntent = normalizeEnum<ViewIntent>(scene.viewIntent, STORYBOARD_VIEW_INTENTS, 'auto');
-      const normalizedCharactersUsed = Array.isArray(scene.charactersUsed)
-        ? scene.charactersUsed.filter((v): v is string => typeof v === 'string')
-        : [];
-      const normalizedProductsUsed = Array.isArray(scene.productsUsed)
-        ? scene.productsUsed.filter((v): v is string => typeof v === 'string')
-        : [];
+      const normalizedCharactersUsed = normalizeTaggedArray(scene.charactersUsed);
+      const normalizedProductsUsed = normalizeTaggedArray(scene.productsUsed);
       const normalizedHints: Record<string, ViewIntent> = {};
       for (const tag of [...normalizedCharactersUsed, ...normalizedProductsUsed]) {
-        const normalizedKey = tag.trim().toLowerCase();
-        if (normalizedKey) normalizedHints[normalizedKey] = viewIntent;
+        const canonicalTag = toCanonicalTag(tag);
+        if (canonicalTag) normalizedHints[canonicalTag] = viewIntent;
       }
       if (scene.referenceViewHints && typeof scene.referenceViewHints === 'object') {
         for (const [key, value] of Object.entries(scene.referenceViewHints)) {
           if (typeof value !== 'string') continue;
           if (!(STORYBOARD_VIEW_INTENTS as readonly string[]).includes(value)) continue;
-          const normalizedKey = key.trim().toLowerCase();
-          if (normalizedKey) normalizedHints[normalizedKey] = value as ViewIntent;
+          const canonicalTag = toCanonicalTag(key);
+          if (canonicalTag) normalizedHints[canonicalTag] = value as ViewIntent;
         }
       }
+      const normalizedRequiredReferences = normalizeTaggedArray(scene.requiredReferences);
+      const normalizedReferencePlan = getSceneReferencePlan({
+        referencePlan: Array.isArray(scene.referencePlan) ? scene.referencePlan as Scene['referencePlan'] : [],
+        referenceViewHints: normalizedHints,
+        viewIntent,
+        requiredReferences: normalizedRequiredReferences,
+        charactersUsed: normalizedCharactersUsed,
+        productsUsed: normalizedProductsUsed,
+      }, references);
+      const parsedHookScore = Number(scene.hookScore);
+      const hookScore: NonNullable<Scene['hookScore']> = ([1, 2, 3, 4, 5] as const).includes(parsedHookScore as 1 | 2 | 3 | 4 | 5)
+        ? parsedHookScore as NonNullable<Scene['hookScore']>
+        : (index === 0 ? 4 : 3);
+      const retentionRisk = normalizeEnum<NonNullable<Scene['retentionRisk']>>(
+        scene.retentionRisk,
+        ['low', 'medium', 'high'] as const,
+        hookScore >= 4 ? 'low' : 'medium'
+      );
+      const hookScoreReason = stringValue(scene.hookScoreReason)
+        || (index === 0
+          ? '首場需承擔開場 Hook，因此預設要求高辨識度主體、單一焦點與明確懸念。'
+          : '此鏡依敘事任務承接前後段落，Hook 以資訊推進與節奏變化為主。');
 
       return {
         sceneNumber: Number.isFinite(sceneNumberValue) ? sceneNumberValue : index + 1,
@@ -495,14 +550,16 @@ export async function generateStoryboardScript(
         continuityAnchor: typeof scene.continuityAnchor === 'string' ? scene.continuityAnchor.trim() : '',
         viewIntent,
         referenceViewHints: normalizedHints,
+        referencePlan: normalizedReferencePlan,
         renderLane,
         productionRisk,
         reservedForPost: stringValue(scene.reservedForPost),
         deliveryIntent: stringValue(scene.deliveryIntent),
         referencePriorityMode,
-        requiredReferences: Array.isArray(scene.requiredReferences)
-          ? scene.requiredReferences.filter((v): v is string => typeof v === 'string')
-          : [],
+        hookScore,
+        hookScoreReason,
+        retentionRisk,
+        requiredReferences: normalizedRequiredReferences,
         charactersUsed: normalizedCharactersUsed,
         productsUsed: normalizedProductsUsed,
         changeFromPrev: typeof scene.changeFromPrev === 'string'
@@ -573,6 +630,7 @@ export async function generateStoryboardScript(
 1) 轉場合理性（與前後場景語義一致）
 2) requiresEndFrame / endFrameDescription 邏輯一致
 3) 角色與商品一致性（不可改變核心外觀）
+4) 開場吸引力與整體留存節奏
 
 規則：
 - ${targetDurationSecondPassRule}
@@ -582,11 +640,15 @@ export async function generateStoryboardScript(
 - 若 requiresEndFrame = false，endFrameDelta 也必須是空字串 ""。
 - 頂層必須有 sharedAnchors/sharedContinuityDirectives，沒有內容時也要輸出空陣列。
 - 每個場景都要有 sceneIntent/startComposition/subjectMotion/continuityLock。
-- 每個場景都要有 shotIntent/continuityAnchor/requiredReferences（若無必用參考則 requiredReferences=[]）。
+- 每個場景都要有 shotIntent/continuityAnchor/requiredReferences/referencePlan（若無必用參考則 requiredReferences=[]；若無角色/商品則 referencePlan=[]）。
 - 每個場景都要有 renderLane/productionRisk/reservedForPost/deliveryIntent/referencePriorityMode。
+- 每個場景都要有 hookScore/hookScoreReason/retentionRisk。
 - endFrameDelta 必須用「相對首幀差異」描述，不可重寫整個場景。
 - 若 description 內使用 <角色>/<商品> 標記，charactersUsed/productsUsed 必須同步列出。
 - 不可在 description 重新定義角色/商品外觀（髮型、服裝、顏色、材質、Logo 細節）。
+- 若某角色/商品使用 side/back/three_quarter/top 視角，referencePlan 應明寫 requestedView，並在 visibleFeatures 或 description 中說清楚該視角可見特徵。
+- 第一場 hookScore 若低於 4，請優先重寫第一場，使其具備可當縮圖的單一焦點與清楚懸念。
+- 不可讓相鄰兩場都只做中性鋪陳；中段至少保留一個 escalation / twist / reveal；最後一場需有 payoff、CTA 或可分享瞬間。
 - 只輸出 JSON。`;
 
   let finalParsed: unknown = firstPassParsed;
@@ -654,11 +716,33 @@ export async function regenerateStoryboardScene(
       continuityLock: { type: 'string' },
       shotIntent: { type: 'string' },
       continuityAnchor: { type: 'string' },
+      viewIntent: { type: 'string', enum: [...STORYBOARD_VIEW_INTENTS] },
+      referenceViewHints: {
+        type: 'object',
+        additionalProperties: { type: 'string', enum: [...STORYBOARD_VIEW_INTENTS] },
+      },
+      referencePlan: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            tag: { type: 'string' },
+            entityType: { type: 'string', enum: ['character', 'product'] },
+            requestedView: { type: 'string', enum: [...STORYBOARD_VIEW_INTENTS] },
+            required: { type: 'boolean' },
+            visibleFeatures: { type: 'string' },
+          },
+          required: ['tag', 'requestedView', 'required'],
+        },
+      },
       renderLane: { type: 'string', enum: [...STORYBOARD_RENDER_LANES] },
       productionRisk: { type: 'string', enum: [...STORYBOARD_PRODUCTION_RISKS] },
       reservedForPost: { type: 'string' },
       deliveryIntent: { type: 'string' },
       referencePriorityMode: { type: 'string', enum: [...STORYBOARD_REFERENCE_PRIORITY_MODES] },
+      hookScore: { type: 'integer', enum: [1, 2, 3, 4, 5] },
+      hookScoreReason: { type: 'string' },
+      retentionRisk: { type: 'string', enum: ['low', 'medium', 'high'] },
       requiresEndFrame: { type: 'boolean' },
       endFrameDescription: { type: 'string' },
       endFrameDelta: { type: 'string' },
@@ -692,7 +776,7 @@ export async function regenerateStoryboardScene(
         required: ['type', 'reason'],
       },
     },
-    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'shotIntent', 'continuityAnchor', 'renderLane', 'productionRisk', 'reservedForPost', 'deliveryIntent', 'referencePriorityMode', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'requiredReferences', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext'],
+    required: ['sceneNumber', 'description', 'cameraMovement', 'sceneIntent', 'startComposition', 'subjectMotion', 'continuityLock', 'shotIntent', 'continuityAnchor', 'viewIntent', 'referenceViewHints', 'referencePlan', 'renderLane', 'productionRisk', 'reservedForPost', 'deliveryIntent', 'referencePriorityMode', 'hookScore', 'hookScoreReason', 'retentionRisk', 'requiresEndFrame', 'endFrameDelta', 'dialogue', 'duration', 'requiredReferences', 'charactersUsed', 'productsUsed', 'changeFromPrev', 'transitionToNext'],
   };
 
   const parsed = await callOpenRouterJson<{ scene?: Partial<Scene> }>({
@@ -718,7 +802,8 @@ ${JSON.stringify(sceneSchema, null, 2)}
 規則：
 - 只允許改動目標場景，不要改場景編號。
 - 優先修正：運鏡可執行性、endFrameDelta 可執行性、連續性約束清楚。
-- scene 必須保留完整 contract，特別是 renderLane / productionRisk / reservedForPost / deliveryIntent / referencePriorityMode。
+- scene 必須保留完整 contract，特別是 renderLane / productionRisk / reservedForPost / deliveryIntent / referencePriorityMode / hookScore / hookScoreReason / retentionRisk。
+- scene 必須保留完整視角 contract，特別是 viewIntent / referenceViewHints / referencePlan / requiredReferences；若場景有多視角參考，請明確標記每個主體要用哪個視角與可見特徵。
 - endFrameDelta 僅描述相對首幀差異，不可重寫整景。
 - 若運鏡有 pan/dolly/zoom 終態，requiresEndFrame 應為 true。`,
       },

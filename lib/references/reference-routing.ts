@@ -1,5 +1,6 @@
 import type { ProjectReference, Scene, ViewIntent } from '@/lib/types/storyboard';
-import { getReferenceTag, inferSceneViewIntent, getSceneRelevantReferences } from '@/lib/references/scene-references';
+import { getReferenceTag, getSceneRequiredTags, inferSceneViewIntent, getSceneRelevantReferences } from '@/lib/references/scene-references';
+import { getReferencePlanItemForTag } from '@/lib/references/reference-plan';
 
 function rankReference(reference: ProjectReference, intent: ViewIntent): number {
   if (!reference.angle || intent === 'auto') return 1;
@@ -13,6 +14,13 @@ function rankReference(reference: ProjectReference, intent: ViewIntent): number 
 
 function getReferenceSpecificIntent(scene: Partial<Pick<Scene, 'referenceViewHints' | 'viewIntent'>>, reference: ProjectReference, fallback: ViewIntent): ViewIntent {
   const refTag = getReferenceTag(reference);
+  const planned = refTag
+    ? getReferencePlanItemForTag(
+      scene as Pick<Scene, 'referencePlan' | 'referenceViewHints' | 'viewIntent' | 'requiredReferences' | 'charactersUsed' | 'productsUsed'>,
+      refTag
+    )
+    : undefined;
+  if (planned?.requestedView) return planned.requestedView;
   if (refTag && scene.referenceViewHints && typeof scene.referenceViewHints === 'object') {
     const hinted = scene.referenceViewHints[refTag];
     if (hinted) return hinted;
@@ -21,7 +29,7 @@ function getReferenceSpecificIntent(scene: Partial<Pick<Scene, 'referenceViewHin
 }
 
 export function splitSceneReferencesByPriority(
-  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed' | 'requiredReferences'> & Partial<Pick<Scene, 'cameraMovement' | 'shotIntent' | 'startComposition' | 'viewIntent' | 'referenceViewHints'>>,
+  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed' | 'requiredReferences' | 'referencePlan'> & Partial<Pick<Scene, 'cameraMovement' | 'shotIntent' | 'startComposition' | 'viewIntent' | 'referenceViewHints'>>,
   references: ProjectReference[],
   options?: { fallbackPolicy?: 'environment_only' | 'non_environment' | 'all_selected' }
 ) {
@@ -42,7 +50,7 @@ export function splitSceneReferencesByPriority(
 
   const hasCharactersInScene = (scene.charactersUsed || []).length > 0;
   const hasProductsInScene = (scene.productsUsed || []).length > 0;
-  const requiredTags = new Set((scene.requiredReferences || []).map((tag) => tag.trim()).filter(Boolean));
+  const requiredTags = getSceneRequiredTags(scene);
 
   const ensureEntityCoverage = (type: ProjectReference['type']) => {
     const alreadyCovered = primary.some((ref) => ref.type === type);

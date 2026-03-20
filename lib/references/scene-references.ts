@@ -28,21 +28,25 @@ export function getReferenceTag(reference: Pick<ProjectReference, 'name'>): stri
 }
 
 export function getSceneEntityTags(
-  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed'>
+  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed' | 'referencePlan'>
 ): Set<string> {
   const tags = extractTagsFromText(scene.description || '');
 
   (scene.charactersUsed || []).forEach((tag) => addTag(tags, tag));
   (scene.productsUsed || []).forEach((tag) => addTag(tags, tag));
+  (scene.referencePlan || []).forEach((item) => addTag(tags, item.tag));
 
   return tags;
 }
 
 export function getSceneRequiredTags(
-  scene: Pick<Scene, 'requiredReferences'>
+  scene: Pick<Scene, 'requiredReferences' | 'referencePlan'>
 ): Set<string> {
   const tags = new Set<string>();
   (scene.requiredReferences || []).forEach((tag) => addTag(tags, tag));
+  (scene.referencePlan || []).forEach((item) => {
+    if (item.required) addTag(tags, item.tag);
+  });
   return tags;
 }
 
@@ -73,7 +77,7 @@ function rankReferenceForViewIntent(reference: ProjectReference, intent: ViewInt
 }
 
 export function getSceneRelevantReferences(
-  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed' | 'requiredReferences'> & Partial<Pick<Scene, 'cameraMovement' | 'shotIntent' | 'startComposition' | 'viewIntent'>>,
+  scene: Pick<Scene, 'description' | 'charactersUsed' | 'productsUsed' | 'requiredReferences' | 'referencePlan'> & Partial<Pick<Scene, 'cameraMovement' | 'shotIntent' | 'startComposition' | 'viewIntent'>>,
   references: ProjectReference[],
   options?: {
     fallbackPolicy?: 'environment_only' | 'non_environment' | 'all_selected';

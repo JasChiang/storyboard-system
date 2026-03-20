@@ -398,6 +398,9 @@ export default function StoryboardPage() {
       || isChanged(previous.beatGoal, next.beatGoal)
       || isChanged(previous.shotIntent, next.shotIntent)
       || isChanged(previous.continuityAnchor, next.continuityAnchor)
+      || isChanged(previous.viewIntent, next.viewIntent)
+      || isChanged(previous.referenceViewHints, next.referenceViewHints)
+      || isChanged(previous.referencePlan, next.referencePlan)
       || isChanged(previous.renderLane, next.renderLane)
       || isChanged(previous.productionRisk, next.productionRisk)
       || isChanged(previous.reservedForPost, next.reservedForPost)
@@ -432,11 +435,17 @@ export default function StoryboardPage() {
     beatGoal: '',
     shotIntent: '',
     continuityAnchor: '',
+    viewIntent: 'auto',
+    referenceViewHints: {},
+    referencePlan: [],
     renderLane: 'hero',
     productionRisk: 'medium',
     reservedForPost: '',
     deliveryIntent: '',
     referencePriorityMode: 'stage_balanced',
+    hookScore: sceneNumber === 1 ? 4 : 3,
+    hookScoreReason: '',
+    retentionRisk: 'medium',
     requiredReferences: [],
     charactersUsed: [],
     productsUsed: [],

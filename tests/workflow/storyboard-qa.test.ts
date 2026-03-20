@@ -16,11 +16,34 @@ function buildScene(overrides: Partial<Scene> = {}): Scene {
     continuityLock: 'Keep product and room geometry unchanged',
     shotIntent: 'Shift attention from character to product detail',
     continuityAnchor: 'Product remains on the same table position',
+    viewIntent: 'side',
+    referenceViewHints: {
+      '<Alice>': 'side',
+      '<ProductX>': 'front',
+    },
+    referencePlan: [
+      {
+        tag: '<Alice>',
+        entityType: 'character',
+        requestedView: 'side',
+        required: true,
+        visibleFeatures: '左側臉輪廓與耳飾',
+      },
+      {
+        tag: '<ProductX>',
+        entityType: 'product',
+        requestedView: 'front',
+        required: true,
+      },
+    ],
     renderLane: 'hero',
     productionRisk: 'medium',
     reservedForPost: '',
     deliveryIntent: 'demo',
     referencePriorityMode: 'stage_balanced',
+    hookScore: 4,
+    hookScoreReason: '開場焦點單一，人物與商品關係清楚。',
+    retentionRisk: 'low',
     changeFromPrev: 'N/A',
     charactersUsed: ['<Alice>'],
     productsUsed: ['<ProductX>'],
@@ -135,6 +158,9 @@ describe('storyboard QA', () => {
         reservedForPost: undefined,
         deliveryIntent: undefined,
         referencePriorityMode: undefined,
+        hookScore: undefined,
+        hookScoreReason: undefined,
+        retentionRisk: undefined,
       })
     );
 
@@ -143,6 +169,9 @@ describe('storyboard QA', () => {
     expect(result.issues.some((issue) => issue.code === 'missing_reserved_for_post')).toBe(true);
     expect(result.issues.some((issue) => issue.code === 'missing_delivery_intent')).toBe(true);
     expect(result.issues.some((issue) => issue.code === 'missing_reference_priority_mode')).toBe(true);
+    expect(result.issues.some((issue) => issue.code === 'missing_hook_score')).toBe(true);
+    expect(result.issues.some((issue) => issue.code === 'missing_hook_score_reason')).toBe(true);
+    expect(result.issues.some((issue) => issue.code === 'missing_retention_risk')).toBe(true);
     expect(result.sceneReports[0]?.status).toBe('warn');
   });
 
@@ -155,5 +184,47 @@ describe('storyboard QA', () => {
 
     expect(result.issues.some((issue) => issue.code === 'required_references_not_found')).toBe(true);
     expect(result.sceneReports[0]?.status).toBe('block');
+  });
+
+  it('warns when referencePlan is missing for tagged entities', () => {
+    const result = validateStoryboard(
+      buildStoryboard({
+        referencePlan: [],
+      })
+    );
+
+    expect(result.issues.some((issue) => issue.code === 'missing_reference_plan')).toBe(true);
+    expect(result.sceneReports[0]?.status).toBe('warn');
+  });
+
+  it('warns when non-front referencePlan items omit visibleFeatures', () => {
+    const result = validateStoryboard(
+      buildStoryboard({
+        referencePlan: [
+          {
+            tag: '<Alice>',
+            entityType: 'character',
+            requestedView: 'side',
+            required: true,
+          },
+        ],
+      })
+    );
+
+    expect(result.issues.some((issue) => issue.code === 'reference_plan_missing_visible_features')).toBe(true);
+    expect(result.sceneReports[0]?.status).toBe('warn');
+  });
+
+  it('warns when opening hook score is weak', () => {
+    const result = validateStoryboard(
+      buildStoryboard({
+        hookScore: 3,
+        hookScoreReason: '開場資訊足夠，但缺少明顯懸念。',
+        retentionRisk: 'medium',
+      })
+    );
+
+    expect(result.issues.some((issue) => issue.code === 'weak_opening_hook')).toBe(true);
+    expect(result.sceneReports[0]?.status).toBe('warn');
   });
 });

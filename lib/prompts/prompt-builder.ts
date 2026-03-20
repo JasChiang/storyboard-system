@@ -158,6 +158,7 @@ ${productRefs.map(r => `   - 使用 \`<${r.name || '商品'}>\` 指代該商品`
    - 每個場景需輸出 \`continuityAnchor\`（跨鏡頭必須維持的單一重點）
    - 每個場景需輸出 \`viewIntent\`（auto/front/side/back/three_quarter/top，用來決定本鏡主參考視角）
    - 每個場景需輸出 \`referenceViewHints\`（每個角色/商品標記的視角需求，如 {"<台灣男性>":"front","<Galaxy S26>":"back"}；若場景同時有角色與商品，必須分別標記，不可只靠單一 viewIntent；**只能填入「可用視角索引」中實際存在的視角，若無對應視角則填 "auto"**）
+   - 每個場景需輸出 \`referencePlan\`（列出本鏡會實際依賴的每個角色/商品，例如 [{"tag":"<台灣男性>","entityType":"character","requestedView":"front","required":true},{"tag":"<Galaxy S26>","entityType":"product","requestedView":"back","required":true,"visibleFeatures":"背面鏡頭模組與品牌標誌"}]）
    - 若某個標記的 referenceViewHints 為非正面視角（side/back/three_quarter/top），description 必須描述從該視角可見的內容（例如：「<Galaxy S26> 背面朝向鏡頭，相機模組清晰可見」），讓圖片生成模型知道該視角要展示什麼特徵
    - 每個場景需輸出 \`requiredReferences\`（本鏡頭必須使用的標記陣列）
 
@@ -174,9 +175,21 @@ ${productRefs.map(r => `   - 使用 \`<${r.name || '商品'}>\` 指代該商品`
 `;
     }
 
+    prompt += `\n\n## 觀看吸引力規則
+
+- 第一個場景必須具備明確 Hook，讓觀眾只看第一幀也會想繼續看。
+- 第一個場景應可作為縮圖：主體清楚、焦點單一、對比明確。
+- 每個場景只能承擔一個主要任務：hook / setup / escalate / reveal / payoff / CTA 其中之一。
+- 若相鄰場景資訊重複，後一場必須提升衝突、資訊新意、情緒落差或視覺奇觀。
+- 中段至少要出現一次 escalation、twist 或 reveal，避免平鋪直敘。
+- 最後一場必須有 payoff、CTA 或值得分享/重看的瞬間。
+- 每個場景需輸出 \`hookScore\`（1-5）、\`hookScoreReason\`、\`retentionRisk\`（low/medium/high）。
+- 若第一場 hookScore 低於 4，請直接重寫第一場，直到具備明確吸引力。`;
+
     prompt += `\n\n## 輸出結構契約（所有模板皆適用）
-- 每個場景必須輸出 \`sceneIntent\`、\`startComposition\`、\`subjectMotion\`、\`continuityLock\`、\`shotIntent\`、\`continuityAnchor\`、\`viewIntent\`
+- 每個場景必須輸出 \`sceneIntent\`、\`startComposition\`、\`subjectMotion\`、\`continuityLock\`、\`shotIntent\`、\`continuityAnchor\`、\`viewIntent\`、\`referencePlan\`
 - 每個場景必須輸出 \`charactersUsed\`、\`productsUsed\`、\`changeFromPrev\`、\`requiredReferences\`
+- 每個場景必須輸出 \`hookScore\`、\`hookScoreReason\`、\`retentionRisk\`
 - \`requiredReferences\` 僅可使用 \`<名稱>\` 標記；若本鏡頭沒有必用參考，請輸出空陣列 \`[]\`
 - 每個場景必須輸出 \`transitionToNext\` 物件（至少包含 \`type\` 與 \`reason\`）
 - 若 \`requiresEndFrame = false\`，\`endFrameDescription\` 與 \`endFrameDelta\` 必須為空字串`;

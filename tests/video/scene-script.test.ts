@@ -11,12 +11,26 @@ describe('video scene script lines', () => {
       continuityLock: 'logo、比例、材質鎖定',
       shotIntent: '強調產品質感',
       continuityAnchor: '手機握持角度',
-      changeFromPrev: '景別更近',
+      viewIntent: 'side',
+      referenceViewHints: {
+        '<Alice>': 'front',
+        '<PhoneX>': 'back',
+      },
+      referencePlan: [
+        { tag: '<Alice>', entityType: 'character', requestedView: 'front', required: false },
+        { tag: '<PhoneX>', entityType: 'product', requestedView: 'back', required: true, visibleFeatures: '鏡頭模組與背板 Logo' },
+      ],
+      requiredReferences: ['<PhoneX>'],
+      charactersUsed: ['<Alice>'],
+      productsUsed: ['<PhoneX>'],
     });
 
     expect(lines.some((line) => line.startsWith('Storyboard visual description:'))).toBe(true);
     expect(lines.some((line) => line.startsWith('Scene intent:'))).toBe(true);
     expect(lines.some((line) => line.startsWith('Continuity lock:'))).toBe(true);
+    expect(lines.some((line) => line.startsWith('Shot view intent: side'))).toBe(true);
+    expect(lines.some((line) => line.includes('<PhoneX> => back'))).toBe(true);
+    expect(lines.some((line) => line.includes('<PhoneX> product -> back required visible: 鏡頭模組與背板 Logo'))).toBe(true);
+    expect(lines.some((line) => line.startsWith('Change from previous shot:'))).toBe(false);
   });
 });
-

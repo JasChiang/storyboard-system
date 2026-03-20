@@ -3,6 +3,7 @@ import type { Storyboard, Scene, ProjectReference } from '../types/storyboard';
 import { EditingSuggestion } from '../types/project';
 import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
+import { getReferenceTag } from '@/lib/references/scene-references';
 
 export interface GeminiConfig {
   apiKey: string;
@@ -18,7 +19,7 @@ export interface UploadedFile {
 
 export interface ComposeVideoPromptInput {
   model: 'kling' | 'seedance';
-  scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev' | 'requiresEndFrame' | 'endFrameDescription'>;
+  scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev' | 'requiresEndFrame' | 'endFrameDescription' | 'viewIntent' | 'referenceViewHints' | 'referencePlan' | 'requiredReferences' | 'charactersUsed' | 'productsUsed'>;
   motionPrompt: string;
   references: ProjectReference[];
   continuityMemoryLines?: string[];
@@ -33,7 +34,7 @@ export interface ComposeVideoPromptResult {
 }
 
 export interface ComposeImagePromptInput {
-  scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'requiresEndFrame' | 'endFrameDescription' | 'endFrameDelta' | 'beatGoal' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev'>;
+  scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'requiresEndFrame' | 'endFrameDescription' | 'endFrameDelta' | 'beatGoal' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev' | 'viewIntent' | 'referenceViewHints' | 'referencePlan' | 'requiredReferences' | 'charactersUsed' | 'productsUsed'>;
   manualEndFrameDescription?: string;
   references: ProjectReference[];
   stylePrompt?: string;
@@ -70,6 +71,46 @@ const IMAGE_PROMPT_COMPOSER_RESPONSE_SCHEMA = {
   },
   required: ['suggestedEndFrameDescription', 'composedPrompt'],
 };
+
+function normalizeHintKey(raw?: string): string {
+  return typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+}
+
+function buildSelectedReferenceContext(
+  scene: Pick<Scene, 'referenceViewHints' | 'viewIntent' | 'requiredReferences' | 'referencePlan' | 'charactersUsed' | 'productsUsed'>,
+  references: ProjectReference[]
+) {
+  return references.map((reference) => {
+    const tag = getReferenceTag(reference) || normalizeHintKey(reference.name);
+    const planned = tag && Array.isArray(scene.referencePlan)
+      ? scene.referencePlan.find((item) => normalizeHintKey(item.tag) === tag)
+      : undefined;
+    const requestedView = tag && scene.referenceViewHints && typeof scene.referenceViewHints === 'object'
+      ? scene.referenceViewHints[tag]
+      : undefined;
+    const required = Boolean(
+      planned?.required
+      || (
+        tag
+        && Array.isArray(scene.requiredReferences)
+        && scene.requiredReferences.some((requiredTag) => normalizeHintKey(requiredTag) === tag)
+      )
+    );
+
+    return {
+      tag,
+      name: reference.name || '',
+      type: reference.type,
+      actualAngle: reference.angle || 'auto',
+      requestedView: planned?.requestedView || requestedView || scene.viewIntent || 'auto',
+      required,
+      description: reference.description || '',
+      angleVisibility: planned?.visibleFeatures || reference.angleVisibility || '',
+      mustKeepFeatures: (reference.mustKeepFeatures || []).slice(0, 8),
+      identityCore: reference.identityCore || '',
+    };
+  });
+}
 
 function parseGeminiJsonResponse<T extends Record<string, unknown>>(
   responseText: string,
@@ -292,7 +333,9 @@ ${modelSpecificRule}
 9) Avoid keyword stuffing like "masterpiece, best quality, 8k, ultra-detailed".
 10) Respect storyboard directives: sceneIntent/startComposition/subjectMotion/continuityLock/shotIntent/continuityAnchor/changeFromPrev.
 11) Keep continuity memory constraints stable unless this shot explicitly overrides them.
-12) If visible text/logo exists, require exact spelling and placement. JSON only, no markdown.`;
+12) Respect scene-level view control: follow viewIntent/referenceViewHints/requiredReferences as hard routing signals for which reference angle to emphasize.
+13) If a requested view is side/back/top/three_quarter, explicitly describe the visible features from that view and avoid inventing hidden front-only details.
+14) If visible text/logo exists, require exact spelling and placement. JSON only, no markdown.`;
 
   const userPayload = {
     mode: input.model,
@@ -308,12 +351,19 @@ ${modelSpecificRule}
       shotIntent: input.scene.shotIntent || '',
       continuityAnchor: input.scene.continuityAnchor || '',
       changeFromPrev: input.scene.changeFromPrev || '',
+      viewIntent: input.scene.viewIntent || 'auto',
+      referenceViewHints: input.scene.referenceViewHints || {},
+      referencePlan: input.scene.referencePlan || [],
+      requiredReferences: input.scene.requiredReferences || [],
+      charactersUsed: input.scene.charactersUsed || [],
+      productsUsed: input.scene.productsUsed || [],
       requiresEndFrame: Boolean(input.scene.requiresEndFrame),
       endFrameDescription: input.scene.endFrameDescription || '',
       hasPreviousEndFrame: Boolean(input.hasPreviousEndFrame),
     },
     userMotionPrompt: input.motionPrompt,
     consolidatedReferenceRules: referenceContext,
+    selectedReferences: buildSelectedReferenceContext(input.scene, input.references || []),
     continuityMemory: Array.isArray(input.continuityMemoryLines)
       ? input.continuityMemoryLines.filter((line) => typeof line === 'string' && line.trim())
       : [],
@@ -400,8 +450,10 @@ Rules:
 9) Preserve the original rendering medium from references (2D/3D/photoreal). Do not restyle medium unless explicitly requested.
 10) For visible text/logo, explicitly specify exact wording and placement; if text is not required, explicitly forbid new text.
 11) Avoid gibberish characters, corrupted typography, or accidental watermark-like marks.
-12) Keep output concise and production-ready.
-13) JSON only, no markdown.`;
+12) Respect scene-level view control: follow viewIntent/referenceViewHints/requiredReferences as hard routing signals for which reference angle to emphasize.
+13) If a requested view is side/back/top/three_quarter, the composed prompt must mention the visible features from that view instead of relying on the subject name alone.
+14) Keep output concise and production-ready.
+15) JSON only, no markdown.`;
 
   const userPayload = {
     scene: {
@@ -417,6 +469,12 @@ Rules:
       shotIntent: input.scene.shotIntent || '',
       continuityAnchor: input.scene.continuityAnchor || '',
       changeFromPrev: input.scene.changeFromPrev || '',
+      viewIntent: input.scene.viewIntent || 'auto',
+      referenceViewHints: input.scene.referenceViewHints || {},
+      referencePlan: input.scene.referencePlan || [],
+      requiredReferences: input.scene.requiredReferences || [],
+      charactersUsed: input.scene.charactersUsed || [],
+      productsUsed: input.scene.productsUsed || [],
       requiresEndFrame: Boolean(input.scene.requiresEndFrame),
       endFrameDescription: input.scene.endFrameDescription || '',
       endFrameDelta: input.scene.endFrameDelta || '',
@@ -433,6 +491,7 @@ Rules:
       negativePrompt: input.negativePrompt || '',
     },
     consolidatedReferenceRules: referenceContext,
+    selectedReferences: buildSelectedReferenceContext(input.scene, input.references || []),
   };
 
   const result = await ai.models.generateContent({

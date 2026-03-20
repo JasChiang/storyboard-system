@@ -109,17 +109,29 @@ export function ImageGenerator({
     const sceneProductsKey = (scene.productsUsed || []).join('|');
     const sceneRequiredRefsKey = (scene.requiredReferences || []).join('|');
     const sceneReferenceHintsKey = JSON.stringify(scene.referenceViewHints || {});
-    const sceneReferenceScope = {
+    const sceneReferenceScope = useMemo(() => ({
         description: scene.description,
         cameraMovement: scene.cameraMovement,
         shotIntent: scene.shotIntent,
         startComposition: scene.startComposition,
         viewIntent: scene.viewIntent,
         referenceViewHints: scene.referenceViewHints,
+        referencePlan: scene.referencePlan,
         charactersUsed: scene.charactersUsed || [],
         productsUsed: scene.productsUsed || [],
         requiredReferences: scene.requiredReferences || [],
-    };
+    }), [
+        scene.description,
+        scene.cameraMovement,
+        scene.shotIntent,
+        scene.startComposition,
+        scene.viewIntent,
+        scene.referenceViewHints,
+        scene.referencePlan,
+        scene.charactersUsed,
+        scene.productsUsed,
+        scene.requiredReferences,
+    ]);
     const requiredReferenceTags = useMemo(
         () => getSceneRequiredTags({ requiredReferences: scene.requiredReferences || [] }),
         [scene.requiredReferences]
@@ -141,7 +153,6 @@ export function ImageGenerator({
     const sceneScopedContentRefs = routedSceneRefs.all;
     const sceneViewIntent = routedSceneRefs.viewIntent;
     const requiredScopedRefs = sceneScopedContentRefs.filter((ref) => requiredProjectRefIds.has(ref.id));
-    const optionalScopedRefs = sceneScopedContentRefs.filter((ref) => !requiredProjectRefIds.has(ref.id));
     const continuityMemoryLines = useMemo(
         () => buildContinuityMemoryLines(scene, allScenes, {
             stage: 'image_start',
@@ -161,17 +172,7 @@ export function ImageGenerator({
             .map((ref) => ref.id);
 
         const sceneMatched = splitSceneReferencesByPriority(
-            {
-                description: scene.description,
-                cameraMovement: scene.cameraMovement,
-                shotIntent: scene.shotIntent,
-                startComposition: scene.startComposition,
-                viewIntent: scene.viewIntent,
-                referenceViewHints: scene.referenceViewHints,
-                charactersUsed: scene.charactersUsed || [],
-                productsUsed: scene.productsUsed || [],
-                requiredReferences: scene.requiredReferences || [],
-            },
+            sceneReferenceScope,
             contentProjectReferences,
             { fallbackPolicy: 'non_environment' }
         );
@@ -187,12 +188,8 @@ export function ImageGenerator({
     }, [
         contentProjectReferences,
         requiredProjectRefIds,
+        sceneReferenceScope,
         scene.id,
-        scene.description,
-        scene.charactersUsed,
-        scene.productsUsed,
-        scene.requiredReferences,
-        scene.viewIntent,
         sceneCharactersKey,
         sceneProductsKey,
         sceneRequiredRefsKey,
@@ -351,6 +348,12 @@ export function ImageGenerator({
         if (isEndFrame && scene.generatedImage?.url) {
             const deltaParts: string[] = [];
             const safeCustomPrompt = customPrompt ? sanitizeStaticFrameDescription(customPrompt) : '';
+            const endFrameTargetLines = effectiveEndFrameDescription.trim()
+                ? [
+                    `Target end-frame static description: ${effectiveEndFrameDescription}`,
+                    `尾幀目標靜態畫面：${effectiveEndFrameDescription}`,
+                ]
+                : [];
 
             if (!safeCustomPrompt) {
                 deltaParts.push(effectiveEndFrameDelta || effectiveEndFrameDescription);
@@ -371,6 +374,11 @@ export function ImageGenerator({
             }
 
             const minimalParts: string[] = [];
+            minimalParts.push(...endFrameTargetLines);
+            if (deltaParts.length > 0) {
+                minimalParts.push(`Apply only this end-frame delta: ${deltaParts.join('. ')}`);
+                minimalParts.push(`尾圖差異指令：${deltaParts.join('。')}`);
+            }
             pushReferenceHardConstraints(minimalParts);
             minimalParts.push(...buildStyleDirectiveLines(styleProfile, { stage: 'image_end' }));
             minimalParts.push(...buildSceneDirectiveLines(scene));
@@ -392,7 +400,6 @@ export function ImageGenerator({
                 minimalParts.push('Keep product continuity unchanged unless explicitly requested: geometry, proportions, material finish, colorway, logo/text placement, and control layout (buttons/ports/camera arrangement) must remain the same.');
             }
             minimalParts.push('Keep movable-object continuity unchanged unless explicitly requested: phone/props position, orientation, and interaction state must remain consistent with start frame.');
-            minimalParts.push(`Apply only this end-frame delta: ${deltaParts.join('. ')}`);
             if (effectiveDeltaSpec?.reframingGoal) {
                 minimalParts.push(`Reframing target: ${effectiveDeltaSpec.reframingGoal}`);
             }
@@ -427,12 +434,15 @@ export function ImageGenerator({
 
             minimalParts.push('允許鏡頭重構圖，但必須維持首圖空間與物件連續性。');
             minimalParts.push('僅依尾圖差異指令做最小局部改動，不得整體重排場景。');
-            minimalParts.push(`尾圖差異指令：${deltaParts.join('。')}`);
 
             return normalizePromptParts(minimalParts, 5000);
         }
 
         const parts: string[] = [];
+        if (isEndFrame && effectiveEndFrameDescription.trim()) {
+            parts.push(`Target end-frame static description: ${effectiveEndFrameDescription}`);
+            parts.push(`尾幀目標靜態畫面：${effectiveEndFrameDescription}`);
+        }
         const consistencyGuardrails = [
             'Describe the scene in natural language, not keyword stuffing.',
             'Anchor identity and product geometry to reference images.',
@@ -765,6 +775,12 @@ export function ImageGenerator({
                         shotIntent: scene.shotIntent,
                         continuityAnchor: scene.continuityAnchor,
                         changeFromPrev: scene.changeFromPrev,
+                        viewIntent: scene.viewIntent,
+                        referenceViewHints: scene.referenceViewHints,
+                        referencePlan: scene.referencePlan,
+                        requiredReferences: scene.requiredReferences,
+                        charactersUsed: scene.charactersUsed,
+                        productsUsed: scene.productsUsed,
                         requiresEndFrame: scene.requiresEndFrame,
                         endFrameDescription: scene.endFrameDescription,
                         endFrameDelta: scene.endFrameDelta,

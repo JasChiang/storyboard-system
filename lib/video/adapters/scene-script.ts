@@ -1,4 +1,5 @@
 import type { Scene } from '@/lib/types/storyboard';
+import { buildSceneReferencePlanLines } from '@/lib/references/reference-plan';
 
 type SceneScriptSource = Pick<
   Scene,
@@ -9,7 +10,12 @@ type SceneScriptSource = Pick<
   | 'continuityLock'
   | 'shotIntent'
   | 'continuityAnchor'
-  | 'changeFromPrev'
+  | 'viewIntent'
+  | 'referenceViewHints'
+  | 'requiredReferences'
+  | 'charactersUsed'
+  | 'productsUsed'
+  | 'referencePlan'
 >;
 
 function normalize(value?: string): string {
@@ -22,6 +28,31 @@ function addLine(target: string[], label: string, value?: string) {
   target.push(`${label}: ${text}`);
 }
 
+function addList(target: string[], label: string, values?: string[]) {
+  const cleaned = Array.isArray(values)
+    ? values.map((value) => normalize(value)).filter(Boolean)
+    : [];
+  if (cleaned.length === 0) return;
+  target.push(`${label}: ${cleaned.join(', ')}`);
+}
+
+function addReferenceViewHints(
+  target: string[],
+  hints?: Scene['referenceViewHints']
+) {
+  if (!hints || typeof hints !== 'object') return;
+  const entries = Object.entries(hints)
+    .map(([tag, view]) => {
+      const normalizedTag = normalize(tag);
+      const normalizedView = normalize(view);
+      if (!normalizedTag || !normalizedView) return '';
+      return `${normalizedTag} => ${normalizedView}`;
+    })
+    .filter(Boolean);
+  if (entries.length === 0) return;
+  target.push(`Reference view hints: ${entries.join(' | ')}`);
+}
+
 export function buildVideoSceneScriptLines(scene: SceneScriptSource): string[] {
   const lines: string[] = [];
   addLine(lines, 'Storyboard visual description', scene.description);
@@ -31,7 +62,13 @@ export function buildVideoSceneScriptLines(scene: SceneScriptSource): string[] {
   addLine(lines, 'Subject motion bounds', scene.subjectMotion);
   addLine(lines, 'Continuity lock', scene.continuityLock);
   addLine(lines, 'Cross-shot continuity anchor', scene.continuityAnchor);
-  addLine(lines, 'Change from previous shot', scene.changeFromPrev);
+  addLine(lines, 'Shot view intent', scene.viewIntent);
+  addReferenceViewHints(lines, scene.referenceViewHints);
+  buildSceneReferencePlanLines(scene.referencePlan).forEach((line) => {
+    lines.push(`Resolved reference plan: ${line}`);
+  });
+  addList(lines, 'Characters used', scene.charactersUsed);
+  addList(lines, 'Products used', scene.productsUsed);
+  addList(lines, 'Required references', scene.requiredReferences);
   return lines;
 }
-

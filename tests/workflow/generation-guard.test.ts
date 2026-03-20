@@ -62,4 +62,35 @@ describe('generation guard', () => {
 
     expect(blockers.some((blocker) => blocker.code === 'missing_start_frame')).toBe(false);
   });
+
+  it('blocks when referencePlan requests a missing view angle', () => {
+    const blockers = getSceneGenerationBlockers({
+      stage: 'image_start',
+      scene: {
+        qaStatus: 'pass',
+        qaIssues: [],
+        requiredReferences: [],
+        referencePlan: [
+          {
+            tag: '<Alice>',
+            entityType: 'character',
+            requestedView: 'back',
+            required: true,
+          },
+        ],
+        referenceViewHints: {
+          '<Alice>': 'back',
+        },
+        viewIntent: 'back',
+        charactersUsed: ['<Alice>'],
+        productsUsed: [],
+      },
+      projectReferences: [
+        { name: 'Alice', type: 'character', angle: 'front' },
+        { name: 'Alice', type: 'character', angle: 'side' },
+      ],
+    });
+
+    expect(blockers.some((blocker) => blocker.code === 'reference_plan_view_not_found')).toBe(true);
+  });
 });

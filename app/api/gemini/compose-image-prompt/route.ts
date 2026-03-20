@@ -5,7 +5,7 @@ import type { ProjectReference, Scene } from '@/lib/types/storyboard';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as {
-      scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'requiresEndFrame' | 'endFrameDescription' | 'endFrameDelta' | 'beatGoal' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev'>;
+      scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'requiresEndFrame' | 'endFrameDescription' | 'endFrameDelta' | 'beatGoal' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev' | 'viewIntent' | 'referenceViewHints' | 'referencePlan' | 'requiredReferences' | 'charactersUsed' | 'productsUsed'>;
       manualEndFrameDescription?: string;
       references?: ProjectReference[];
       stylePrompt?: string;

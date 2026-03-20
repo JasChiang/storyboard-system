@@ -8,7 +8,7 @@ import { VideoPreview } from './VideoPreview';
 import { Button } from '@/components/ui/button';
 import type { Scene, ProjectReference, SharedContinuityDirective } from '@/lib/types/storyboard';
 import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
-import { getSceneRelevantReferences } from '@/lib/references/scene-references';
+import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildKlingPrompt } from '@/lib/video/adapters/kling';
 import { buildSeedancePrompt } from '@/lib/video/adapters/seedance';
 import { enforceVideoPromptPolicy } from '@/lib/video/prompt-policy';
@@ -105,9 +105,32 @@ export function VideoGenerator({
         () => projectReferences.filter(ref => ref.type !== 'style'),
         [projectReferences]
     );
+    const sceneReferenceScope = useMemo(() => ({
+        description: scene.description,
+        cameraMovement: scene.cameraMovement,
+        shotIntent: scene.shotIntent,
+        startComposition: scene.startComposition,
+        viewIntent: scene.viewIntent,
+        referenceViewHints: scene.referenceViewHints,
+        referencePlan: scene.referencePlan,
+        charactersUsed: scene.charactersUsed || [],
+        productsUsed: scene.productsUsed || [],
+        requiredReferences: scene.requiredReferences || [],
+    }), [
+        scene.description,
+        scene.cameraMovement,
+        scene.shotIntent,
+        scene.startComposition,
+        scene.viewIntent,
+        scene.referenceViewHints,
+        scene.referencePlan,
+        scene.charactersUsed,
+        scene.productsUsed,
+        scene.requiredReferences,
+    ]);
     const scopedRefs = useMemo(
-        () => getSceneRelevantReferences(scene, contentRefs),
-        [scene, contentRefs]
+        () => splitSceneReferencesByPriority(sceneReferenceScope, contentRefs, { fallbackPolicy: 'non_environment' }).all,
+        [sceneReferenceScope, contentRefs]
     );
     const continuityMemoryLines = useMemo(
         () => buildContinuityMemoryLines(scene, allScenes, {
@@ -185,6 +208,12 @@ export function VideoGenerator({
                         shotIntent: scene.shotIntent,
                         continuityAnchor: scene.continuityAnchor,
                         changeFromPrev: scene.changeFromPrev,
+                        viewIntent: scene.viewIntent,
+                        referenceViewHints: scene.referenceViewHints,
+                        referencePlan: scene.referencePlan,
+                        requiredReferences: scene.requiredReferences,
+                        charactersUsed: scene.charactersUsed,
+                        productsUsed: scene.productsUsed,
                         requiresEndFrame: scene.requiresEndFrame,
                         endFrameDescription: scene.endFrameDescription,
                     },

@@ -27,6 +27,15 @@ export type ProductionRisk = 'low' | 'medium' | 'high';
 export type ReferencePriorityMode = 'identity_first' | 'continuity_first' | 'style_first' | 'stage_balanced';
 export type ViewIntent = 'auto' | 'front' | 'side' | 'back' | 'three_quarter' | 'top';
 export type ReferenceViewHints = Record<string, ViewIntent>;
+export type ReferencePlanEntityType = 'character' | 'product';
+
+export interface SceneReferencePlanItem {
+  tag: string;
+  entityType?: ReferencePlanEntityType;
+  requestedView: ViewIntent;
+  required: boolean;
+  visibleFeatures?: string;
+}
 
 export interface SharedContinuityDirective {
   anchorLabel: string;
@@ -51,6 +60,7 @@ export interface Scene {
   continuityAnchor?: string;     // 跨鏡頭連續性的錨點（姿勢/構圖/道具狀態）
   viewIntent?: ViewIntent;       // 本鏡頭預期採用的主視角（front / side / 3/4 ...）
   referenceViewHints?: ReferenceViewHints; // 針對每個角色/商品標記其視角需求，如 {"<台灣男性>":"front","<Galaxy S26>":"back"}
+  referencePlan?: SceneReferencePlanItem[]; // 場景級參考圖計畫（每個主體要用哪個視角、是否必用、該展示哪些可見特徵）
   renderLane?: RenderLane;       // Production lane：hero / continuity / insert ...
   productionRisk?: ProductionRisk; // 製作風險等級
   reservedForPost?: string;      // 留給後期處理的項目（字幕/packshot cleanup/VFX）

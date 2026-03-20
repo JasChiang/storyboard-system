@@ -11,11 +11,17 @@ const REQUIRED_SCENE_FIELDS = [
   'continuityLock',
   'shotIntent',
   'continuityAnchor',
+  'viewIntent',
+  'referenceViewHints',
+  'referencePlan',
   'renderLane',
   'productionRisk',
   'reservedForPost',
   'deliveryIntent',
   'referencePriorityMode',
+  'hookScore',
+  'hookScoreReason',
+  'retentionRisk',
   'requiresEndFrame',
   'endFrameDelta',
   'dialogue',
@@ -50,4 +56,3 @@ describe('storyboard template schemas', () => {
     }
   });
 });
-

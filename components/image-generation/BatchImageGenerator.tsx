@@ -8,7 +8,7 @@ import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
 import { buildSceneDirectiveLines } from '@/lib/prompts/scene-directives';
 import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
-import { getReferenceTag, getSceneRelevantReferences, getSceneRequiredTags } from '@/lib/references/scene-references';
+import { getReferenceTag, getSceneRequiredTags } from '@/lib/references/scene-references';
 import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
@@ -182,6 +182,10 @@ export function BatchImageGenerator({
             target.push('If multiple reference images are different angles of the same product/character, keep one unified identity and do not blend with other designs.');
         };
 
+        if (isEndFrame && scene.endFrameDescription?.trim()) {
+            parts.push(`Target end-frame static description: ${scene.endFrameDescription.trim()}`);
+            parts.push(`尾幀目標靜態畫面：${scene.endFrameDescription.trim()}`);
+        }
         pushReferenceHardConstraints(parts);
         parts.push(...buildStyleDirectiveLines(styleProfile, { stage: isEndFrame ? 'image_end' : 'image_start' }));
         parts.push(...buildSceneDirectiveLines(scene));

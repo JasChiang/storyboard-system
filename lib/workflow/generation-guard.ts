@@ -1,4 +1,5 @@
 import type { ProjectReference, Scene } from '@/lib/types/storyboard';
+import { getSceneReferencePlan } from '@/lib/references/reference-plan';
 import { normalizeTag } from '@/lib/references/scene-references';
 
 const TAG_PATTERN = /^<[^<>]+>$/;
@@ -12,8 +13,8 @@ export interface GenerationBlocker {
 
 interface SceneGenerationGuardInput {
   stage: GenerationStage;
-  scene: Pick<Scene, 'qaStatus' | 'qaIssues' | 'requiredReferences'>;
-  projectReferences?: Array<Pick<ProjectReference, 'name' | 'type'>>;
+  scene: Pick<Scene, 'qaStatus' | 'qaIssues' | 'requiredReferences' | 'referencePlan' | 'referenceViewHints' | 'viewIntent' | 'charactersUsed' | 'productsUsed'>;
+  projectReferences?: Array<Pick<ProjectReference, 'name' | 'type' | 'angle'>>;
   effectiveStartFrameUrl?: string;
   allowPendingStartFrame?: boolean;
 }
@@ -32,6 +33,23 @@ function toAvailableReferenceTags(
   return tags;
 }
 
+function toAvailableReferenceAngles(
+  references: Array<Pick<ProjectReference, 'name' | 'type' | 'angle'>>
+): Map<string, Set<string>> {
+  const angleMap = new Map<string, Set<string>>();
+  references
+    .filter((reference) => reference.type !== 'style')
+    .forEach((reference) => {
+      if (!reference.name || typeof reference.name !== 'string') return;
+      const normalized = normalizeTag(reference.name);
+      if (!normalized) return;
+      const current = angleMap.get(normalized) || new Set<string>();
+      if (reference.angle) current.add(reference.angle);
+      angleMap.set(normalized, current);
+    });
+  return angleMap;
+}
+
 export function getSceneGenerationBlockers(input: SceneGenerationGuardInput): GenerationBlocker[] {
   const blockers: GenerationBlocker[] = [];
   const rawRequiredRefs = Array.isArray(input.scene.requiredReferences) ? input.scene.requiredReferences : [];
@@ -43,6 +61,8 @@ export function getSceneGenerationBlockers(input: SceneGenerationGuardInput): Ge
     .map((value) => (typeof value === 'string' ? normalizeTag(value) : ''))
     .filter(Boolean);
   const availableReferenceTags = toAvailableReferenceTags(input.projectReferences || []);
+  const availableReferenceAngles = toAvailableReferenceAngles(input.projectReferences || []);
+  const referencePlan = getSceneReferencePlan(input.scene, input.projectReferences || []);
 
   if (input.scene.qaStatus === 'block') {
     const issueText = Array.isArray(input.scene.qaIssues) && input.scene.qaIssues.length > 0
@@ -76,6 +96,22 @@ export function getSceneGenerationBlockers(input: SceneGenerationGuardInput): Ge
         });
       }
     }
+  }
+
+  const missingPlanViews = referencePlan
+    .filter((item) => item.requestedView !== 'auto')
+    .filter((item) => {
+      const normalized = normalizeTag(item.tag);
+      if (!normalized) return false;
+      const angles = availableReferenceAngles.get(normalized);
+      if (!angles || angles.size === 0) return true;
+      return !angles.has(item.requestedView);
+    });
+  if (missingPlanViews.length > 0) {
+    blockers.push({
+      code: 'reference_plan_view_not_found',
+      message: `referencePlan 要求的視角在專案參考中不存在：${missingPlanViews.map((item) => `${item.tag}:${item.requestedView}`).join(', ')}`,
+    });
   }
 
   const requiresStartFrame = input.stage === 'image_end' || input.stage === 'video';
