@@ -355,7 +355,10 @@ async function mixAudioIntoVideo(
     clips.forEach((clip, index) => {
       const inputIndex = index + 1;
       const baseLabel = `a${inputIndex}`;
-      const parts: string[] = [`[${inputIndex}:a]aresample=48000`];
+      const parts: string[] = [
+        `[${inputIndex}:a]aresample=48000`,
+        'aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo',
+      ];
       if (clip.durationSec && clip.durationSec > 0) {
         parts.push(`atrim=0:${clip.durationSec.toFixed(3)}`);
       }
@@ -384,23 +387,24 @@ async function mixAudioIntoVideo(
       }
     };
 
-    buildMixBus(voiceLabels, 'voiceBus');
-    buildMixBus(musicLabels, 'musicBus');
+    buildMixBus(voiceLabels, 'voice_bus');
+    buildMixBus(musicLabels, 'music_bus');
 
     if (voiceLabels.length > 0 && musicLabels.length > 0) {
       if (ducking) {
-        filterComplex.push('[musicBus][voiceBus]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=260[duckedMusic]');
-        filterComplex.push('[duckedMusic][voiceBus]amix=inputs=2:normalize=0:dropout_transition=0[mixedAudio]');
+        filterComplex.push('[voice_bus]asplit=2[voice_sidechain][voice_mix]');
+        filterComplex.push('[music_bus][voice_sidechain]sidechaincompress=threshold=0.05:ratio=8:attack=20:release=260[ducked_music]');
+        filterComplex.push('[ducked_music][voice_mix]amix=inputs=2:normalize=0:dropout_transition=0[mixed_audio]');
       } else {
-        filterComplex.push('[musicBus][voiceBus]amix=inputs=2:normalize=0:dropout_transition=0[mixedAudio]');
+        filterComplex.push('[music_bus][voice_bus]amix=inputs=2:normalize=0:dropout_transition=0[mixed_audio]');
       }
     } else if (voiceLabels.length > 0) {
-      filterComplex.push('[voiceBus]anull[mixedAudio]');
+      filterComplex.push('[voice_bus]anull[mixed_audio]');
     } else {
-      filterComplex.push('[musicBus]anull[mixedAudio]');
+      filterComplex.push('[music_bus]anull[mixed_audio]');
     }
 
-    filterComplex.push(`[mixedAudio]alimiter=limit=0.95,atrim=0:${videoDurationSec.toFixed(3)}[aout]`);
+    filterComplex.push(`[mixed_audio]alimiter=limit=0.95,atrim=0:${videoDurationSec.toFixed(3)}[aout]`);
 
     command
       .complexFilter(filterComplex)
