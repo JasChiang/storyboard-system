@@ -463,13 +463,15 @@ export async function generateStoryboardScript(
         : [];
       const normalizedHints: Record<string, ViewIntent> = {};
       for (const tag of [...normalizedCharactersUsed, ...normalizedProductsUsed]) {
-        normalizedHints[tag] = viewIntent;
+        const normalizedKey = tag.trim().toLowerCase();
+        if (normalizedKey) normalizedHints[normalizedKey] = viewIntent;
       }
       if (scene.referenceViewHints && typeof scene.referenceViewHints === 'object') {
         for (const [key, value] of Object.entries(scene.referenceViewHints)) {
           if (typeof value !== 'string') continue;
           if (!(STORYBOARD_VIEW_INTENTS as readonly string[]).includes(value)) continue;
-          normalizedHints[key] = value as ViewIntent;
+          const normalizedKey = key.trim().toLowerCase();
+          if (normalizedKey) normalizedHints[normalizedKey] = value as ViewIntent;
         }
       }
 

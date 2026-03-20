@@ -301,11 +301,11 @@ export function BatchImageGenerator({
             continuityReferenceUrl: options?.continuityReferenceUrl,
             startFrameReferenceUrl: options?.primaryReferenceUrl,
             sceneReferenceUrl: scene.referenceImage,
-            requiredContentRefs: routedSceneRefs.primary.filter((ref) => requiredTags.has(getReferenceTag(ref))),
-            optionalContentRefs: routedSceneRefs.primary.filter((ref) => !requiredTags.has(getReferenceTag(ref))).concat(routedSceneRefs.secondary),
+            requiredContentRefs: routedSceneRefs.primary,
+            optionalContentRefs: routedSceneRefs.secondary,
             styleReferenceUrls: selectedStyleReferenceUrls,
             prioritizeContentRefs: !isEndFrame,
-            strictRequiredOnlyWhenPresent: true,
+            strictRequiredOnlyWhenPresent: false,
             includeStyleReferenceImages: !hasAnyContentRefs,
         });
         const prompt = normalizePromptParts([

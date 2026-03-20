@@ -108,6 +108,23 @@ export function buildSystemPrompt(
             prompt += '\n';
         }
 
+        // 整理每個角色/商品的可用視角索引
+        const angleIndexMap = new Map<string, string[]>();
+        [...characterRefs, ...productRefs].forEach(r => {
+            if (!r.name || !r.angle) return;
+            const key = r.name;
+            if (!angleIndexMap.has(key)) angleIndexMap.set(key, []);
+            const angles = angleIndexMap.get(key)!;
+            if (!angles.includes(r.angle)) angles.push(r.angle);
+        });
+        if (angleIndexMap.size > 0) {
+            prompt += `### 可用視角索引（referenceViewHints 只能使用以下視角）\n`;
+            angleIndexMap.forEach((angles, name) => {
+                prompt += `- **<${name}>** 可用視角：${angles.join('、')}\n`;
+            });
+            prompt += `\n`;
+        }
+
         // 加入額外規範
         prompt += `## ⚠️ 參考圖一致性規範
 
@@ -140,6 +157,8 @@ ${productRefs.map(r => `   - 使用 \`<${r.name || '商品'}>\` 指代該商品`
    - 每個場景需輸出 \`shotIntent\`（一句話描述鏡頭在敘事上的任務）
    - 每個場景需輸出 \`continuityAnchor\`（跨鏡頭必須維持的單一重點）
    - 每個場景需輸出 \`viewIntent\`（auto/front/side/back/three_quarter/top，用來決定本鏡主參考視角）
+   - 每個場景需輸出 \`referenceViewHints\`（每個角色/商品標記的視角需求，如 {"<台灣男性>":"front","<Galaxy S26>":"back"}；若場景同時有角色與商品，必須分別標記，不可只靠單一 viewIntent；**只能填入「可用視角索引」中實際存在的視角，若無對應視角則填 "auto"**）
+   - 若某個標記的 referenceViewHints 為非正面視角（side/back/three_quarter/top），description 必須描述從該視角可見的內容（例如：「<Galaxy S26> 背面朝向鏡頭，相機模組清晰可見」），讓圖片生成模型知道該視角要展示什麼特徵
    - 每個場景需輸出 \`requiredReferences\`（本鏡頭必須使用的標記陣列）
 
 7. **一致性合併優先序**：

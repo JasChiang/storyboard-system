@@ -138,5 +138,6 @@ export const STORYBOARD_CONTRACT_PROMPT_BLOCK = `
 - 若沒有明確交付目的，deliveryIntent 也要輸出空字串 ""，不能省略。
 - 若沒有必用參考，requiredReferences 必須輸出 []，不能省略。
 - 若場景同時有角色與商品，referenceViewHints 應針對每個標記明確輸出其視角需求；例如人物正面、商品背面，必須分開標記，不能只靠單一 viewIntent。
+- 若某個標記的 referenceViewHints 為非正面視角（side/back/three_quarter/top），description 必須描述從該視角可見的內容，例如「<Galaxy S26> 背面朝向鏡頭，相機模組陣列清晰可見」；不可只寫標記名稱而不說明可見特徵。
 - 若 requiresEndFrame = false，endFrameDescription 與 endFrameDelta 必須是空字串。
 `;

@@ -248,8 +248,6 @@ export function ImageGenerator({
         });
         const selectedPrimaryRefs = selectedRoutedRefs.primary;
         const selectedSecondaryRefs = selectedRoutedRefs.secondary;
-        const selectedRequiredRefs = selectedPrimaryRefs.filter((ref) => requiredProjectRefIds.has(ref.id));
-        const selectedOptionalPrimaryRefs = selectedPrimaryRefs.filter((ref) => !requiredProjectRefIds.has(ref.id));
         const hasAnyContentRefs = selectedPrimaryRefs.length > 0 || selectedSecondaryRefs.length > 0;
         return buildPrioritizedReferenceUrls({
             model: imageModel,
@@ -260,11 +258,11 @@ export function ImageGenerator({
                 ? (previousEndFrameUrl || scene.generatedImage?.url)
                 : undefined,
             sceneReferenceUrl: referenceImage,
-            requiredContentRefs: [...selectedRequiredRefs, ...selectedOptionalPrimaryRefs],
+            requiredContentRefs: selectedPrimaryRefs,
             optionalContentRefs: selectedSecondaryRefs,
             styleReferenceUrls: selectedStyleReferenceUrls,
             prioritizeContentRefs: !options?.includeStartFrameForEnd,
-            strictRequiredOnlyWhenPresent: true,
+            strictRequiredOnlyWhenPresent: false,
             includeStyleReferenceImages: !hasAnyContentRefs,
         });
     };
@@ -298,11 +296,17 @@ export function ImageGenerator({
         const lockedReferenceLine = requiredScopedRefs.length > 0
             ? `Locked references for this shot: ${requiredScopedRefs.map((ref) => ref.name ? `<${ref.name}>` : ref.type).join(', ')}.`
             : '';
+        const formatRefEntry = (ref: ProjectReference) => {
+            const tag = ref.name ? `<${ref.name}>` : ref.type;
+            const angle = ref.angle ? `(${ref.angle})` : '';
+            const visibility = ref.angleVisibility ? ` — ${ref.angleVisibility}` : ref.description ? ` — ${ref.description}` : '';
+            return `${tag}${angle}${visibility}`;
+        };
         const primaryRefLine = routedSceneRefs.primary.length > 0
-            ? `Primary reference views for this shot: ${routedSceneRefs.primary.map((ref) => `${ref.name ? `<${ref.name}>` : ref.type}${ref.angle ? `(${ref.angle})` : ''}`).join(', ')}.`
+            ? `Primary reference views for this shot: ${routedSceneRefs.primary.map(formatRefEntry).join('; ')}.`
             : '';
         const secondaryRefLine = routedSceneRefs.secondary.length > 0
-            ? `Secondary supporting references: ${routedSceneRefs.secondary.map((ref) => `${ref.name ? `<${ref.name}>` : ref.type}${ref.angle ? `(${ref.angle})` : ''}`).join(', ')}.`
+            ? `Secondary supporting references: ${routedSceneRefs.secondary.map(formatRefEntry).join('; ')}.`
             : '';
         const pushReferenceHardConstraints = (target: string[]) => {
             if (!hasReferenceInputs) return;
