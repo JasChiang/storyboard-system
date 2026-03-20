@@ -88,4 +88,50 @@ describe('reference priority', () => {
 
     expect(urls).toEqual([]);
   });
+
+  it('guarantees the start frame survives the cap for image_end even when identity_first is selected', () => {
+    const urls = buildPrioritizedReferenceUrls({
+      model: 'nano-banana-pro',
+      stage: 'image_end',
+      priorityMode: 'identity_first',
+      startFrameReferenceUrl: 'https://example.com/start.png',
+      requiredContentRefs: [
+        mkRef('req-1', 'https://example.com/req-1.png'),
+        mkRef('req-2', 'https://example.com/req-2.png'),
+        mkRef('req-3', 'https://example.com/req-3.png'),
+      ],
+      optionalContentRefs: [
+        mkRef('opt-1', 'https://example.com/opt-1.png'),
+        mkRef('opt-2', 'https://example.com/opt-2.png'),
+        mkRef('opt-3', 'https://example.com/opt-3.png'),
+      ],
+    });
+
+    expect(urls).toHaveLength(7);
+    expect(urls).toContain('https://example.com/start.png');
+  });
+
+  it('guarantees continuity references survive the cap for video prompts', () => {
+    const urls = buildPrioritizedReferenceUrls({
+      model: 'nano-banana-pro',
+      stage: 'video',
+      priorityMode: 'identity_first',
+      continuityReferenceUrl: 'https://example.com/prev-end.png',
+      startFrameReferenceUrl: 'https://example.com/start.png',
+      requiredContentRefs: [
+        mkRef('req-1', 'https://example.com/req-1.png'),
+        mkRef('req-2', 'https://example.com/req-2.png'),
+        mkRef('req-3', 'https://example.com/req-3.png'),
+        mkRef('req-4', 'https://example.com/req-4.png'),
+      ],
+      optionalContentRefs: [
+        mkRef('opt-1', 'https://example.com/opt-1.png'),
+        mkRef('opt-2', 'https://example.com/opt-2.png'),
+      ],
+    });
+
+    expect(urls).toHaveLength(8);
+    expect(urls).toContain('https://example.com/prev-end.png');
+    expect(urls).toContain('https://example.com/start.png');
+  });
 });

@@ -1,6 +1,5 @@
 import type { ProjectReference, Scene } from '@/lib/types/storyboard';
-import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
-import { buildIdentityLockPromptLine } from '@/lib/references/identity-lock';
+import { buildVideoIdentityInvariantLines } from '@/lib/prompts/invariant-layers';
 import { analyzeMotionRisk, buildMotionSafetyLines } from './motion-safety';
 import { buildPromptFromSchema } from './prompt-schema';
 import { buildVideoSceneScriptLines } from './scene-script';
@@ -13,33 +12,7 @@ interface KlingPromptInput {
 }
 
 export function buildKlingPrompt({ scene, motionPrompt, scopedRefs, continuityMemoryLines = [] }: KlingPromptInput): string {
-  const consolidatedRules = buildConsolidatedReferenceRules(scopedRefs);
-
-  const identityCoreLines = consolidatedRules
-    .filter(rule => rule.identityCore)
-    .map(rule => `${rule.tag}: ${rule.identityCore}`);
-
-  const mustKeepLines = consolidatedRules
-    .filter(rule => rule.mustKeepFeatures?.length)
-    .map(rule => `${rule.tag}: ${rule.mustKeepFeatures.slice(0, 6).join(', ')}`);
-
-  const guidelineLines = consolidatedRules
-    .filter(rule => rule.guidelines.length > 0)
-    .map(rule => `${rule.tag}: ${rule.guidelines.slice(0, 6).join('; ')}`);
-  const structuredLockLines = consolidatedRules
-    .filter(rule => rule.structuredIdentityLock)
-    .map(rule => buildIdentityLockPromptLine(rule.structuredIdentityLock!, rule.tag));
-
-  const identityInvariants = [
-    structuredLockLines.length ? `Apply structured identity locks: ${structuredLockLines.join(' | ')}` : '',
-    identityCoreLines.length ? `Keep identity cores fixed: ${identityCoreLines.join(' | ')}` : '',
-    mustKeepLines.length ? `Keep material/geometry constraints: ${mustKeepLines.join(' | ')}` : '',
-    guidelineLines.length ? `Follow guardrails: ${guidelineLines.join(' | ')}` : '',
-    'Keep character/product identity, logo placement, and core geometry unchanged.',
-  ].filter(Boolean);
-
-  const hasLockVisibleText = scopedRefs.some(ref => ref.ipProfile?.textLogoPolicy === 'lock_visible_text');
-  const hasForbidNewText = scopedRefs.some(ref => ref.ipProfile?.textLogoPolicy === 'forbid_new_text');
+  const identityInvariants = buildVideoIdentityInvariantLines(scopedRefs);
   const hasEndFrame = !!scene.requiresEndFrame && !!scene.generatedEndFrame?.url;
   const motionRisk = analyzeMotionRisk({ scene, motionPrompt, scopedRefs });
   const motionSafetyLines = buildMotionSafetyLines({ scene, motionPrompt, scopedRefs });
@@ -74,8 +47,6 @@ export function buildKlingPrompt({ scene, motionPrompt, scopedRefs, continuityMe
       motionRisk.riskyCrossSubjectHandoff
         ? 'Do not fake large reframing by moving or scaling the anchored product.'
         : '',
-      hasLockVisibleText ? 'If text or logos are visible, keep spelling, shape, and placement exactly unchanged.' : '',
-      hasForbidNewText ? 'Never invent new letters, numbers, logos, or package text during motion.' : '',
     ],
   });
 }

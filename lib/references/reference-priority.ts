@@ -2,7 +2,7 @@ import type { ImageGenerationModel } from '@/lib/constants/image-models';
 import type { ProjectReference, ReferencePriorityMode, WorkflowStage } from '@/lib/types/storyboard';
 
 const MAX_REFERENCE_IMAGES: Record<ImageGenerationModel, number> = {
-  'nano-banana-pro': 6,
+  'nano-banana-pro': 14,
   'seedream-5-lite': 4,
 };
 
@@ -107,5 +107,21 @@ export function buildPrioritizedReferenceUrls(
   }
 
   const cap = MAX_REFERENCE_IMAGES[input.model] ?? 4;
-  return ordered.slice(0, cap);
+  const mustKeepContinuity = input.stage === 'image_end' || input.stage === 'video';
+  if (!mustKeepContinuity) {
+    return ordered.slice(0, cap);
+  }
+
+  const continuityMustKeep = [input.continuityReferenceUrl, input.startFrameReferenceUrl]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map((value) => value.trim())
+    .filter((value, index, arr) => arr.indexOf(value) === index);
+
+  if (continuityMustKeep.length === 0) {
+    return ordered.slice(0, cap);
+  }
+
+  const carryover = continuityMustKeep.slice(0, cap);
+  const remainder = ordered.filter((url) => !carryover.includes(url));
+  return [...carryover, ...remainder].slice(0, cap);
 }

@@ -8,6 +8,7 @@ import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
 import { buildSceneDirectiveLines } from '@/lib/prompts/scene-directives';
 import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
+import { buildImageIdentityConstraintLines, buildImageReferenceConstraintLines } from '@/lib/prompts/invariant-layers';
 import { getReferenceTag, getSceneRequiredTags } from '@/lib/references/scene-references';
 import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
@@ -97,43 +98,11 @@ export function BatchImageGenerator({
             fallbackPolicy: 'non_environment',
         });
         const sceneScopedContentRefs = routedSceneRefs.all;
-        const hasCharacterRefs = sceneScopedContentRefs.some((ref) => ref.type === 'character');
-        const hasProductRefs = sceneScopedContentRefs.some((ref) => ref.type === 'product');
-        const hasIdentityRefs = hasCharacterRefs || hasProductRefs;
         const requiredTags = getSceneRequiredTags(scene);
         const requiredContentRefs = sceneScopedContentRefs.filter((ref) => {
             const tag = getReferenceTag(ref);
             return tag ? requiredTags.has(tag) : false;
         });
-        const lockedReferenceLine = requiredContentRefs.length > 0
-            ? `Locked references for this shot: ${requiredContentRefs.map((ref) => ref.name ? `<${ref.name}>` : ref.type).join(', ')}.`
-            : '';
-        const primaryRefLine = routedSceneRefs.primary.length > 0
-            ? `Primary reference views for this shot: ${routedSceneRefs.primary.map((ref) => `${ref.name ? `<${ref.name}>` : ref.type}${ref.angle ? `(${ref.angle})` : ''}`).join(', ')}.`
-            : '';
-        const secondaryRefLine = routedSceneRefs.secondary.length > 0
-            ? `Secondary supporting references: ${routedSceneRefs.secondary.map((ref) => `${ref.name ? `<${ref.name}>` : ref.type}${ref.angle ? `(${ref.angle})` : ''}`).join(', ')}.`
-            : '';
-        const consistencyGuardrails = [
-            'Describe the scene in natural language, not keyword stuffing.',
-            'Anchor identity and product geometry to reference images.',
-            'Do not introduce new characters, props, logos, or text unless explicitly requested.',
-        ];
-        if (hasCharacterRefs) {
-            consistencyGuardrails.push(
-                'Keep face structure, hairstyle, body proportions, outfit silhouette/materials, and accessories unchanged unless explicitly requested.'
-            );
-        }
-        if (hasProductRefs) {
-            consistencyGuardrails.push(
-                'Keep product identity unchanged: geometry, proportions, material finish, colorway, logo/text placement, and control layout (buttons/ports/camera arrangement) must remain the same unless explicitly requested.'
-            );
-        }
-        if (!hasIdentityRefs && !scene.referenceImage) {
-            consistencyGuardrails.push(
-                'Keep key object identity and layout continuity stable unless explicitly requested.'
-            );
-        }
         const hasReferenceInputs = Boolean(
             scene.referenceImage
             || sceneScopedContentRefs.length > 0
@@ -144,53 +113,22 @@ export function BatchImageGenerator({
             sharedAnchors,
             sharedContinuityDirectives,
         });
-        const pushReferenceHardConstraints = (target: string[]) => {
-            if (!hasReferenceInputs) return;
-            target.push('Priority order: 1) locked reference identity/geometry/logo-text fidelity 2) scene composition directives 3) style treatment.');
-            target.push('Reference images are provided via image_urls in this request. Treat them as visual ground truth, not optional inspiration.');
-            target.push('If rendered output conflicts with reference identity or geometry, follow the reference images.');
-            target.push(
-                'Maintain the exact appearance of all referenced subjects from the provided reference images; for products, preserve geometry, proportions, materials, color, logo/text, and control layout.'
-            );
-            target.push(
-                'For locked product references, never deform geometry, proportions, materials, logos/text, or control layout.'
-            );
-            target.push('Do not merge, split, add, or remove major product parts. Keep door count, door split ratio, and seam positions exactly as reference.');
-            target.push(
-                '保持所有參考主體的外觀一致；若是商品，必須維持幾何形狀、比例、材質、顏色、Logo/文字與按鍵介面布局。'
-            );
-            target.push(
-                'Across any visual style preset, style directives may change rendering language only; locked subject identity and topology must remain exact.'
-            );
-            target.push(
-                'Keep locked character identity exact (face/hair/body proportions/outfit silhouette/accessories) and locked product topology exact (part count/layout/seams/handles/feet/buttons/ports/cameras/logo/text).'
-            );
-            target.push(
-                'If style negatives conflict with locked material identity, preserve locked material cues and only reduce excessive glare/noise.'
-            );
-            target.push(
-                '不論套用任何風格模板，僅可改變渲染語彙，不可改變鎖定主體的身份與零件拓撲（角色臉型髮型與身形比例、商品門片/門縫/把手/底腳/按鍵與 Logo 位置）。'
-            );
-            target.push(`View intent for this shot: ${routedSceneRefs.viewIntent}. Match the image viewpoint accordingly.`);
-            if (primaryRefLine) target.push(primaryRefLine);
-            if (secondaryRefLine) target.push(secondaryRefLine);
-            if (lockedReferenceLine) {
-                target.push(lockedReferenceLine);
-            }
-            target.push('Reference usage protocol: uploaded content references are hard constraints for identity, geometry, materials, logos, and visible text.');
-            target.push('If text instructions conflict with locked references, locked references win.');
-            target.push('If multiple reference images are different angles of the same product/character, keep one unified identity and do not blend with other designs.');
-        };
+        const referenceConstraintLines = buildImageReferenceConstraintLines({
+            hasReferenceInputs,
+            viewIntent: routedSceneRefs.viewIntent,
+            primaryRefs: routedSceneRefs.primary,
+            secondaryRefs: routedSceneRefs.secondary,
+            lockedRefs: requiredContentRefs,
+        });
+        const identityConstraintLines = buildImageIdentityConstraintLines(
+            sceneScopedContentRefs,
+            { includeFallbackObjectIdentity: !scene.referenceImage }
+        );
 
         if (isEndFrame && scene.endFrameDescription?.trim()) {
             parts.push(`Target end-frame static description: ${scene.endFrameDescription.trim()}`);
             parts.push(`尾幀目標靜態畫面：${scene.endFrameDescription.trim()}`);
         }
-        pushReferenceHardConstraints(parts);
-        parts.push(...buildStyleDirectiveLines(styleProfile, { stage: isEndFrame ? 'image_end' : 'image_start' }));
-        parts.push(...buildSceneDirectiveLines(scene));
-        parts.push(...continuityMemoryLines);
-
         // 核心畫面描述與約束先輸出，避免長提示詞被截斷時遺失
         parts.push(
             buildStaticFrameDescription(
@@ -202,6 +140,11 @@ export function BatchImageGenerator({
                 isEndFrame
             )
         );
+        parts.push(...referenceConstraintLines);
+        parts.push(...identityConstraintLines);
+        parts.push(...buildStyleDirectiveLines(styleProfile, { stage: isEndFrame ? 'image_end' : 'image_start' }));
+        parts.push(...buildSceneDirectiveLines(scene));
+        parts.push(...continuityMemoryLines);
         if (isEndFrame && scene.endFrameDelta) {
             const cameraMovementLower = (scene.cameraMovement || '').toLowerCase();
             parts.push(`Apply only this end-frame delta: ${scene.endFrameDelta}`);
@@ -230,7 +173,6 @@ export function BatchImageGenerator({
             }
         }
         parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
-        parts.push(...consistencyGuardrails);
 
         // 1. 加入專案參考圖的描述作為上下文（內容參考優先於風格參考）
         if (sceneScopedContentRefs.length > 0) {
@@ -264,19 +206,6 @@ export function BatchImageGenerator({
                     parts.push(`[style] ${ref.description}`);
                 });
             parts.push('Preserve rendering style, texture language, color treatment, and lighting grammar from style references.');
-        }
-
-        const hasLockVisibleText = sceneScopedContentRefs.some(
-            (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
-        );
-        const hasForbidNewText = sceneScopedContentRefs.some(
-            (ref) => ref.ipProfile?.textLogoPolicy === 'forbid_new_text'
-        );
-        if (hasLockVisibleText) {
-            parts.push('If brand text or logos are visible, keep them exactly legible and unchanged in spelling, shape, and placement.');
-        }
-        if (hasForbidNewText) {
-            parts.push('Do not invent any new letters, numbers, brand marks, or package text.');
         }
 
         return normalizePromptParts(parts, 5000);

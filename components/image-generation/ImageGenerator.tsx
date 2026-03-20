@@ -11,6 +11,7 @@ import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
 import { buildSceneDirectiveLines } from '@/lib/prompts/scene-directives';
 import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
+import { buildImageIdentityConstraintLines, buildImageReferenceConstraintLines } from '@/lib/prompts/invariant-layers';
 import { getReferenceTag, getSceneRequiredTags } from '@/lib/references/scene-references';
 import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
@@ -274,15 +275,6 @@ export function ImageGenerator({
         const effectiveDeltaSpec = scene.endFrameDeltaSpec;
         const hasExplicitDelta = Boolean(effectiveEndFrameDelta.trim());
         const cameraMovementLower = (scene.cameraMovement || '').toLowerCase();
-        const hasCharacterRefs = sceneScopedContentRefs.some((ref) => ref.type === 'character');
-        const hasProductRefs = sceneScopedContentRefs.some((ref) => ref.type === 'product');
-        const hasIdentityRefs = hasCharacterRefs || hasProductRefs;
-        const hasLockVisibleText = sceneScopedContentRefs.some(
-            (ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text'
-        );
-        const hasForbidNewText = sceneScopedContentRefs.some(
-            (ref) => ref.ipProfile?.textLogoPolicy === 'forbid_new_text'
-        );
         const hasReferenceInputs = Boolean(
             referenceImage
             || sceneScopedContentRefs.length > 0
@@ -290,58 +282,17 @@ export function ImageGenerator({
             || (isEndFrame && scene.generatedImage?.url)
             || (!isEndFrame && previousEndFrameUrl)
         );
-        const lockedReferenceLine = requiredScopedRefs.length > 0
-            ? `Locked references for this shot: ${requiredScopedRefs.map((ref) => ref.name ? `<${ref.name}>` : ref.type).join(', ')}.`
-            : '';
-        const formatRefEntry = (ref: ProjectReference) => {
-            const tag = ref.name ? `<${ref.name}>` : ref.type;
-            const angle = ref.angle ? `(${ref.angle})` : '';
-            const visibility = ref.angleVisibility ? ` — ${ref.angleVisibility}` : ref.description ? ` — ${ref.description}` : '';
-            return `${tag}${angle}${visibility}`;
-        };
-        const primaryRefLine = routedSceneRefs.primary.length > 0
-            ? `Primary reference views for this shot: ${routedSceneRefs.primary.map(formatRefEntry).join('; ')}.`
-            : '';
-        const secondaryRefLine = routedSceneRefs.secondary.length > 0
-            ? `Secondary supporting references: ${routedSceneRefs.secondary.map(formatRefEntry).join('; ')}.`
-            : '';
-        const pushReferenceHardConstraints = (target: string[]) => {
-            if (!hasReferenceInputs) return;
-            target.push('Priority order: 1) locked reference identity/geometry/logo-text fidelity 2) scene composition directives 3) style treatment.');
-            target.push('Reference images are provided via image_urls in this request. Treat them as visual ground truth, not optional inspiration.');
-            target.push('If rendered output conflicts with reference identity or geometry, follow the reference images.');
-            target.push(
-                'Maintain the exact appearance of all referenced subjects from the provided reference images; for products, preserve geometry, proportions, materials, color, logo/text, and control layout.'
-            );
-            target.push(
-                'For locked product references, never deform geometry, proportions, materials, logos/text, or control layout.'
-            );
-            target.push('Do not merge, split, add, or remove major product parts. Keep door count, door split ratio, and seam positions exactly as reference.');
-            target.push(
-                '保持所有參考主體的外觀一致；若是商品，必須維持幾何形狀、比例、材質、顏色、Logo/文字與按鍵介面布局。'
-            );
-            target.push(
-                'Across any visual style preset, style directives may change rendering language only; locked subject identity and topology must remain exact.'
-            );
-            target.push(
-                'Keep locked character identity exact (face/hair/body proportions/outfit silhouette/accessories) and locked product topology exact (part count/layout/seams/handles/feet/buttons/ports/cameras/logo/text).'
-            );
-            target.push(
-                'If style negatives conflict with locked material identity, preserve locked material cues and only reduce excessive glare/noise.'
-            );
-            target.push(
-                '不論套用任何風格模板，僅可改變渲染語彙，不可改變鎖定主體的身份與零件拓撲（角色臉型髮型與身形比例、商品門片/門縫/把手/底腳/按鍵與 Logo 位置）。'
-            );
-            target.push(`View intent for this shot: ${sceneViewIntent}. Match the image viewpoint accordingly.`);
-            if (primaryRefLine) target.push(primaryRefLine);
-            if (secondaryRefLine) target.push(secondaryRefLine);
-            if (lockedReferenceLine) {
-                target.push(lockedReferenceLine);
-            }
-            target.push('Reference usage protocol: uploaded content references are hard constraints for identity, geometry, materials, logos, and visible text.');
-            target.push('If text instructions conflict with locked references, locked references win.');
-            target.push('If multiple reference images are different angles of the same product/character, keep one unified identity and do not blend with other designs.');
-        };
+        const referenceConstraintLines = buildImageReferenceConstraintLines({
+            hasReferenceInputs,
+            viewIntent: sceneViewIntent,
+            primaryRefs: routedSceneRefs.primary,
+            secondaryRefs: routedSceneRefs.secondary,
+            lockedRefs: requiredScopedRefs,
+        });
+        const identityConstraintLines = buildImageIdentityConstraintLines(
+            sceneScopedContentRefs,
+            { includeFallbackObjectIdentity: !referenceImage }
+        );
 
         // Tail frame "delta-only" mode:
         // Use start frame as ground truth and only describe required changes.
@@ -379,26 +330,15 @@ export function ImageGenerator({
                 minimalParts.push(`Apply only this end-frame delta: ${deltaParts.join('. ')}`);
                 minimalParts.push(`尾圖差異指令：${deltaParts.join('。')}`);
             }
-            pushReferenceHardConstraints(minimalParts);
+            minimalParts.push(...referenceConstraintLines);
             minimalParts.push(...buildStyleDirectiveLines(styleProfile, { stage: 'image_end' }));
             minimalParts.push(...buildSceneDirectiveLines(scene));
             minimalParts.push(...continuityMemoryLines);
 
             minimalParts.push('Use the generated start frame as the single source of truth.');
-            minimalParts.push(
-                'Maintain the exact appearance of all referenced subjects from the provided reference images; for products, preserve geometry, proportions, materials, color, logo/text, and control layout.'
-            );
-            minimalParts.push(
-                '保持所有參考主體的外觀一致；若是商品，必須維持幾何形狀、比例、材質、顏色、Logo/文字與按鍵介面布局。'
-            );
             minimalParts.push('Camera movement/reframing is allowed, but keep scene geometry and object continuity physically consistent.');
             minimalParts.push('Keep static environment layout unchanged: walls, bed, nightstand, lamp, curtain, and furniture must keep the same world relationships.');
-            if (hasCharacterRefs) {
-                minimalParts.push('Keep character continuity unchanged unless explicitly requested: face structure, body proportions, outfit silhouette/materials, and accessories must remain the same.');
-            }
-            if (hasProductRefs) {
-                minimalParts.push('Keep product continuity unchanged unless explicitly requested: geometry, proportions, material finish, colorway, logo/text placement, and control layout (buttons/ports/camera arrangement) must remain the same.');
-            }
+            minimalParts.push(...identityConstraintLines.filter((line) => !line.startsWith('Describe the scene in natural language')));
             minimalParts.push('Keep movable-object continuity unchanged unless explicitly requested: phone/props position, orientation, and interaction state must remain consistent with start frame.');
             if (effectiveDeltaSpec?.reframingGoal) {
                 minimalParts.push(`Reframing target: ${effectiveDeltaSpec.reframingGoal}`);
@@ -427,11 +367,6 @@ export function ImageGenerator({
                 minimalParts.push('Do not translate anchored objects to fake pan/tilt.');
             }
             minimalParts.push('Return one final-state still frame, not a transition sequence.');
-
-            if (hasLockVisibleText || hasForbidNewText) {
-                minimalParts.push('If logos/text are visible, keep spelling, shape, and placement unchanged unless explicitly requested.');
-            }
-
             minimalParts.push('允許鏡頭重構圖，但必須維持首圖空間與物件連續性。');
             minimalParts.push('僅依尾圖差異指令做最小局部改動，不得整體重排場景。');
 
@@ -443,34 +378,6 @@ export function ImageGenerator({
             parts.push(`Target end-frame static description: ${effectiveEndFrameDescription}`);
             parts.push(`尾幀目標靜態畫面：${effectiveEndFrameDescription}`);
         }
-        const consistencyGuardrails = [
-            'Describe the scene in natural language, not keyword stuffing.',
-            'Anchor identity and product geometry to reference images.',
-            'Do not introduce new characters, props, logos, or text unless explicitly requested.',
-        ];
-        if (hasCharacterRefs) {
-            consistencyGuardrails.push(
-                'Keep face structure, hairstyle, body proportions, outfit silhouette/materials, and accessories unchanged unless explicitly requested.'
-            );
-        }
-        if (hasProductRefs) {
-            consistencyGuardrails.push(
-                'Keep product identity unchanged: geometry, proportions, material finish, colorway, logo/text placement, and control layout (buttons/ports/camera arrangement) must remain the same unless explicitly requested.'
-            );
-            consistencyGuardrails.push(
-                'Keep product part topology unchanged: component count/layout (doors, seams, handles, feet, buttons, ports, camera clusters) must match references exactly.'
-            );
-        }
-        if (!hasIdentityRefs && !referenceImage) {
-            consistencyGuardrails.push(
-                'Keep key object identity and layout continuity stable unless explicitly requested.'
-            );
-        }
-        pushReferenceHardConstraints(parts);
-        parts.push(...buildStyleDirectiveLines(styleProfile, { stage: isEndFrame ? 'image_end' : 'image_start' }));
-        parts.push(...buildSceneDirectiveLines(scene));
-        parts.push(...continuityMemoryLines);
-
         // 先放入場景主描述，避免長提示詞被截斷時遺失核心構圖要求
         const sceneDescription = buildStaticFrameDescription(
             scene.description,
@@ -494,8 +401,12 @@ export function ImageGenerator({
                     break;
             }
         }
+        parts.push(...referenceConstraintLines);
+        parts.push(...identityConstraintLines);
+        parts.push(...buildStyleDirectiveLines(styleProfile, { stage: isEndFrame ? 'image_end' : 'image_start' }));
+        parts.push(...buildSceneDirectiveLines(scene));
+        parts.push(...continuityMemoryLines);
         parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
-        parts.push(...consistencyGuardrails);
         if (isEndFrame && scene.generatedImage?.url) {
             parts.push('Use the generated start frame as the primary continuity reference.');
             parts.push('Start-frame continuity has higher priority than generic stylistic interpretation.');
@@ -561,13 +472,6 @@ export function ImageGenerator({
                 parts.push(`[style] ${ref.description}`);
             });
             parts.push('Preserve rendering style, texture language, color treatment, and lighting grammar from style references.');
-        }
-
-        if (hasLockVisibleText) {
-            parts.push('If brand text or logos are visible, keep them exactly legible and unchanged in spelling, shape, and placement.');
-        }
-        if (hasForbidNewText) {
-            parts.push('Do not invent any new letters, numbers, brand marks, or package text.');
         }
 
         return normalizePromptParts(parts, 5000);
