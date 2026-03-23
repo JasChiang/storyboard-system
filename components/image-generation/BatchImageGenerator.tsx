@@ -3,25 +3,15 @@
 import { useState } from 'react';
 import { Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { Scene, ProjectReference, StyleProfile, SharedContinuityDirective } from '@/lib/types/storyboard';
-import { buildStaticFrameDescription } from '@/lib/prompts/image-static';
 import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
-import { buildSceneDirectiveLines } from '@/lib/prompts/scene-directives';
-import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
-import { buildImageIdentityConstraintLines, buildImageReferenceConstraintLines } from '@/lib/prompts/invariant-layers';
+import { buildImageGenerationPrompt } from '@/lib/prompts/image-prompt';
 import { getReferenceTag, getSceneRequiredTags } from '@/lib/references/scene-references';
 import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
-import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
 import { resolveContinuationSource } from '@/lib/utils/transition';
 import { formatBlockersForAlert, getSceneGenerationBlockers } from '@/lib/workflow/generation-guard';
-
-function truncatePromptLine(value: string, max = 260): string {
-    const normalized = value.replace(/\s+/g, ' ').trim();
-    if (normalized.length <= max) return normalized;
-    return `${normalized.slice(0, max - 3)}...`;
-}
 
 interface BatchImageGeneratorProps {
     projectId: string;
@@ -93,122 +83,28 @@ export function BatchImageGenerator({
     };
 
     const buildImagePrompt = (scene: Scene, isEndFrame: boolean = false) => {
-        const parts: string[] = [];
         const routedSceneRefs = splitSceneReferencesByPriority(scene, contentProjectReferences, {
             fallbackPolicy: 'non_environment',
         });
         const sceneScopedContentRefs = routedSceneRefs.all;
-        const requiredTags = getSceneRequiredTags(scene);
-        const requiredContentRefs = sceneScopedContentRefs.filter((ref) => {
-            const tag = getReferenceTag(ref);
-            return tag ? requiredTags.has(tag) : false;
-        });
-        const hasReferenceInputs = Boolean(
-            scene.referenceImage
-            || sceneScopedContentRefs.length > 0
-            || selectedStyleReferenceUrls.length > 0
-        );
         const continuityMemoryLines = buildContinuityMemoryLines(scene, scenes, {
             stage: isEndFrame ? 'image_end' : 'image_start',
             sharedAnchors,
             sharedContinuityDirectives,
         });
-        const referenceConstraintLines = buildImageReferenceConstraintLines({
-            hasReferenceInputs,
-            viewIntent: routedSceneRefs.viewIntent,
-            primaryRefs: routedSceneRefs.primary,
-            secondaryRefs: routedSceneRefs.secondary,
-            lockedRefs: requiredContentRefs,
+        const selectedStyleRefs = styleProjectReferences.filter(ref =>
+            selectedStyleReferenceUrls.includes(ref.url)
+        );
+
+        return buildImageGenerationPrompt({
+            scene,
+            isEndFrame,
+            hasStartFrame: !!(isEndFrame && scene.generatedImage?.url),
+            contentRefs: sceneScopedContentRefs,
+            styleRefs: selectedStyleRefs,
+            styleProfile,
+            continuityMemoryLines,
         });
-        const identityConstraintLines = buildImageIdentityConstraintLines(
-            sceneScopedContentRefs,
-            { includeFallbackObjectIdentity: !scene.referenceImage }
-        );
-
-        if (isEndFrame && scene.endFrameDescription?.trim()) {
-            parts.push(`Target end-frame static description: ${scene.endFrameDescription.trim()}`);
-            parts.push(`尾幀目標靜態畫面：${scene.endFrameDescription.trim()}`);
-        }
-        // 核心畫面描述與約束先輸出，避免長提示詞被截斷時遺失
-        parts.push(
-            buildStaticFrameDescription(
-                scene.description,
-                isEndFrame
-                    ? (scene.endFrameDescription
-                        || (scene.endFrameDelta ? `${scene.description}。僅變更：${scene.endFrameDelta}` : scene.description))
-                    : scene.description,
-                isEndFrame
-            )
-        );
-        parts.push(...referenceConstraintLines);
-        parts.push(...identityConstraintLines);
-        parts.push(...buildStyleDirectiveLines(styleProfile, { stage: isEndFrame ? 'image_end' : 'image_start' }));
-        parts.push(...buildSceneDirectiveLines(scene));
-        parts.push(...continuityMemoryLines);
-        if (isEndFrame && scene.endFrameDelta) {
-            const cameraMovementLower = (scene.cameraMovement || '').toLowerCase();
-            parts.push(`Apply only this end-frame delta: ${scene.endFrameDelta}`);
-            if (scene.endFrameDeltaSpec?.reframingGoal) {
-                parts.push(`Reframing target: ${scene.endFrameDeltaSpec.reframingGoal}`);
-            }
-            if (scene.endFrameDeltaSpec?.subjectScaleChangePct) {
-                parts.push(`Subject screen-size change target: ${scene.endFrameDeltaSpec.subjectScaleChangePct}`);
-            }
-            if (scene.endFrameDeltaSpec?.newVisibleArea) {
-                parts.push(`New visible area target: ${scene.endFrameDeltaSpec.newVisibleArea}`);
-            }
-            if (scene.endFrameDeltaSpec?.mustNotChange?.length) {
-                parts.push(`Must not change: ${scene.endFrameDeltaSpec.mustNotChange.join(', ')}`);
-            }
-            parts.push('Only make minimal local edits required by the delta; do not globally recompose the scene.');
-            parts.push('The final frame must show a clearly noticeable composition change from the start frame according to the delta.');
-            parts.push('Do not return a near-duplicate of the start frame when delta requests reframing.');
-            if (/dolly|push in|pull out|zoom|拉近|拉遠|變焦/.test(cameraMovementLower)) {
-                parts.push('Camera move must be interpreted as camera reframing/parallax, not object scaling.');
-                parts.push('Do not scale, stretch, or enlarge objects to fake camera movement.');
-            }
-            if (/pan|tilt|平移|搖鏡|轉向/.test(cameraMovementLower)) {
-                parts.push('Pan/tilt must preserve world-space object positions; only framing changes.');
-                parts.push('Do not translate anchored objects to fake pan/tilt.');
-            }
-        }
-        parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
-
-        // 1. 加入專案參考圖的描述作為上下文（內容參考優先於風格參考）
-        if (sceneScopedContentRefs.length > 0) {
-            parts.push('Content references:');
-            sceneScopedContentRefs.forEach(ref => {
-                const nameTag = ref.name ? `<${ref.name}>` : ref.type;
-                parts.push(`${nameTag}: ${truncatePromptLine(ref.description, 220)}`);
-                const structuredLock = ref.structuredIdentityLock || buildStructuredIdentityLock(ref);
-                if (structuredLock) {
-                    parts.push(truncatePromptLine(buildIdentityLockPromptLine(structuredLock, nameTag), 320));
-                }
-                if (ref.mustKeepFeatures?.length) {
-                    parts.push(`${nameTag} must keep: ${ref.mustKeepFeatures.slice(0, 8).join(', ')}`);
-                }
-                if (ref.ipProfile?.immutableRules?.length) {
-                    parts.push(`${nameTag} hard rules: ${ref.ipProfile.immutableRules.slice(0, 5).join('; ')}`);
-                }
-                if (ref.ipProfile) {
-                    parts.push(
-                        `${nameTag} policy: identity=${ref.ipProfile.strictIdentity ? 'strict' : 'flexible'}, accessories=${ref.ipProfile.allowAccessoryChanges ? 'allowed' : 'locked'}`
-                    );
-                }
-            });
-        }
-
-        if (selectedStyleReferenceUrls.length > 0) {
-            parts.push('Style references:');
-            styleProjectReferences
-                .filter(ref => selectedStyleReferenceUrls.includes(ref.url))
-                .forEach(ref => {
-                    parts.push(`[style] ${ref.description}`);
-                });
-            parts.push('Preserve rendering style, texture language, color treatment, and lighting grammar from style references.');
-        }
-
-        return normalizePromptParts(parts, 5000);
     };
 
     const generateSingleImage = async (

@@ -6,24 +6,13 @@ import { ReferenceUploader } from './ReferenceUploader';
 import { ImagePreview } from './ImagePreview';
 import { Button } from '@/components/ui/button';
 import type { Scene, ProjectReference, StyleProfile, SharedContinuityDirective } from '@/lib/types/storyboard';
-import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/lib/prompts/image-static';
 import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
-import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
-import { buildSceneDirectiveLines } from '@/lib/prompts/scene-directives';
-import { buildStyleDirectiveLines } from '@/lib/prompts/style-directives';
-import { buildImageIdentityConstraintLines, buildImageReferenceConstraintLines } from '@/lib/prompts/invariant-layers';
+import { buildImageGenerationPrompt } from '@/lib/prompts/image-prompt';
 import { getReferenceTag, getSceneRequiredTags } from '@/lib/references/scene-references';
 import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
-import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
 import { formatBlockersForAlert, getSceneGenerationBlockers } from '@/lib/workflow/generation-guard';
-
-function truncatePromptLine(value: string, max = 260): string {
-    const normalized = value.replace(/\s+/g, ' ').trim();
-    if (normalized.length <= max) return normalized;
-    return `${normalized.slice(0, max - 3)}...`;
-}
 
 function areStringArraysEqual(a: string[], b: string[]): boolean {
     if (a.length !== b.length) return false;
@@ -272,209 +261,27 @@ export function ImageGenerator({
             || manualEndFrameDescription
             || scene.description;
         const effectiveEndFrameDelta = scene.endFrameDelta || manualEndFrameDescription || '';
-        const effectiveDeltaSpec = scene.endFrameDeltaSpec;
-        const hasExplicitDelta = Boolean(effectiveEndFrameDelta.trim());
-        const cameraMovementLower = (scene.cameraMovement || '').toLowerCase();
-        const hasReferenceInputs = Boolean(
-            referenceImage
-            || sceneScopedContentRefs.length > 0
-            || selectedStyleReferenceUrls.length > 0
-            || (isEndFrame && scene.generatedImage?.url)
-            || (!isEndFrame && previousEndFrameUrl)
-        );
-        const referenceConstraintLines = buildImageReferenceConstraintLines({
-            hasReferenceInputs,
-            viewIntent: sceneViewIntent,
-            primaryRefs: routedSceneRefs.primary,
-            secondaryRefs: routedSceneRefs.secondary,
-            lockedRefs: requiredScopedRefs,
-        });
-        const identityConstraintLines = buildImageIdentityConstraintLines(
-            sceneScopedContentRefs,
-            { includeFallbackObjectIdentity: !referenceImage }
-        );
-
-        // Tail frame "delta-only" mode:
-        // Use start frame as ground truth and only describe required changes.
-        if (isEndFrame && scene.generatedImage?.url) {
-            const deltaParts: string[] = [];
-            const safeCustomPrompt = customPrompt ? sanitizeStaticFrameDescription(customPrompt) : '';
-            const endFrameTargetLines = effectiveEndFrameDescription.trim()
-                ? [
-                    `Target end-frame static description: ${effectiveEndFrameDescription}`,
-                    `尾幀目標靜態畫面：${effectiveEndFrameDescription}`,
-                ]
-                : [];
-
-            if (!safeCustomPrompt) {
-                deltaParts.push(effectiveEndFrameDelta || effectiveEndFrameDescription);
-            } else {
-                switch (promptMode) {
-                    case 'replace':
-                        deltaParts.push(safeCustomPrompt);
-                        break;
-                    case 'append':
-                        deltaParts.push(effectiveEndFrameDelta || effectiveEndFrameDescription);
-                        deltaParts.push(safeCustomPrompt);
-                        break;
-                    case 'prepend':
-                        deltaParts.push(safeCustomPrompt);
-                        deltaParts.push(effectiveEndFrameDelta || effectiveEndFrameDescription);
-                        break;
-                }
-            }
-
-            const minimalParts: string[] = [];
-            minimalParts.push(...endFrameTargetLines);
-            if (deltaParts.length > 0) {
-                minimalParts.push(`Apply only this end-frame delta: ${deltaParts.join('. ')}`);
-                minimalParts.push(`尾圖差異指令：${deltaParts.join('。')}`);
-            }
-            minimalParts.push(...referenceConstraintLines);
-            minimalParts.push(...buildStyleDirectiveLines(styleProfile, { stage: 'image_end' }));
-            minimalParts.push(...buildSceneDirectiveLines(scene));
-            minimalParts.push(...continuityMemoryLines);
-
-            minimalParts.push('Use the generated start frame as the single source of truth.');
-            minimalParts.push('Camera movement/reframing is allowed, but keep scene geometry and object continuity physically consistent.');
-            minimalParts.push('Keep static environment layout unchanged: walls, bed, nightstand, lamp, curtain, and furniture must keep the same world relationships.');
-            minimalParts.push(...identityConstraintLines.filter((line) => !line.startsWith('Describe the scene in natural language')));
-            minimalParts.push('Keep movable-object continuity unchanged unless explicitly requested: phone/props position, orientation, and interaction state must remain consistent with start frame.');
-            if (effectiveDeltaSpec?.reframingGoal) {
-                minimalParts.push(`Reframing target: ${effectiveDeltaSpec.reframingGoal}`);
-            }
-            if (effectiveDeltaSpec?.subjectScaleChangePct) {
-                minimalParts.push(`Subject screen-size change target: ${effectiveDeltaSpec.subjectScaleChangePct}`);
-            }
-            if (effectiveDeltaSpec?.newVisibleArea) {
-                minimalParts.push(`New visible area target: ${effectiveDeltaSpec.newVisibleArea}`);
-            }
-            if (effectiveDeltaSpec?.mustNotChange?.length) {
-                minimalParts.push(`Must not change: ${effectiveDeltaSpec.mustNotChange.join(', ')}`);
-            }
-            minimalParts.push('Only make minimal local edits required by the delta; do not globally recompose the scene.');
-            minimalParts.push('Do not move existing objects unless the delta explicitly requests it.');
-            if (hasExplicitDelta) {
-                minimalParts.push('The final frame must show a clearly noticeable composition change from the start frame according to the delta.');
-                minimalParts.push('Do not return a near-duplicate of the start frame when delta requests reframing.');
-            }
-            if (/dolly|push in|pull out|zoom|拉近|拉遠|變焦/.test(cameraMovementLower)) {
-                minimalParts.push('Camera move must be interpreted as camera reframing/parallax, not object scaling.');
-                minimalParts.push('Do not scale, stretch, or enlarge the product/body to fake camera movement.');
-            }
-            if (/pan|tilt|平移|搖鏡|轉向/.test(cameraMovementLower)) {
-                minimalParts.push('Pan/tilt must preserve world-space object positions; only framing window changes.');
-                minimalParts.push('Do not translate anchored objects to fake pan/tilt.');
-            }
-            minimalParts.push('Return one final-state still frame, not a transition sequence.');
-            minimalParts.push('允許鏡頭重構圖，但必須維持首圖空間與物件連續性。');
-            minimalParts.push('僅依尾圖差異指令做最小局部改動，不得整體重排場景。');
-
-            return normalizePromptParts(minimalParts, 5000);
-        }
-
-        const parts: string[] = [];
-        if (isEndFrame && effectiveEndFrameDescription.trim()) {
-            parts.push(`Target end-frame static description: ${effectiveEndFrameDescription}`);
-            parts.push(`尾幀目標靜態畫面：${effectiveEndFrameDescription}`);
-        }
-        // 先放入場景主描述，避免長提示詞被截斷時遺失核心構圖要求
-        const sceneDescription = buildStaticFrameDescription(
-            scene.description,
-            isEndFrame ? effectiveEndFrameDescription : scene.description,
-            isEndFrame
-        );
-        if (!customPrompt) {
-            parts.push(sceneDescription);
-        } else {
-            switch (promptMode) {
-                case 'replace':
-                    parts.push(sanitizeStaticFrameDescription(customPrompt));
-                    break;
-                case 'append':
-                    parts.push(sceneDescription);
-                    parts.push(sanitizeStaticFrameDescription(customPrompt));
-                    break;
-                case 'prepend':
-                    parts.push(sanitizeStaticFrameDescription(customPrompt));
-                    parts.push(sceneDescription);
-                    break;
-            }
-        }
-        parts.push(...referenceConstraintLines);
-        parts.push(...identityConstraintLines);
-        parts.push(...buildStyleDirectiveLines(styleProfile, { stage: isEndFrame ? 'image_end' : 'image_start' }));
-        parts.push(...buildSceneDirectiveLines(scene));
-        parts.push(...continuityMemoryLines);
-        parts.push('Generate one static frame only. Do not describe camera movement or temporal progression.');
-        if (isEndFrame && scene.generatedImage?.url) {
-            parts.push('Use the generated start frame as the primary continuity reference.');
-            parts.push('Start-frame continuity has higher priority than generic stylistic interpretation.');
-            parts.push('Camera movement/reframing is allowed, but keep the scene geometry physically consistent.');
-            parts.push('Lock room geometry and environment layout across frames: keep all static objects (walls, bed, nightstand, lamp, curtain, furniture) in consistent world positions, scale, and orientation relative to each other.');
-            parts.push('Preserve spatial relationships and depth ordering between static objects from the start frame.');
-            parts.push('Preserve subject continuity from the start frame: keep character identity, body orientation, approximate body placement, and pose state unchanged unless explicitly requested.');
-            parts.push('Preserve movable-object continuity from the start frame: keep phone/props location, orientation, and interaction state unchanged unless explicitly requested in the end-frame delta.');
-            parts.push('Only apply minimal local edits explicitly requested by the end-frame delta; do not globally recompose the scene.');
-            parts.push('If adding a new object, insert it into the existing composition without moving or resizing existing objects.');
-            parts.push('Keep everything the same as the primary reference image. Only change what is explicitly described in the end-frame delta.');
-            parts.push('Only change what is explicitly described in the end-frame delta; keep identity, product geometry, logo placement, and material characteristics unchanged.');
-            parts.push('Return a final-state still frame composition, not a transition process.');
-            parts.push('首圖連續性優先於一般風格詮釋。');
-            parts.push('允許鏡頭位移與重構圖，但場景幾何關係必須維持一致。');
-            parts.push('保持首圖空間幾何關係不變：牆面、床、床頭櫃、檯燈、窗簾等固定物件彼此位置、比例、朝向不可改動。');
-            parts.push('保持首圖人物連續性：人物身份、身體朝向、大致位置與姿態狀態不可改動，除非尾圖描述明確要求。');
-            parts.push('保持首圖可移動物件連續性：手機與道具的位置、朝向與互動狀態不可改動，除非尾圖描述明確要求。');
-            parts.push('僅允許對明確指定區域做最小幅度編修，不得重排場景。');
-        }
-        if (!isEndFrame && previousEndFrameUrl) {
-            parts.push('This scene continues from the previous scene end frame.');
-            parts.push('Keep everything the same as the previous scene end frame unless this prompt explicitly changes it.');
-            parts.push('Keep subject identity and key object consistency while updating only composition and action as described.');
-        }
-
-        // 1. 加入專案參考圖的描述作為上下文（內容參考優先於風格參考）
-        if (selectedProjectRefs.length > 0) {
-            if (sceneScopedContentRefs.length > 0) {
-                parts.push('Content references:');
-                sceneScopedContentRefs.forEach(ref => {
-                    const nameTag = ref.name ? `<${ref.name}>` : ref.type;
-                    const guidelineText = ref.guidelines ? ` (Rules: ${ref.guidelines})` : '';
-                    parts.push(`${nameTag}: ${truncatePromptLine(ref.description, 220)}${guidelineText}`);
-                    const structuredLock = ref.structuredIdentityLock || buildStructuredIdentityLock(ref);
-                    if (structuredLock) {
-                        parts.push(truncatePromptLine(buildIdentityLockPromptLine(structuredLock, nameTag), 320));
-                    }
-                    if (ref.mustKeepFeatures?.length) {
-                        parts.push(`${nameTag} must keep: ${ref.mustKeepFeatures.slice(0, 8).join(', ')}`);
-                    }
-                    if (ref.ipProfile?.immutableRules?.length) {
-                        parts.push(`${nameTag} hard rules: ${ref.ipProfile.immutableRules.slice(0, 5).join('; ')}`);
-                    }
-                    if (ref.ipProfile) {
-                        parts.push(
-                            `${nameTag} policy: identity=${ref.ipProfile.strictIdentity ? 'strict' : 'flexible'}, accessories=${ref.ipProfile.allowAccessoryChanges ? 'allowed' : 'locked'}`
-                        );
-                    }
-                });
-                if (selectedContentRefs.length > sceneScopedContentRefs.length) {
-                    parts.push('Ignore non-tagged references for this shot; keep only the scene-mentioned identities.');
-                }
-            }
-        }
 
         const selectedStyleRefs = styleProjectReferences.filter((ref) =>
             selectedStyleReferenceUrls.includes(ref.url)
         );
-        if (selectedStyleRefs.length > 0) {
-            parts.push('Style references:');
-            selectedStyleRefs.forEach(ref => {
-                parts.push(`[style] ${ref.description}`);
-            });
-            parts.push('Preserve rendering style, texture language, color treatment, and lighting grammar from style references.');
-        }
 
-        return normalizePromptParts(parts, 5000);
+        return buildImageGenerationPrompt({
+            scene: {
+                ...scene,
+                endFrameDescription: effectiveEndFrameDescription,
+                endFrameDelta: effectiveEndFrameDelta,
+            },
+            isEndFrame,
+            hasStartFrame: !!(isEndFrame && scene.generatedImage?.url),
+            customPrompt: customPrompt || undefined,
+            promptMode,
+            contentRefs: sceneScopedContentRefs,
+            styleRefs: selectedStyleRefs,
+            styleProfile,
+            continuityMemoryLines,
+            hasPreviousEndFrame: !!previousEndFrameUrl,
+        });
     };
 
     // 取得模式說明

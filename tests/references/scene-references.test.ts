@@ -71,7 +71,7 @@ describe('scene references', () => {
     expect(matched[0]?.name).toBe('Room');
   });
 
-  it('prioritizes requiredReferences over description tags', () => {
+  it('includes both required and entity-matched references', () => {
     const matched = getSceneRelevantReferences(
       {
         description: 'Close-up on <Alice> only',
@@ -82,11 +82,12 @@ describe('scene references', () => {
       references
     );
 
-    expect(matched).toHaveLength(1);
-    expect(matched[0]?.name).toBe('ProductX');
+    expect(matched).toHaveLength(2);
+    expect(matched.map(r => r.name)).toContain('ProductX');
+    expect(matched.map(r => r.name)).toContain('Alice');
   });
 
-  it('returns empty result when requiredReferences are specified but no reference matches', () => {
+  it('returns entity-matched references when requiredReferences tag is missing', () => {
     const matched = getSceneRelevantReferences(
       {
         description: 'Close-up on <Alice> only',
@@ -97,7 +98,8 @@ describe('scene references', () => {
       references
     );
 
-    expect(matched).toHaveLength(0);
+    expect(matched).toHaveLength(1);
+    expect(matched[0]?.name).toBe('Alice');
   });
 
   it('can keep explicitly selected references when fallback policy is all_selected', () => {

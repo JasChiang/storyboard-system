@@ -101,11 +101,19 @@ export function getSceneRelevantReferences(
   const viewIntent = inferSceneViewIntent(scene);
 
   if (requiredTags.size > 0) {
-    const requiredMatched = references.filter((reference) => {
+    // Include both required references AND entity-matched references (productsUsed/charactersUsed).
+    // Previously this short-circuited and only returned required matches, which caused
+    // product references listed in productsUsed (but not in requiredReferences) to be excluded.
+    const sceneTags = getSceneEntityTags(scene);
+    const matched = references.filter((reference) => {
       const tag = getReferenceTag(reference);
-      return tag ? requiredTags.has(tag) : false;
+      if (!tag) return false;
+      return requiredTags.has(tag) || sceneTags.has(tag);
     });
-    return [...requiredMatched].sort((a, b) => rankReferenceForViewIntent(b, viewIntent) - rankReferenceForViewIntent(a, viewIntent));
+    if (matched.length > 0) {
+      return [...matched].sort((a, b) => rankReferenceForViewIntent(b, viewIntent) - rankReferenceForViewIntent(a, viewIntent));
+    }
+    return fallbackReferences();
   }
 
   const sceneTags = getSceneEntityTags(scene);

@@ -2,7 +2,8 @@ function normalizeLine(input: string): string {
   return input
     .replace(/\s+/g, ' ')
     .replace(/\s+([,.;:!?])/g, '$1')
-    .trim();
+    .trim()
+    .replace(/\.+$/, '');
 }
 
 export function normalizePromptParts(parts: string[], maxChars?: number): string {
