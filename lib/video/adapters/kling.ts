@@ -1,7 +1,7 @@
 import type { ProjectReference, Scene } from '@/lib/types/storyboard';
-import { buildVideoIdentityInvariantLines } from '@/lib/prompts/invariant-layers';
+import { buildVideoIdentityLine } from '@/lib/prompts/invariant-layers';
 import { analyzeMotionRisk, buildMotionSafetyLines } from './motion-safety';
-import { buildPromptFromSchema } from './prompt-schema';
+import { buildVideoPromptFromParts } from './prompt-schema';
 import { buildVideoSceneScriptLines } from './scene-script';
 
 interface KlingPromptInput {
@@ -11,42 +11,72 @@ interface KlingPromptInput {
   continuityMemoryLines?: string[];
 }
 
+/**
+ * Build a natural-language video prompt for Kling image-to-video.
+ *
+ * Follows Kling best practices:
+ * - Do NOT re-describe the start frame image
+ * - Focus on motion, action, and camera movement
+ * - Put the primary motion first (Kling weights first motion keyword strongest)
+ * - Connect camera movement to narrative intent
+ * - Keep negatives precise and specific
+ */
 export function buildKlingPrompt({ scene, motionPrompt, scopedRefs, continuityMemoryLines = [] }: KlingPromptInput): string {
-  const identityInvariants = buildVideoIdentityInvariantLines(scopedRefs);
-  const hasEndFrame = !!scene.requiresEndFrame && !!scene.generatedEndFrame?.url;
   const motionRisk = analyzeMotionRisk({ scene, motionPrompt, scopedRefs });
   const motionSafetyLines = buildMotionSafetyLines({ scene, motionPrompt, scopedRefs });
   const sceneScriptLines = buildVideoSceneScriptLines(scene);
-  const cameraMotionParts = [
-    scene.cameraMovement?.trim() ? `Storyboard camera movement: ${scene.cameraMovement.trim()}.` : '',
-    motionPrompt?.trim() || '',
-  ].filter(Boolean);
-  const cameraPlan = cameraMotionParts.join(' ').trim() || 'Keep camera motion stable and physically plausible.';
 
-  return buildPromptFromSchema({
-    heading: 'Kling visual direction.',
-    shotGoal: motionRisk.riskyCrossSubjectHandoff
-      ? 'Keep the anchored product stable while performing only a subtle reframe within visible scene content.'
-      : hasEndFrame
-      ? 'Match the provided end frame composition and identity at the end state.'
-      : 'Preserve identity consistency through the full shot with no explicit end frame target.',
-    cameraPlan: `Use the start frame as the visual anchor and keep one continuous shot. ${cameraPlan}`,
-    subjectState: [
-      ...sceneScriptLines,
-      ...continuityMemoryLines,
-      'Generate one coherent camera path from first frame to last frame; no jump cuts.',
-      'Prioritize clean camera language (pan/dolly/tilt/zoom) with stable anchored subjects.',
-      'Prefer physically plausible motion and stable temporal continuity over aggressive reframing.',
-      ...motionSafetyLines,
-    ],
-    identityInvariants,
-    hardNegatives: [
-      'Avoid temporal artifacts, warped logos, or text deformation during motion.',
-      'No scene cuts, montage jumps, abrupt lens switches, or frame-to-frame identity drift.',
-      'Avoid keyword stuffing such as "masterpiece, best quality, 8k, ultra-detailed".',
-      motionRisk.riskyCrossSubjectHandoff
-        ? 'Do not fake large reframing by moving or scaling the anchored product.'
-        : '',
-    ],
+  // Action lines: subject motion first, then safety constraints
+  const actionLines: string[] = [
+    ...sceneScriptLines,
+    ...motionSafetyLines,
+  ];
+
+  // Continuity memory — only include anchor/lock lines, skip headers
+  const anchorLines = continuityMemoryLines.filter(l => /^Shot \d+:/.test(l));
+  if (anchorLines.length > 0) {
+    actionLines.push(`Previous shots: ${anchorLines.join('. ')}`);
+  }
+
+  // Camera motion
+  const cameraParts: string[] = [];
+  if (scene.cameraMovement?.trim()) {
+    cameraParts.push(scene.cameraMovement.trim());
+  }
+  if (motionPrompt?.trim()) {
+    cameraParts.push(motionPrompt.trim());
+  }
+  const cameraMotion = cameraParts.join(', ') || 'Stable camera with subtle natural movement';
+
+  // Shot goal override for risky scenarios
+  if (motionRisk.riskyCrossSubjectHandoff) {
+    actionLines.unshift('Keep the anchored product stable, only perform a subtle reframe within visible content');
+  }
+
+  // End frame alignment
+  const hasEndFrame = !!scene.requiresEndFrame && !!scene.generatedEndFrame?.url;
+  if (hasEndFrame) {
+    actionLines.push('Match the provided end frame composition at the end of the shot');
+  }
+
+  // Identity line
+  const identityLine = buildVideoIdentityLine(scopedRefs);
+
+  // Kling-specific negatives (precise, not generic)
+  const negatives = [
+    'temporal artifacts',
+    'warped logos or text deformation',
+    'jump cuts or montage',
+    'identity drift between frames',
+  ];
+  if (motionRisk.riskyCrossSubjectHandoff) {
+    negatives.push('moving or scaling the anchored product');
+  }
+
+  return buildVideoPromptFromParts({
+    cameraMotion,
+    actionLines,
+    identityLine: identityLine || undefined,
+    negatives,
   });
 }

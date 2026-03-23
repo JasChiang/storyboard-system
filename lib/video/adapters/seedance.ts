@@ -1,7 +1,7 @@
 import type { ProjectReference, Scene } from '@/lib/types/storyboard';
-import { buildVideoIdentityInvariantLines } from '@/lib/prompts/invariant-layers';
+import { buildVideoIdentityLine } from '@/lib/prompts/invariant-layers';
 import { analyzeMotionRisk, buildMotionSafetyLines } from './motion-safety';
-import { buildPromptFromSchema } from './prompt-schema';
+import { buildVideoPromptFromParts } from './prompt-schema';
 import { buildVideoSceneScriptLines } from './scene-script';
 
 interface SeedancePromptInput {
@@ -11,43 +11,63 @@ interface SeedancePromptInput {
   continuityMemoryLines?: string[];
 }
 
+/**
+ * Build a natural-language video prompt for Seedance image-to-video.
+ *
+ * Follows Seedance best practices:
+ * - Do NOT re-describe the start frame image
+ * - Focus on motion, action, and camera movement
+ * - Write like directing a film — clear sentences, present tense
+ * - Use "then" / "followed by" for sequential actions
+ * - NO negative prompts (Seedance does not process them)
+ * - Keep prompts concise (~60 words + constraints)
+ */
 export function buildSeedancePrompt({ scene, motionPrompt, scopedRefs, continuityMemoryLines = [] }: SeedancePromptInput): string {
-  const identityInvariants = buildVideoIdentityInvariantLines(scopedRefs);
-  const hasEndFrame = !!scene.requiresEndFrame && !!scene.generatedEndFrame?.url;
   const motionRisk = analyzeMotionRisk({ scene, motionPrompt, scopedRefs });
   const motionSafetyLines = buildMotionSafetyLines({ scene, motionPrompt, scopedRefs });
   const sceneScriptLines = buildVideoSceneScriptLines(scene);
-  const cameraMotionParts = [
-    scene.cameraMovement?.trim() ? `Storyboard camera movement: ${scene.cameraMovement.trim()}.` : '',
-    motionPrompt?.trim() || '',
-  ].filter(Boolean);
-  const cameraPlan = cameraMotionParts.join(' ').trim() || 'Keep camera motion smooth and physically plausible.';
 
-  return buildPromptFromSchema({
-    heading: 'Seedance scene direction.',
-    shotGoal: motionRisk.riskyCrossSubjectHandoff
-      ? 'Keep the anchored product stable while performing only a subtle reframe within visible scene content.'
-      : hasEndFrame
-      ? 'Align the final moment with the provided end frame.'
-      : 'Maintain narrative continuity within one shot with no explicit end frame target.',
-    cameraPlan: `Generate a smooth single-shot motion sequence from the start frame. ${cameraPlan}`,
-    subjectState: [
-      ...sceneScriptLines,
-      ...continuityMemoryLines,
-      'Use one continuous motion path for the whole clip; keep transitions inside the shot smooth.',
-      'Keep movement readable with clear camera intent and stable anchored subjects.',
-      'Prefer stable temporal continuity and realistic inertia; avoid sudden perspective jumps.',
-      ...motionSafetyLines,
-      'No audio guidance required in prompt; optimize for visual continuity and timing.',
-    ],
-    identityInvariants,
-    hardNegatives: [
-      'Do not introduce new props, clothing changes, or logo/text mutations.',
-      'No jump cuts, montage edits, abrupt lens swaps, or identity flicker between frames.',
-      'Avoid keyword stuffing such as "masterpiece, best quality, 8k, ultra-detailed".',
-      motionRisk.riskyCrossSubjectHandoff
-        ? 'Do not fake large reframing by moving or scaling the anchored product.'
-        : '',
-    ],
+  // Action lines: subject motion first, then safety constraints
+  const actionLines: string[] = [
+    ...sceneScriptLines,
+    ...motionSafetyLines,
+  ];
+
+  // Continuity memory — only include anchor/lock lines, skip headers
+  const anchorLines = continuityMemoryLines.filter(l => /^Shot \d+:/.test(l));
+  if (anchorLines.length > 0) {
+    actionLines.push(`Previous shots: ${anchorLines.join('. ')}`);
+  }
+
+  // Camera motion
+  const cameraParts: string[] = [];
+  if (scene.cameraMovement?.trim()) {
+    cameraParts.push(scene.cameraMovement.trim());
+  }
+  if (motionPrompt?.trim()) {
+    cameraParts.push(motionPrompt.trim());
+  }
+  const cameraMotion = cameraParts.join(', ') || 'Smooth stable camera';
+
+  // Shot goal override for risky scenarios
+  if (motionRisk.riskyCrossSubjectHandoff) {
+    actionLines.unshift('Keep the anchored product stable, only perform a subtle reframe within visible content');
+  }
+
+  // End frame alignment
+  const hasEndFrame = !!scene.requiresEndFrame && !!scene.generatedEndFrame?.url;
+  if (hasEndFrame) {
+    actionLines.push('Match the provided end frame composition at the end of the shot');
+  }
+
+  // Identity line
+  const identityLine = buildVideoIdentityLine(scopedRefs);
+
+  // Seedance does NOT support negative prompts — omit entirely
+  return buildVideoPromptFromParts({
+    cameraMotion,
+    actionLines,
+    identityLine: identityLine || undefined,
+    // No negatives for Seedance
   });
 }

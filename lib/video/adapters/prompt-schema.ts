@@ -1,47 +1,61 @@
-export interface PromptSchemaInput {
-  heading: string;
-  shotGoal: string;
-  cameraPlan: string;
-  subjectState: string[];
-  identityInvariants: string[];
-  hardNegatives: string[];
-}
-
-function normalizeLine(line: string): string {
-  return line.replace(/\s+/g, ' ').trim();
+export interface VideoPromptInput {
+  /** Camera movement instruction */
+  cameraMotion: string;
+  /** Subject action / what changes in the scene */
+  actionLines: string[];
+  /** Identity preservation (concise, one sentence) */
+  identityLine?: string;
+  /** Hard negatives — Kling only; Seedance ignores this */
+  negatives?: string[];
 }
 
 function dedupe(lines: string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
-
   for (const raw of lines) {
-    const line = normalizeLine(raw);
+    const line = raw.replace(/\s+/g, ' ').trim();
     if (!line) continue;
     const key = line.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     result.push(line);
   }
-
   return result;
 }
 
-function section(title: string, lines: string[]): string {
-  const cleaned = dedupe(lines);
-  if (!cleaned.length) return '';
-  return `${title}: ${cleaned.join(' ')}`;
-}
+/**
+ * Build a natural-language video prompt from structured input.
+ *
+ * Output order follows both Kling and Seedance best practices:
+ *   Action/Motion → Camera → Identity constraint
+ *
+ * No section labels (like "Subject state:") — just clean sentences.
+ */
+export function buildVideoPromptFromParts(input: VideoPromptInput): string {
+  const parts: string[] = [];
 
-export function buildPromptFromSchema(input: PromptSchemaInput): string {
-  const parts = [
-    input.heading,
-    section('Shot goal', [input.shotGoal]),
-    section('Camera motion', [input.cameraPlan]),
-    section('Subject state', input.subjectState),
-    section('Identity invariants', input.identityInvariants),
-    section('Hard negatives', input.hardNegatives),
-  ].filter(Boolean);
+  // 1. Action / motion lines first (highest priority for both models)
+  const actions = dedupe(input.actionLines);
+  if (actions.length > 0) {
+    parts.push(actions.join('. '));
+  }
 
-  return parts.join(' ');
+  // 2. Camera motion
+  const camera = input.cameraMotion.replace(/\s+/g, ' ').trim();
+  if (camera) {
+    parts.push(camera);
+  }
+
+  // 3. Identity preservation (concise)
+  if (input.identityLine?.trim()) {
+    parts.push(input.identityLine.trim());
+  }
+
+  // 4. Negatives (Kling only)
+  const negatives = dedupe(input.negatives || []);
+  if (negatives.length > 0) {
+    parts.push(`Avoid: ${negatives.join(', ')}`);
+  }
+
+  return parts.join('. ').replace(/\.+\s*\./g, '.').replace(/\s+/g, ' ').trim();
 }

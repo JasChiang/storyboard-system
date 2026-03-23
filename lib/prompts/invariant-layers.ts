@@ -105,6 +105,32 @@ export function buildImageIdentityConstraintLines(
   return uniqueLines(lines);
 }
 
+/**
+ * Build a single concise identity line for video prompts.
+ * Video models (Kling/Seedance) work best with minimal constraint text
+ * since the start frame image already defines identity visually.
+ */
+export function buildVideoIdentityLine(refs: ProjectReference[]): string {
+  if (!refs.length) return '';
+  const hasCharacter = refs.some(r => r.type === 'character');
+  const hasProduct = refs.some(r => r.type === 'product');
+  const hasLockText = refs.some(r => r.ipProfile?.textLogoPolicy === 'lock_visible_text');
+
+  const parts: string[] = [];
+  if (hasCharacter && hasProduct) {
+    parts.push('Keep character and product identity unchanged throughout');
+  } else if (hasCharacter) {
+    parts.push('Keep character identity unchanged throughout');
+  } else if (hasProduct) {
+    parts.push('Keep product identity and geometry unchanged throughout');
+  }
+  if (hasLockText) {
+    parts.push('preserve all visible text and logos exactly');
+  }
+  return parts.join('; ');
+}
+
+/** @deprecated Use buildVideoIdentityLine for direct video prompts. This verbose version is kept for the Gemini AI composer. */
 export function buildVideoIdentityInvariantLines(refs: ProjectReference[]): string[] {
   const consolidatedRules = buildConsolidatedReferenceRules(refs);
   const hasLockVisibleText = refs.some((ref) => ref.ipProfile?.textLogoPolicy === 'lock_visible_text');
