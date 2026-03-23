@@ -110,9 +110,6 @@ export function buildCompositionSection(
     else if (/medium|中景/.test(cam)) parts.push('medium shot');
     else if (/top|overhead|俯視|頂視/.test(cam)) parts.push('top-down angle');
     else if (/low angle|仰角/.test(cam)) parts.push('low angle');
-    else if (!isMostlyCJK(scene.cameraMovement)) {
-      parts.push(`framing inspired by: ${clip(scene.cameraMovement.trim(), 60)}`);
-    }
   }
 
   // Start composition
