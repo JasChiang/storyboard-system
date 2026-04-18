@@ -1,6 +1,7 @@
 import type { ProjectReference, Scene, StyleProfile, ViewIntent, WorkflowStage } from '@/lib/types/storyboard';
 import { buildStaticFrameDescription, sanitizeStaticFrameDescription } from '@/lib/prompts/image-static';
 import { normalizePromptParts } from '@/lib/prompts/prompt-normalizer';
+import { buildNegativePromptGuards } from '@/lib/prompts/consistency';
 import {
   buildStyleSection,
   buildSubjectSection,
@@ -38,6 +39,10 @@ export interface ImagePromptInput {
   continuityMemoryLines?: string[];
   hasPreviousEndFrame?: boolean;
 
+  // Consistency guards
+  /** When true, append drift-prevention negatives for any character/product refs. Default: true. */
+  includeNegativeGuards?: boolean;
+
   // Limits
   maxChars?: number;
 }
@@ -63,6 +68,7 @@ export function buildImageGenerationPrompt(input: ImagePromptInput): string {
     styleProfile,
     continuityMemoryLines = [],
     hasPreviousEndFrame = false,
+    includeNegativeGuards = true,
     maxChars = 4000,
   } = input;
 
@@ -97,6 +103,15 @@ export function buildImageGenerationPrompt(input: ImagePromptInput): string {
     // Style references
     const styleRefLine = buildStyleReferenceSection(styleRefs);
     if (styleRefLine) parts.push(styleRefLine);
+
+    // Drift-prevention negatives (delta mode also benefits)
+    if (includeNegativeGuards) {
+      const guards = buildNegativePromptGuards(contentRefs, {
+        userNegatives: styleProfile?.negativePrompt,
+        includeStaticFrame: true,
+      });
+      if (guards) parts.push(`Avoid: ${guards}.`);
+    }
 
     return normalizePromptParts(parts, maxChars);
   }
@@ -150,6 +165,15 @@ export function buildImageGenerationPrompt(input: ImagePromptInput): string {
 
   // ── Static frame reminder ─────────────────────────────────────────────
   parts.push('Generate one static frame only.');
+
+  // ── Drift-prevention negatives (last so they don't dilute subject tokens) ─
+  if (includeNegativeGuards) {
+    const guards = buildNegativePromptGuards(contentRefs, {
+      userNegatives: styleProfile?.negativePrompt,
+      includeStaticFrame: true,
+    });
+    if (guards) parts.push(`Avoid: ${guards}.`);
+  }
 
   return normalizePromptParts(parts, maxChars);
 }

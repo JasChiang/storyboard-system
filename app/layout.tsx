@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
 import { FalConfigProvider } from "@/components/providers/FalConfigProvider";
+import { DialogRoot } from "@/components/ui/DialogRoot";
 import { cn } from "@/lib/utils";
 
 const manrope = Manrope({
@@ -30,6 +31,7 @@ export default function RootLayout({
         </div>
         <FalConfigProvider>
           {children}
+          <DialogRoot />
         </FalConfigProvider>
       </body>
     </html>
