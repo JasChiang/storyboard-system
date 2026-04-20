@@ -76,6 +76,9 @@ export interface Scene {
   qaStatus?: 'pass' | 'warn' | 'block';
   qaIssues?: string[];
 
+  // 影片生成模式（影響圖片頁是否還需要尾幀）
+  videoMode?: 'standard' | 'reference'; // 'reference' = 使用 Kling O1 ref / Seedance 2.0 ref，從多張角色/商品參考圖生成影片，無需尾幀
+
   // Smart Keyframing (智慧首尾幀)
   requiresEndFrame?: boolean;    // AI 判斷是否需要生成尾幀
   endFrameDescription?: string;  // 尾幀的靜態畫面描述

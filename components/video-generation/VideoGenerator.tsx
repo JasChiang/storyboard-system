@@ -34,6 +34,7 @@ interface VideoGeneratorProps {
     sharedAnchors?: string[];
     sharedContinuityDirectives?: SharedContinuityDirective[];
     onPromptDraftChanged?: (draftPrompt: string, notes?: string) => void;
+    onVideoModeChanged?: (mode: 'standard' | 'reference') => void;
     onVideoGenerated: (
         videoUrl: string,
         motionPrompt: string,
@@ -73,6 +74,7 @@ export function VideoGenerator({
     sharedAnchors = [],
     sharedContinuityDirectives = [],
     onPromptDraftChanged,
+    onVideoModeChanged,
     onVideoGenerated
 }: VideoGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
@@ -184,6 +186,23 @@ export function VideoGenerator({
         setAiComposedPrompt(scene.videoPromptDraft || '');
         setAiComposeNotes(scene.videoPromptDraftNotes || '');
     }, [scene.id, scene.motionPrompt, scene.cameraMovement, scene.videoPromptDraft, scene.videoPromptDraftNotes]);
+
+    // 切換場景時，若該場景已記錄 videoMode='reference'，則套用對應 ref variant
+    useEffect(() => {
+        if (scene.videoMode !== 'reference') return;
+        setKlingVariant((prev) => (KLING_REFERENCE_VARIANTS.includes(prev) ? prev : 'o1_ref'));
+        setSeedanceVariant((prev) => (SEEDANCE_REFERENCE_VARIANTS.includes(prev) ? prev : 'v20_ref'));
+    }, [scene.id, scene.videoMode]);
+
+    // 將目前的 reference / standard 模式回寫到場景，讓圖片頁可同步隱藏尾幀流程
+    useEffect(() => {
+        if (!onVideoModeChanged) return;
+        const nextMode: 'standard' | 'reference' = isReferenceMode ? 'reference' : 'standard';
+        const persistedMode = scene.videoMode || 'standard';
+        if (nextMode !== persistedMode) {
+            onVideoModeChanged(nextMode);
+        }
+    }, [isReferenceMode, scene.videoMode, onVideoModeChanged]);
 
     useEffect(() => {
         const profileWithDefaults = scopedRefs.find((ref) => ref.ipProfile?.generationDefaults);

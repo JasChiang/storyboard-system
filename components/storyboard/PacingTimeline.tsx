@@ -61,10 +61,16 @@ export function PacingTimeline({ scenes, onSceneClick }: PacingTimelineProps) {
                 `${scene.duration}秒`,
                 scene.hookScore ? `Hook: ${scene.hookScore}/5` : '',
                 scene.retentionRisk ? `流失風險: ${scene.retentionRisk}` : '',
+                scene.videoMode === 'reference' ? '影片模式: Reference' : '',
                 scene.hookScoreReason || '',
               ].filter(Boolean).join('\n')}
             >
               {widthPct > 8 ? `#${scene.sceneNumber}` : ''}
+              {scene.videoMode === 'reference' && (
+                <span className="absolute right-0.5 top-0.5 inline-flex items-center justify-center rounded bg-indigo-700/85 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-white">
+                  Ref
+                </span>
+              )}
             </button>
           );
         })}

@@ -950,7 +950,11 @@ export default function ImagesPage() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         場景 {scene.sceneNumber}
                       </p>
-                      {scene.requiresEndFrame && (
+                      {scene.videoMode === 'reference' ? (
+                        <span className="text-xs px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded">
+                          Ref→影片
+                        </span>
+                      ) : scene.requiresEndFrame && (
                         <span className="text-xs px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
                           首尾幀
                         </span>

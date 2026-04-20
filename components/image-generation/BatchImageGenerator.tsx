@@ -67,7 +67,7 @@ export function BatchImageGenerator({
 
     const scenesToProcess = scenes.filter((scene) => {
         const needsStartFrame = !scene.generatedImage?.url;
-        const wantsEndFrame = scene.requiresEndFrame || !!scene.endFrameDescription;
+        const wantsEndFrame = scene.videoMode !== 'reference' && (scene.requiresEndFrame || !!scene.endFrameDescription);
         const needsEndFrame = wantsEndFrame && !scene.generatedEndFrame?.url;
         return needsStartFrame || needsEndFrame;
     });
@@ -234,7 +234,7 @@ export function BatchImageGenerator({
     };
 
     const generateSceneImages = async (scene: Scene, continuationContext?: ContinuationContext) => {
-        const wantsEndFrame = scene.requiresEndFrame || !!scene.endFrameDescription;
+        const wantsEndFrame = scene.videoMode !== 'reference' && (scene.requiresEndFrame || !!scene.endFrameDescription);
         const continuationUrl = continuationContext?.url;
         // Continuation scenes always need their start frame refreshed with the latest previous scene source.
         const needsStartFrame = !scene.generatedImage?.url || Boolean(continuationUrl);
@@ -417,7 +417,7 @@ export function BatchImageGenerator({
                         }
                         : undefined;
 
-                    const wantsEndFrame = scene.requiresEndFrame || !!scene.endFrameDescription;
+                    const wantsEndFrame = scene.videoMode !== 'reference' && (scene.requiresEndFrame || !!scene.endFrameDescription);
                     const needsStartFrame = !scene.generatedImage?.url || Boolean(continuationUrl);
                     const needsEndFrame = wantsEndFrame && !scene.generatedEndFrame?.url;
                     const startFrameBlockers = needsStartFrame
@@ -594,7 +594,11 @@ export function BatchImageGenerator({
                                             <p className="text-sm font-medium text-slate-900 dark:text-slate-200">
                                                 場景 {scene.sceneNumber}
                                             </p>
-                                            {scene.requiresEndFrame && (
+                                            {scene.videoMode === 'reference' ? (
+                                                <span className="text-xs px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded">
+                                                    Ref→影片（無需尾幀）
+                                                </span>
+                                            ) : scene.requiresEndFrame && (
                                                 <span className="text-xs px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
                                                     首尾幀
                                                 </span>

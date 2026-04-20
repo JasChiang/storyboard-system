@@ -295,6 +295,22 @@ export default function VideosPage() {
     });
   };
 
+  const handleVideoModeChanged = (sceneId: string, mode: 'standard' | 'reference') => {
+    if (!currentProject?.storyboard) return;
+
+    const updatedScenes = currentProject.storyboard.scenes.map(scene =>
+      scene.id === sceneId ? { ...scene, videoMode: mode } : scene
+    );
+
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        scenes: updatedScenes,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  };
+
   const handleVideoPromptDraftChanged = (
     sceneId: string,
     draftPrompt: string,
@@ -641,6 +657,7 @@ export default function VideosPage() {
                     onPromptDraftChanged={(draftPrompt, notes) =>
                       handleVideoPromptDraftChanged(selectedScene.id, draftPrompt, notes)
                     }
+                    onVideoModeChanged={(mode) => handleVideoModeChanged(selectedScene.id, mode)}
                     onVideoGenerated={(url, motionPrompt, composedPrompt, model, durationSeconds) =>
                       handleVideoGenerated(selectedScene.id, url, motionPrompt, composedPrompt, model, durationSeconds)
                     }

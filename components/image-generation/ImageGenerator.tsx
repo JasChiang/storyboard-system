@@ -641,7 +641,11 @@ export function ImageGenerator({
                         </h3>
                         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{scene.description}</p>
                     </div>
-                    {scene.requiresEndFrame && (
+                    {scene.videoMode === 'reference' ? (
+                        <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                            Reference→影片（無需尾幀）
+                        </span>
+                    ) : scene.requiresEndFrame && (
                         <span className="rounded-full bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
                             首尾幀模式
                         </span>
@@ -702,7 +706,7 @@ export function ImageGenerator({
                 />
             </div>
 
-            {!scene.requiresEndFrame && (
+            {!scene.requiresEndFrame && scene.videoMode !== 'reference' && (
                 <div className="surface-soft space-y-2 p-4">
                     <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                         <input
