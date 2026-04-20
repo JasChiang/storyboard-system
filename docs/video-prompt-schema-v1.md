@@ -48,8 +48,16 @@ Implemented in:
   - `https://ai.google.dev/gemini-api/docs/image-generation?hl=zh-tw#prompt-guide`
 - Kling 2.6 I2V API:
   - `https://fal.ai/models/fal-ai/kling-video/v2.6/pro/image-to-video/api`
+- Kling O1 Reference-to-Video（多張角色參考）：
+  - `https://fal.ai/models/fal-ai/kling-video/o1/reference-to-video`
+- Kling O1 I2V（起+尾幀）:
+  - `https://fal.ai/models/fal-ai/kling-video/o1/image-to-video`
 - Seedance 1.5 I2V API:
   - `https://fal.ai/models/fal-ai/bytedance/seedance/v1.5/pro/image-to-video/api`
+- Seedance 2.0 I2V（起+尾幀）:
+  - `https://fal.ai/models/bytedance/seedance-2.0/image-to-video`
+- Seedance 2.0 Reference-to-Video（最多 9 張參考）:
+  - `https://fal.ai/models/bytedance/seedance-2.0/reference-to-video`
 - Seedance Prompt Guide:
   - `https://fal.ai/learn/devs/seedance-1-5-prompt-guide`
 - Kling Motion Control Guide:

@@ -14,24 +14,24 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
     const models = [
         {
             id: 'kling' as const,
-            name: 'Kling 2.6 Pro',
-            description: '高品質影片生成，支援 5-10 秒',
+            name: 'Kling',
+            description: '電影感運鏡、起尾幀轉場、O1 多參考一致性',
             icon: Film,
-            features: ['5 或 10 秒', '16:9 / 9:16 / 1:1', '可選音效'],
+            features: ['2.6 Pro / O3 / O1', '起尾幀或多參考', '5 或 10 秒'],
         },
         {
             id: 'seedance' as const,
-            name: 'Seedance 1.5 Pro',
-            description: 'ByteDance 影片生成，支援 4-12 秒',
+            name: 'Seedance',
+            description: 'ByteDance 家族，2.0 reference-to-video 最多 9 張參考',
             icon: Wand2,
-            features: ['4-12 秒', '可選音訊', '快速生成'],
+            features: ['1.5 / 2.0 / 2.0 Ref', '4-12 秒', '480p / 720p / 1080p'],
         },
     ];
 
     return (
         <div className="space-y-3">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                選擇影片生成模型
+                選擇影片生成模型家族
             </label>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

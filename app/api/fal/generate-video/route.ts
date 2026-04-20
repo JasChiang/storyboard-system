@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateVideoKling, generateVideoSeedance } from '@/lib/api/fal';
+import {
+    generateVideoKling,
+    generateVideoSeedance,
+    type KlingVariant,
+    type SeedanceVariant,
+} from '@/lib/api/fal';
 import { enforceVideoPromptPolicy } from '@/lib/video/prompt-policy';
+
+const KLING_VARIANTS: readonly KlingVariant[] = ['v26', 'o3', 'o1', 'o1_ref'] as const;
+const SEEDANCE_VARIANTS: readonly SeedanceVariant[] = ['v15', 'v20', 'v20_ref', 'v20_fast_ref'] as const;
+
+function parseReferenceImageUrls(value: unknown): string[] | undefined {
+    if (!Array.isArray(value)) return undefined;
+    const urls = value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    return urls.length > 0 ? urls : undefined;
+}
 
 export async function POST(request: NextRequest) {
     try {
@@ -13,8 +30,11 @@ export async function POST(request: NextRequest) {
             aspectRatio,
             enableSound,
             enableAudio,
-            endImageUrl,  // 尾幀圖片 URL
+            endImageUrl,
             klingVariant,
+            seedanceVariant,
+            referenceImageUrls,
+            resolution,
         } = body;
         const apiKey = process.env.FAL_API_KEY;
 
@@ -27,10 +47,33 @@ export async function POST(request: NextRequest) {
 
         const normalizedImageUrl = typeof imageUrl === 'string' ? imageUrl.trim() : '';
         const normalizedPrompt = typeof prompt === 'string' ? prompt.trim() : '';
+        const resolvedKlingVariant: KlingVariant = KLING_VARIANTS.includes(klingVariant)
+            ? (klingVariant as KlingVariant)
+            : 'v26';
+        const resolvedSeedanceVariant: SeedanceVariant = SEEDANCE_VARIANTS.includes(seedanceVariant)
+            ? (seedanceVariant as SeedanceVariant)
+            : 'v15';
+        const isKlingReferenceMode = model === 'kling' && resolvedKlingVariant === 'o1_ref';
+        const isSeedanceReferenceMode = model === 'seedance'
+            && (resolvedSeedanceVariant === 'v20_ref' || resolvedSeedanceVariant === 'v20_fast_ref');
+        const isReferenceMode = isKlingReferenceMode || isSeedanceReferenceMode;
+        const parsedReferenceUrls = parseReferenceImageUrls(referenceImageUrls);
 
-        if (!normalizedImageUrl || !normalizedPrompt || !model) {
+        if (!normalizedPrompt || !model) {
             return NextResponse.json(
                 { error: 'Missing required fields' },
+                { status: 400 }
+            );
+        }
+        if (!isReferenceMode && !normalizedImageUrl) {
+            return NextResponse.json(
+                { error: 'Missing required start image URL' },
+                { status: 400 }
+            );
+        }
+        if (isReferenceMode && !parsedReferenceUrls) {
+            return NextResponse.json(
+                { error: 'reference-to-video 模式需要至少一張 referenceImageUrls' },
                 { status: 400 }
             );
         }
@@ -47,7 +90,10 @@ export async function POST(request: NextRequest) {
 
         console.log('[generate-video] request summary:', {
             model,
-            klingVariant: model === 'kling' ? klingVariant : undefined,
+            klingVariant: model === 'kling' ? resolvedKlingVariant : undefined,
+            seedanceVariant: model === 'seedance' ? resolvedSeedanceVariant : undefined,
+            referenceMode: isReferenceMode,
+            referenceCount: parsedReferenceUrls?.length || 0,
             hasStartImage: Boolean(normalizedImageUrl),
             hasEndImage: Boolean(normalizedEndImageUrl),
             duration,
@@ -68,14 +114,14 @@ export async function POST(request: NextRequest) {
                     duration: duration as 5 | 10,
                     aspectRatio: aspectRatio as '16:9' | '9:16' | '1:1',
                     enableSound,
-                    endImageUrl: normalizedEndImageUrl,  // 傳遞尾幀圖片 URL
-                    variant: klingVariant === 'o3' ? 'o3' : 'v26',
+                    endImageUrl: normalizedEndImageUrl,
+                    variant: resolvedKlingVariant,
+                    referenceImageUrls: parsedReferenceUrls,
                 },
                 { apiKey }
             );
             endpoint = result.endpoint || '';
         } else if (model === 'seedance') {
-            const { aspectRatio, resolution } = body;
             result = await generateVideoSeedance(
                 normalizedImageUrl,
                 safePrompt,
@@ -84,11 +130,13 @@ export async function POST(request: NextRequest) {
                     aspectRatio,
                     resolution,
                     enableAudio,
-                    endImageUrl: normalizedEndImageUrl,  // 傳遞尾幀圖片 URL
+                    endImageUrl: normalizedEndImageUrl,
+                    variant: resolvedSeedanceVariant,
+                    referenceImageUrls: parsedReferenceUrls,
                 },
                 { apiKey }
             );
-            endpoint = process.env.FAL_VIDEO_SEEDANCE_MODEL || 'fal-ai/bytedance/seedance/v1.5/pro/image-to-video';
+            endpoint = result.endpoint || '';
         } else {
             return NextResponse.json(
                 { error: 'Invalid model type' },

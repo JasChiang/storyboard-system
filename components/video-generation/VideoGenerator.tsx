@@ -16,7 +16,13 @@ import { formatBlockersForAlert, getSceneGenerationBlockers } from '@/lib/workfl
 
 type VideoModel = 'kling' | 'seedance';
 type PromptMode = 'deterministic' | 'ai_composer';
-type KlingVariant = 'v26' | 'o3';
+type KlingVariant = 'v26' | 'o3' | 'o1' | 'o1_ref';
+type SeedanceVariant = 'v15' | 'v20' | 'v20_ref' | 'v20_fast_ref';
+
+const KLING_REFERENCE_VARIANTS: ReadonlyArray<KlingVariant> = ['o1_ref'];
+const SEEDANCE_REFERENCE_VARIANTS: ReadonlyArray<SeedanceVariant> = ['v20_ref', 'v20_fast_ref'];
+const KLING_REF_MAX = 7;
+const SEEDANCE_REF_MAX = 9;
 
 interface VideoGeneratorProps {
     projectId: string;
@@ -91,6 +97,7 @@ export function VideoGenerator({
     const [klingVariant, setKlingVariant] = useState<KlingVariant>('v26');
 
     // Seedance 選項
+    const [seedanceVariant, setSeedanceVariant] = useState<SeedanceVariant>('v20');
     const [seedanceDuration, setSeedanceDuration] = useState(5);
     const [seedanceAspectRatio, setSeedanceAspectRatio] = useState<'21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16'>('16:9');
     const [seedanceResolution, setSeedanceResolution] = useState<'480p' | '720p' | '1080p'>('720p');
@@ -132,6 +139,23 @@ export function VideoGenerator({
         () => splitSceneReferencesByPriority(sceneReferenceScope, contentRefs, { fallbackPolicy: 'non_environment' }).all,
         [sceneReferenceScope, contentRefs]
     );
+    const isKlingReferenceMode = model === 'kling' && KLING_REFERENCE_VARIANTS.includes(klingVariant);
+    const isSeedanceReferenceMode = model === 'seedance' && SEEDANCE_REFERENCE_VARIANTS.includes(seedanceVariant);
+    const isReferenceMode = isKlingReferenceMode || isSeedanceReferenceMode;
+    const referenceImageUrls = useMemo(() => {
+        if (!isReferenceMode) return [] as string[];
+        const max = isKlingReferenceMode ? KLING_REF_MAX : SEEDANCE_REF_MAX;
+        const seen = new Set<string>();
+        const collected: string[] = [];
+        for (const ref of scopedRefs) {
+            const url = ref.url?.trim();
+            if (!url || seen.has(url)) continue;
+            seen.add(url);
+            collected.push(url);
+            if (collected.length >= max) break;
+        }
+        return collected;
+    }, [isReferenceMode, isKlingReferenceMode, scopedRefs]);
     const continuityMemoryLines = useMemo(
         () => buildContinuityMemoryLines(scene, allScenes, {
             stage: 'video',
@@ -253,9 +277,13 @@ export function VideoGenerator({
             return;
         }
 
-        // 檢查是否有生成的圖片
-        if (!effectiveStartFrameUrl) {
+        // image-to-video 模式需要起幀；reference-to-video 模式只需要參考圖
+        if (!isReferenceMode && !effectiveStartFrameUrl) {
             alert('請先生成場景圖片');
+            return;
+        }
+        if (isReferenceMode && referenceImageUrls.length === 0) {
+            alert('Reference-to-video 模式需要至少一張專案參考圖（角色/商品）');
             return;
         }
 
@@ -296,9 +324,9 @@ export function VideoGenerator({
                 }),
             });
             // Continuation 轉場邏輯：如果有 previousEndFrameUrl，使用它作為起始幀
-            // 這讓影片生成能從前一場景的結束畫面開始，實現無縫銜接
-            const startImageUrl = effectiveStartFrameUrl;
-            if (!startImageUrl || !startImageUrl.trim()) {
+            // reference-to-video 模式 start frame 可選；image-to-video 模式必須
+            const startImageUrl = effectiveStartFrameUrl || '';
+            if (!isReferenceMode && !startImageUrl.trim()) {
                 throw new Error('Missing start image URL');
             }
 
@@ -311,12 +339,14 @@ export function VideoGenerator({
                     prompt: composedPrompt,
                     model,
                     klingVariant: model === 'kling' ? klingVariant : undefined,
+                    seedanceVariant: model === 'seedance' ? seedanceVariant : undefined,
                     duration: model === 'kling' ? klingDuration : seedanceDuration,
                     aspectRatio: model === 'kling' ? klingAspectRatio : seedanceAspectRatio,
                     resolution: model === 'seedance' ? seedanceResolution : undefined,
                     enableSound: model === 'kling' ? klingEnableSound : undefined,
                     enableAudio: model === 'seedance' ? seedanceEnableAudio : undefined,
-                    endImageUrl: shouldUseEndFrameForVideo ? scene.generatedEndFrame?.url : undefined,
+                    endImageUrl: !isReferenceMode && shouldUseEndFrameForVideo ? scene.generatedEndFrame?.url : undefined,
+                    referenceImageUrls: isReferenceMode ? referenceImageUrls : undefined,
                 }),
             });
 
@@ -458,7 +488,9 @@ export function VideoGenerator({
     const hasStartFrame = Boolean(effectiveStartFrameUrl);
     const hasEndFrame = Boolean(endFrameUrl);
     const hasGeneratedVideo = Boolean(scene.generatedVideo?.url);
-    const canGenerateVideo = Boolean(effectiveStartFrameUrl);
+    const canGenerateVideo = isReferenceMode
+        ? referenceImageUrls.length > 0
+        : Boolean(effectiveStartFrameUrl);
 
     return (
         <div className="space-y-5">
@@ -482,13 +514,13 @@ export function VideoGenerator({
                     <div className="surface-inset px-3 py-2">
                         <p className="text-xs text-slate-500">首幀</p>
                         <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                            {hasStartFrame ? '已就緒' : '尚未就緒'}
+                            {hasStartFrame ? '已就緒' : isReferenceMode ? '不使用' : '尚未就緒'}
                         </p>
                     </div>
                     <div className="surface-inset px-3 py-2">
                         <p className="text-xs text-slate-500">尾幀</p>
                         <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                            {shouldUseEndFrameForVideo ? (hasEndFrame ? '已就緒' : '尚未就緒') : '不使用'}
+                            {isReferenceMode ? '不使用' : shouldUseEndFrameForVideo ? (hasEndFrame ? '已就緒' : '尚未就緒') : '不使用'}
                         </p>
                     </div>
                     <div className="surface-inset px-3 py-2">
@@ -496,7 +528,19 @@ export function VideoGenerator({
                         <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                             {isGenerationLocked ? '生成中' : hasGeneratedVideo ? '已完成' : '尚未生成'}
                         </p>
+                    </div>
                 </div>
+
+                {isReferenceMode && (
+                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-900/20 dark:text-indigo-300">
+                        <p className="font-medium">
+                            Reference-to-Video 模式（{referenceImageUrls.length}/{isKlingReferenceMode ? KLING_REF_MAX : SEEDANCE_REF_MAX} 張參考圖）
+                        </p>
+                        <p className="mt-0.5 text-[11px] opacity-80">
+                            自動帶入場景相關的角色 / 商品參考圖，不使用起幀 / 尾幀
+                        </p>
+                    </div>
+                )}
 
                 {generationBlockers.length > 0 && (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
@@ -506,7 +550,6 @@ export function VideoGenerator({
                         ))}
                     </div>
                 )}
-            </div>
 
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -676,8 +719,10 @@ export function VideoGenerator({
                                             disabled={isGenerationLocked}
                                             className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
-                                            <option value="v26">Kling 2.6 Pro</option>
-                                            <option value="o3">Kling O3 Pro</option>
+                                            <option value="v26">Kling 2.6 Pro（起+尾幀）</option>
+                                            <option value="o3">Kling O3 Pro（起+尾幀）</option>
+                                            <option value="o1">Kling O1（起+尾幀）</option>
+                                            <option value="o1_ref">Kling O1 Reference（多參考圖，最多 7 張）</option>
                                         </select>
                                     </div>
 
@@ -726,6 +771,23 @@ export function VideoGenerator({
                             </>
                         ) : (
                             <>
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                        Seedance 版本
+                                    </label>
+                                    <select
+                                        value={seedanceVariant}
+                                        onChange={(event) => setSeedanceVariant(event.target.value as SeedanceVariant)}
+                                        disabled={isGenerationLocked}
+                                        className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
+                                    >
+                                        <option value="v20">Seedance 2.0（起+尾幀）</option>
+                                        <option value="v20_ref">Seedance 2.0 Reference（多參考圖，最多 9 張）</option>
+                                        <option value="v20_fast_ref">Seedance 2.0 Fast Reference（快速低成本版）</option>
+                                        <option value="v15">Seedance 1.5 Pro（legacy）</option>
+                                    </select>
+                                </div>
+
                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
