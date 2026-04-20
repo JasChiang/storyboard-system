@@ -714,6 +714,54 @@ export function VideoGenerator({
                 />
             </div>
 
+            <div className="surface-panel space-y-3 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">影片生成模式</h4>
+                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                            可用參考圖：{scopedRefs.filter((ref) => Boolean(ref.url?.trim())).length} 張（角色 / 商品）
+                        </p>
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        目前：{isReferenceMode ? 'Reference 模式' : '起始幀模式'}
+                    </span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (model === 'kling') setKlingVariant('v26');
+                            if (model === 'seedance') setSeedanceVariant('v20');
+                        }}
+                        disabled={isGenerationLocked}
+                        className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                            !isReferenceMode
+                                ? 'border-primary/40 bg-primary/10 text-foreground'
+                                : 'border-slate-200 bg-white/60 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:bg-slate-800'
+                        }`}
+                    >
+                        <p className="font-medium">起始幀模式（image-to-video）</p>
+                        <p className="mt-0.5 opacity-80">使用本場景已生成的首幀（必要時搭配尾幀）來生成影片，主體直接沿用畫面構圖。</p>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (model === 'kling') setKlingVariant('o1_ref');
+                            if (model === 'seedance') setSeedanceVariant('v20_ref');
+                        }}
+                        disabled={isGenerationLocked}
+                        className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                            isReferenceMode
+                                ? 'border-indigo-300 bg-indigo-50 text-indigo-800 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200'
+                                : 'border-slate-200 bg-white/60 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:bg-slate-800'
+                        }`}
+                    >
+                        <p className="font-medium">Reference 模式（多參考圖→影片）推薦</p>
+                        <p className="mt-0.5 opacity-80">直接帶入角色 / 商品參考圖（最多 {model === 'kling' ? KLING_REF_MAX : SEEDANCE_REF_MAX} 張），對保持角色臉部、商品 logo 一致最有效，且不再需要尾幀。</p>
+                    </button>
+                </div>
+            </div>
+
             <div className="space-y-3">
                 <button
                     onClick={() => setShowAdvanced(!showAdvanced)}

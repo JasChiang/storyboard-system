@@ -678,6 +678,15 @@ export function ImageGenerator({
                     </div>
                 </div>
 
+                {scene.videoMode === 'reference' && (
+                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-900/20 dark:text-indigo-300">
+                        <p className="font-medium">此場景使用 Reference→影片模式</p>
+                        <p className="mt-0.5 opacity-80">
+                            影片頁將直接使用角色 / 商品參考圖生成，不需要尾幀。本頁仍可生成首幀作為靜態預覽 / 其他用途。
+                        </p>
+                    </div>
+                )}
+
                 {activeGenerationBlockers.length > 0 && (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
                         <p className="font-medium">生成已阻擋，請先修正：</p>
