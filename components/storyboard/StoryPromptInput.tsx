@@ -5,7 +5,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { TEMPLATES } from '@/lib/prompts';
-import { Loader2, Plus, Users } from 'lucide-react';
+import { estimatePromptBudget, formatBudgetLabel } from '@/lib/prompts/prompt-budget';
+import { detectTemplateConflicts } from '@/lib/storyboard/template-conflict';
+import { AlertTriangle, Info, Loader2, Plus, Users } from 'lucide-react';
 import { ProjectReferenceUploader } from './ProjectReferenceUploader';
 import { CharacterSelector } from '@/components/character-library/CharacterSelector';
 import { CharacterCreateDialog } from '@/components/character-library/CharacterCreateDialog';
@@ -127,6 +129,26 @@ export function StoryPromptInput({
   }));
   const selectedTemplate = TEMPLATES.find(t => t.id === templateId);
   const useManualSceneCount = targetDurationSec === '60';
+
+  const manualSceneCountValue = useMemo(() => {
+    const parsed = Number(manualSceneCount);
+    return manualSceneCount.trim().length > 0 && Number.isFinite(parsed) ? parsed : undefined;
+  }, [manualSceneCount]);
+
+  const templateWarnings = useMemo(
+    () => detectTemplateConflicts({
+      templateId,
+      targetDurationSec: Number(targetDurationSec) || 30,
+      manualSceneCount: manualSceneCountValue,
+      references,
+    }),
+    [templateId, targetDurationSec, manualSceneCountValue, references]
+  );
+
+  const promptBudget = useMemo(
+    () => estimatePromptBudget({ userPrompt: prompt, references }),
+    [prompt, references]
+  );
   const referenceTagSummary = useMemo(() => {
     const grouped = new Map<string, { label: string; count: number; hasAi: boolean }>();
 
@@ -196,6 +218,23 @@ export function StoryPromptInput({
           </div>
         )}
 
+        {templateWarnings.length > 0 && (
+          <div className="space-y-2">
+            {templateWarnings.map((warning, idx) => {
+              const Icon = warning.level === 'warn' ? AlertTriangle : Info;
+              const tone = warning.level === 'warn'
+                ? 'border-amber-300/70 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-200'
+                : 'border-sky-300/70 bg-sky-50 text-sky-800 dark:border-sky-500/30 dark:bg-sky-900/20 dark:text-sky-200';
+              return (
+                <div key={idx} className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${tone}`}>
+                  <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <p>{warning.message}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* 參考圖管理 */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -260,21 +299,35 @@ export function StoryPromptInput({
           onChange={(e) => setPrompt(e.target.value)}
         />
 
-        <Button
-          onClick={handleSubmit}
-          disabled={!prompt.trim() || isLoading}
-          className="w-full"
-          size="lg"
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-              生成中...
-            </>
-          ) : (
-            '生成分鏡腳本'
-          )}
-        </Button>
+        <div className="space-y-2">
+          <Button
+            onClick={handleSubmit}
+            disabled={!prompt.trim() || isLoading}
+            className="w-full"
+            size="lg"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                生成中...
+              </>
+            ) : (
+              '生成分鏡腳本'
+            )}
+          </Button>
+          <p
+            className={`text-center text-xs ${
+              promptBudget.level === 'danger'
+                ? 'text-red-600 dark:text-red-300'
+                : promptBudget.level === 'warn'
+                  ? 'text-amber-700 dark:text-amber-300'
+                  : 'text-muted-foreground'
+            }`}
+            title={`使用者故事 ${promptBudget.breakdown.userPrompt} 字・參考圖 ${promptBudget.breakdown.references} 字・模板約 ${promptBudget.breakdown.templateBase} 字`}
+          >
+            {formatBudgetLabel(promptBudget)}
+          </p>
+        </div>
       </div>
 
       {/* 角色庫選擇器 */}
