@@ -11,11 +11,12 @@ import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator'
 import { ImageGenerator } from '@/components/image-generation/ImageGenerator';
 import { BatchImageGenerator } from '@/components/image-generation/BatchImageGenerator';
 import { StyleProfileSelector } from '@/components/image-generation/StyleProfileSelector';
+import { ConsistencyPanel } from '@/components/consistency/ConsistencyPanel';
 import { Button } from '@/components/ui/button';
 import { DEFAULT_STYLE_PROFILE_ID, findStyleProfileById } from '@/lib/constants/style-profiles';
 import { getWorkflowProgress } from '@/lib/project/workflow';
 import { resolveContinuationSource } from '@/lib/utils/transition';
-import type { StyleProfile } from '@/lib/types/storyboard';
+import type { SceneConsistencyReport, StyleProfile } from '@/lib/types/storyboard';
 
 type WorkflowTaskStage = 'image_start' | 'image_end' | 'video';
 type WorkflowTaskStatus = 'queued' | 'running' | 'completed' | 'failed';
@@ -358,6 +359,24 @@ export default function ImagesPage() {
         updatedAt: new Date().toISOString(),
       },
       status: 'images',
+    });
+  };
+
+  const handleConsistencyReportUpdated = (sceneId: string, report: SceneConsistencyReport) => {
+    if (!currentProject?.storyboard) return;
+
+    const updatedScenes = currentProject.storyboard.scenes.map(scene =>
+      scene.id === sceneId
+        ? { ...scene, consistencyReport: report }
+        : scene
+    );
+
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        scenes: updatedScenes,
+        updatedAt: new Date().toISOString(),
+      },
     });
   };
 
@@ -809,6 +828,16 @@ export default function ImagesPage() {
                       </div>
                     </div>
                   </div>
+
+                  {selectedScene.generatedImage?.url && (
+                    <ConsistencyPanel
+                      key={`consistency-${selectedScene.id}-${selectedScene.generatedImage.url}`}
+                      scene={selectedScene}
+                      projectReferences={currentProject.storyboard?.projectReferences || []}
+                      frameType={selectedScene.consistencyReport?.frameType === 'end' ? 'end' : 'start'}
+                      onReportUpdated={(report) => handleConsistencyReportUpdated(selectedScene.id, report)}
+                    />
+                  )}
 
                   {selectedScene.qaStatus !== 'block' && (
                     <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">

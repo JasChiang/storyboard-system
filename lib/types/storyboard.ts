@@ -72,6 +72,7 @@ export interface Scene {
   charactersUsed?: string[];     // 本場景使用的角色標記（如 <Alice>）
   productsUsed?: string[];       // 本場景使用的商品標記（如 <iPhone>）
   consistencyWarnings?: string[]; // 一致性檢查警告（由生成後校驗標記）
+  consistencyReport?: SceneConsistencyReport; // 機器比對生成幀與參考圖的結構化報告
   qaStatus?: 'pass' | 'warn' | 'block';
   qaIssues?: string[];
 
@@ -267,6 +268,29 @@ export interface PromptTemplate {
   description: string;
   systemPrompt: string;
   outputSchema: Record<string, unknown>;  // JSON Schema
+}
+
+// 場景一致性檢驗（機器比對生成幀 vs 參考圖）
+export type ConsistencySeverity = 'pass' | 'warn' | 'fail';
+
+export interface SceneConsistencyEntityCheck {
+  tag: string;                 // 例 <Alice> / <iPhone>
+  entityType: 'character' | 'product';
+  referenceAngle?: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
+  score: number;               // 0-1，1 為完全一致
+  severity: ConsistencySeverity;
+  differences: string[];       // 具體差異描述（顏色、髮型、logo 等）
+  matched: string[];           // 確認一致的關鍵特徵
+}
+
+export interface SceneConsistencyReport {
+  checkedAt: string;           // ISO
+  modelUsed: string;           // 使用的 vision 模型
+  frameType: 'start' | 'end';  // 對照的是首幀還是尾幀
+  overall: ConsistencySeverity;
+  overallScore: number;        // 0-1
+  entityChecks: SceneConsistencyEntityCheck[];
+  notes?: string;
 }
 
 // 場景創意評估

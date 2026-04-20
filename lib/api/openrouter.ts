@@ -825,6 +825,67 @@ ${JSON.stringify(sceneSchema, null, 2)}
 /**
  * 分析參考圖片
  */
+/**
+ * Multi-image vision call. First URL is the subject image, the rest are
+ * reference images aligned with the prompt. All images should be fetchable
+ * URLs or data URIs.
+ */
+export async function callVisionMulti(
+  imageUrls: string[],
+  prompt: string,
+  config: OpenRouterConfig & { model?: string }
+): Promise<{ content: string; model: string }> {
+  const model = config.model || process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.0-flash-001';
+  const imageContent = imageUrls
+    .filter((url) => typeof url === 'string' && url.trim())
+    .map((url) => ({ type: 'image_url' as const, image_url: { url } }));
+
+  if (imageContent.length === 0) {
+    throw new Error('callVisionMulti requires at least one image URL');
+  }
+
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': getAppOrigin(),
+      'X-Title': 'Storyboard System',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            ...imageContent,
+          ],
+        },
+      ],
+      response_format: { type: 'json_object' },
+    }),
+  });
+
+  if (!response.ok) {
+    let errorDetails = '';
+    try {
+      const errorData = await response.json();
+      errorDetails = errorData.error?.message || JSON.stringify(errorData);
+    } catch {
+      errorDetails = await response.text();
+    }
+    throw new Error(`OpenRouter vision error (${response.status}): ${errorDetails}`);
+  }
+
+  const data: OpenRouterResponse = await response.json();
+  const content = data.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error('OpenRouter vision 沒有回傳內容');
+  }
+  return { content, model };
+}
+
 export async function analyzeReferenceImage(
   base64Image: string,
   prompt: string,
