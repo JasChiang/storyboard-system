@@ -9,8 +9,10 @@ import { useProjectStore } from '@/stores/project-store';
 import { ProjectStepNavigator } from '@/components/project/ProjectStepNavigator';
 import { getWorkflowProgress } from '@/lib/project/workflow';
 import { VideoGenerator } from '@/components/video-generation/VideoGenerator';
+import { LibrarySyncNotice } from '@/components/characters/LibrarySyncNotice';
 import { Button } from '@/components/ui/button';
 import { resolveContinuationSource } from '@/lib/utils/transition';
+import type { ProjectReference } from '@/lib/types/storyboard';
 
 type VideoModel = 'kling' | 'seedance';
 
@@ -295,6 +297,17 @@ export default function VideosPage() {
     });
   };
 
+  const handleReferencesReplaced = (nextReferences: ProjectReference[]) => {
+    if (!currentProject?.storyboard) return;
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        projectReferences: nextReferences,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  };
+
   const handleVideoModeChanged = (sceneId: string, mode: 'standard' | 'reference') => {
     if (!currentProject?.storyboard) return;
 
@@ -431,6 +444,12 @@ export default function VideosPage() {
       />
 
       <main className="container mx-auto px-4 py-8">
+        <div className="mb-4">
+          <LibrarySyncNotice
+            projectReferences={currentProject.storyboard?.projectReferences || []}
+            onReferencesReplaced={handleReferencesReplaced}
+          />
+        </div>
         <div className="mb-6 grid gap-3 sm:grid-cols-3">
           <div className="surface-soft p-4">
             <p className="text-kicker">Image Ready</p>

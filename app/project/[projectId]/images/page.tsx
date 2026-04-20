@@ -12,11 +12,12 @@ import { ImageGenerator } from '@/components/image-generation/ImageGenerator';
 import { BatchImageGenerator } from '@/components/image-generation/BatchImageGenerator';
 import { StyleProfileSelector } from '@/components/image-generation/StyleProfileSelector';
 import { ConsistencyPanel } from '@/components/consistency/ConsistencyPanel';
+import { LibrarySyncNotice } from '@/components/characters/LibrarySyncNotice';
 import { Button } from '@/components/ui/button';
 import { DEFAULT_STYLE_PROFILE_ID, findStyleProfileById } from '@/lib/constants/style-profiles';
 import { getWorkflowProgress } from '@/lib/project/workflow';
 import { resolveContinuationSource } from '@/lib/utils/transition';
-import type { SceneConsistencyReport, StyleProfile } from '@/lib/types/storyboard';
+import type { ProjectReference, SceneConsistencyReport, StyleProfile } from '@/lib/types/storyboard';
 
 type WorkflowTaskStage = 'image_start' | 'image_end' | 'video';
 type WorkflowTaskStatus = 'queued' | 'running' | 'completed' | 'failed';
@@ -362,6 +363,17 @@ export default function ImagesPage() {
     });
   };
 
+  const handleReferencesReplaced = (nextReferences: ProjectReference[]) => {
+    if (!currentProject?.storyboard) return;
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        projectReferences: nextReferences,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  };
+
   const handleConsistencyReportUpdated = (sceneId: string, report: SceneConsistencyReport) => {
     if (!currentProject?.storyboard) return;
 
@@ -567,6 +579,10 @@ export default function ImagesPage() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto mb-6 space-y-3">
+          <LibrarySyncNotice
+            projectReferences={currentProject.storyboard?.projectReferences || []}
+            onReferencesReplaced={handleReferencesReplaced}
+          />
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="surface-soft p-4">
               <p className="text-kicker">Image Progress</p>
