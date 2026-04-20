@@ -63,34 +63,20 @@ describe('generation guard', () => {
     expect(blockers.some((blocker) => blocker.code === 'missing_start_frame')).toBe(false);
   });
 
-  it('blocks when referencePlan requests a missing view angle', () => {
+  it('does not block when referencePlan requests a view angle not uploaded', () => {
     const blockers = getSceneGenerationBlockers({
       stage: 'image_start',
       scene: {
         qaStatus: 'pass',
         qaIssues: [],
         requiredReferences: [],
-        referencePlan: [
-          {
-            tag: '<Alice>',
-            entityType: 'character',
-            requestedView: 'back',
-            required: true,
-          },
-        ],
-        referenceViewHints: {
-          '<Alice>': 'back',
-        },
-        viewIntent: 'back',
-        charactersUsed: ['<Alice>'],
-        productsUsed: [],
       },
       projectReferences: [
-        { name: 'Alice', type: 'character', angle: 'front' },
-        { name: 'Alice', type: 'character', angle: 'side' },
+        { name: 'Alice', type: 'character' },
       ],
     });
 
-    expect(blockers.some((blocker) => blocker.code === 'reference_plan_view_not_found')).toBe(true);
+    // Missing view angles should not block — the model can infer from available refs
+    expect(blockers.some((blocker) => blocker.code === 'reference_plan_view_not_found')).toBe(false);
   });
 });
