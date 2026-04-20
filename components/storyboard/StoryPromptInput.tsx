@@ -146,8 +146,12 @@ export function StoryPromptInput({
   );
 
   const promptBudget = useMemo(
-    () => estimatePromptBudget({ userPrompt: prompt, references }),
-    [prompt, references]
+    () => estimatePromptBudget({
+      userPrompt: prompt,
+      references,
+      templateBaseChars: selectedTemplate?.systemPrompt.length,
+    }),
+    [prompt, references, selectedTemplate?.systemPrompt.length]
   );
   const referenceTagSummary = useMemo(() => {
     const grouped = new Map<string, { label: string; count: number; hasAi: boolean }>();
