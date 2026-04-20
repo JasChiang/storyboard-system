@@ -2,12 +2,18 @@ import type { PromptTemplate, ProjectReference } from '@/lib/types/storyboard';
 import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 
+export interface BuildSystemPromptOptions {
+    targetDurationSec?: number;
+    targetSceneCount?: number;
+}
+
 /**
  * 根據參考圖資訊構建增強的系統提示詞
  */
 export function buildSystemPrompt(
     template: PromptTemplate,
-    references?: ProjectReference[]
+    references?: ProjectReference[],
+    options?: BuildSystemPromptOptions
 ): string {
     let prompt = template.systemPrompt;
 
@@ -175,24 +181,17 @@ ${productRefs.map(r => `   - 使用 \`<${r.name || '商品'}>\` 指代該商品`
 `;
     }
 
-    prompt += `\n\n## 觀看吸引力規則
-
-- 第一個場景必須具備明確 Hook，讓觀眾只看第一幀也會想繼續看。
-- 第一個場景應可作為縮圖：主體清楚、焦點單一、對比明確。
-- 每個場景只能承擔一個主要任務：hook / setup / escalate / reveal / payoff / CTA 其中之一。
-- 若相鄰場景資訊重複，後一場必須提升衝突、資訊新意、情緒落差或視覺奇觀。
-- 中段至少要出現一次 escalation、twist 或 reveal，避免平鋪直敘。
-- 最後一場必須有 payoff、CTA 或值得分享/重看的瞬間。
-- 每個場景需輸出 \`hookScore\`（1-5）、\`hookScoreReason\`、\`retentionRisk\`（low/medium/high）。
-- 若第一場 hookScore 低於 4，請直接重寫第一場，直到具備明確吸引力。`;
-
-    prompt += `\n\n## 輸出結構契約（所有模板皆適用）
-- 每個場景必須輸出 \`sceneIntent\`、\`startComposition\`、\`subjectMotion\`、\`continuityLock\`、\`shotIntent\`、\`continuityAnchor\`、\`viewIntent\`、\`referencePlan\`
-- 每個場景必須輸出 \`charactersUsed\`、\`productsUsed\`、\`changeFromPrev\`、\`requiredReferences\`
-- 每個場景必須輸出 \`hookScore\`、\`hookScoreReason\`、\`retentionRisk\`
-- \`requiredReferences\` 僅可使用 \`<名稱>\` 標記；若本鏡頭沒有必用參考，請輸出空陣列 \`[]\`
-- 每個場景必須輸出 \`transitionToNext\` 物件（至少包含 \`type\` 與 \`reason\`）
-- 若 \`requiresEndFrame = false\`，\`endFrameDescription\` 與 \`endFrameDelta\` 必須為空字串`;
+    // 使用者指定的時長/場景數動態提示
+    const hints: string[] = [];
+    if (typeof options?.targetDurationSec === 'number' && options.targetDurationSec > 0) {
+        hints.push(`- 目標總時長：約 ${options.targetDurationSec} 秒（請讓所有 scene 的 duration 總和接近此值）`);
+    }
+    if (typeof options?.targetSceneCount === 'number' && options.targetSceneCount > 0) {
+        hints.push(`- 使用者指定場景數：${options.targetSceneCount} 場（請嚴格遵守，不得增減）`);
+    }
+    if (hints.length > 0) {
+        prompt += `\n\n## 本次生成參數（使用者指定）\n${hints.join('\n')}`;
+    }
 
     return prompt;
 }

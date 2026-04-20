@@ -602,7 +602,10 @@ export async function generateStoryboardScript(
     });
 
   // 使用 prompt builder 構建包含參考圖資訊的系統提示詞
-  const systemPrompt = buildSystemPrompt(template, references);
+  const systemPrompt = buildSystemPrompt(template, references, {
+    targetDurationSec: hasTargetDuration ? targetDurationSec : undefined,
+    targetSceneCount,
+  });
   const outputSchemaText = JSON.stringify(template.outputSchema, null, 2);
   const firstPassParsed = await callJsonCompletion([
     {
