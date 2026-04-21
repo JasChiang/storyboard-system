@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { Storyboard } from '@/lib/types/storyboard';
 import { sqliteProjectRepo } from '@/lib/db/sqlite';
 import { autoFixStoryboardBlockingIssues } from '@/lib/workflow/qa-autofix';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
     };
 
     if (!body.projectId || !body.storyboard) {
-      return NextResponse.json({ error: 'projectId and storyboard are required' }, { status: 400 });
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'projectId and storyboard are required');
     }
 
     const result = await autoFixStoryboardBlockingIssues({
@@ -32,14 +33,11 @@ export async function POST(req: NextRequest) {
       status: 'storyboard',
     });
     if (!updatedProject) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      return apiError(API_ERROR_CODES.NOT_FOUND, 'Project not found');
     }
 
     return NextResponse.json({ data: result });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to auto-fix storyboard' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to auto-fix storyboard' });
   }
 }

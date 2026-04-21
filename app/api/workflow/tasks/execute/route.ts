@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkQueueStatus, getImageResult, getVideoResult } from '@/lib/api/fal';
 import { sqliteTaskRepo } from '@/lib/db/sqlite';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 
@@ -17,27 +18,27 @@ export async function POST(req: NextRequest) {
 
     const taskId = typeof body.taskId === 'string' ? body.taskId.trim() : '';
     if (!taskId) {
-      return NextResponse.json({ error: 'taskId is required' }, { status: 400 });
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'taskId is required');
     }
 
     const task = sqliteTaskRepo.getById(taskId);
     if (!task) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+      return apiError(API_ERROR_CODES.NOT_FOUND, 'Task not found');
     }
 
     if (task.status !== 'running') {
-      return NextResponse.json({ error: 'Task must be in running state before execution' }, { status: 400 });
+      return apiError(API_ERROR_CODES.INVALID_INPUT, 'Task must be in running state before execution');
     }
 
     const apiKey = process.env.FAL_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'Missing FAL_API_KEY on server' }, { status: 500 });
+      return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, 'Missing FAL_API_KEY on server');
     }
 
     const requestId = typeof task.metadata?.requestId === 'string' ? task.metadata.requestId : '';
     const endpoint = typeof task.metadata?.endpoint === 'string' ? task.metadata.endpoint : '';
     if (!requestId || !endpoint) {
-      return NextResponse.json({ error: 'Task metadata missing requestId/endpoint' }, { status: 400 });
+      return apiError(API_ERROR_CODES.INVALID_INPUT, 'Task metadata missing requestId/endpoint');
     }
 
     const timeoutMs = Math.max(5_000, Math.min(20 * 60_000, Number(body.timeoutMs || 8 * 60_000)));
@@ -92,11 +93,8 @@ export async function POST(req: NextRequest) {
       await wait(Math.min(15_000, 2_500 + attempts * 500));
     }
 
-    return NextResponse.json({ error: 'Task execution timeout' }, { status: 504 });
+    return apiError(API_ERROR_CODES.UPSTREAM_TIMEOUT, 'Task execution timeout');
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to execute task' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to execute task' });
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sqliteTaskRepo, type GenerationTaskStage } from '@/lib/db/sqlite';
+import { apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 
@@ -28,9 +29,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ data: task });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to claim task' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to claim task' });
   }
 }

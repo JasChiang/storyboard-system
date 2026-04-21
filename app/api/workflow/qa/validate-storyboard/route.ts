@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { Storyboard } from '@/lib/types/storyboard';
 import { validateStoryboard } from '@/lib/workflow/storyboard-qa';
 import { sqliteQaRepo } from '@/lib/db/sqlite';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 
@@ -9,7 +10,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as { projectId?: string; storyboard?: Storyboard };
     if (!body.projectId || !body.storyboard) {
-      return NextResponse.json({ error: 'projectId and storyboard are required' }, { status: 400 });
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'projectId and storyboard are required');
     }
 
     const result = validateStoryboard(body.storyboard);
@@ -25,9 +26,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ data: { ...report, sceneReports: result.sceneReports } });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to validate storyboard' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to validate storyboard' });
   }
 }

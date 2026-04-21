@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sqliteTaskRepo, sqliteGenerationRunRepo, type GenerationTask, type GenerationTaskStage, type GenerationTaskStatus } from '@/lib/db/sqlite';
 import { checkQueueStatus, getImageResult, getVideoResult } from '@/lib/api/fal';
 import { hashPrompt } from '@/lib/workflow/run-logger';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 const MISSING_RECOVERY_METADATA_TIMEOUT_MS = 45_000;
@@ -140,7 +141,7 @@ export async function GET(req: NextRequest) {
   try {
     const projectId = req.nextUrl.searchParams.get('projectId');
     if (!projectId) {
-      return NextResponse.json({ error: 'projectId is required' }, { status: 400 });
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'projectId is required');
     }
 
     const statuses = parseCsvParam(req.nextUrl.searchParams.get('status')) as GenerationTaskStatus[];
@@ -161,10 +162,7 @@ export async function GET(req: NextRequest) {
       recovery: recoverySummary,
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch tasks' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to fetch tasks' });
   }
 }
 
@@ -173,7 +171,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as Partial<GenerationTask>;
 
     if (!body.projectId || !body.stage) {
-      return NextResponse.json({ error: 'projectId and stage are required' }, { status: 400 });
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'projectId and stage are required');
     }
 
     const created = sqliteTaskRepo.create({
@@ -214,9 +212,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ data: created }, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create task' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to create task' });
   }
 }
