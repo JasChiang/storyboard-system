@@ -6,6 +6,7 @@ import {
     type ConsistencyCheckEntity,
     type ConsistencyCheckRequest,
 } from '@/lib/workflow/consistency-validator';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const maxDuration = 60;
 
@@ -41,10 +42,7 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-            return NextResponse.json(
-                { error: 'Client-provided apiKey is not allowed' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
         }
 
         const frameImageUrl = typeof body.frameImageUrl === 'string' ? body.frameImageUrl.trim() : '';
@@ -54,15 +52,15 @@ export async function POST(request: NextRequest) {
         const entities = sanitizeEntities(body.entities);
 
         if (!frameImageUrl) {
-            return NextResponse.json({ error: '缺少 frameImageUrl' }, { status: 400 });
+            return apiError(API_ERROR_CODES.MISSING_FIELD, '缺少 frameImageUrl');
         }
         if (entities.length === 0) {
-            return NextResponse.json({ error: '缺少可比對的 entities（至少一個含參考圖的角色或商品）' }, { status: 400 });
+            return apiError(API_ERROR_CODES.MISSING_FIELD, '缺少可比對的 entities（至少一個含參考圖的角色或商品）');
         }
 
         const apiKey = process.env.OPENROUTER_API_KEY;
         if (!apiKey) {
-            return NextResponse.json({ error: '伺服器未設定 OPENROUTER_API_KEY' }, { status: 500 });
+            return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, '伺服器未設定 OPENROUTER_API_KEY');
         }
 
         const checkRequest: ConsistencyCheckRequest = {
@@ -82,9 +80,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ report });
     } catch (error) {
         console.error('check-consistency error:', error);
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : '一致性檢驗失敗' },
-            { status: 500 }
-        );
+        return apiErrorFromUnknown(error, { message: '一致性檢驗失敗' });
     }
 }

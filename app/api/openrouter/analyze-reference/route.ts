@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { analyzeReferenceImage } from '@/lib/api/openrouter';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const maxDuration = 60;
 
@@ -20,28 +21,19 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-            return NextResponse.json(
-                { success: false, error: 'Client-provided apiKey is not allowed' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
         }
 
         const { imageBase64, angle, type, userNote } = body;
 
         if (!imageBase64) {
-            return NextResponse.json(
-                { success: false, error: '缺少圖片資料' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.MISSING_FIELD, '缺少圖片資料');
         }
 
         const apiKey = process.env.OPENROUTER_API_KEY;
 
         if (!apiKey) {
-            return NextResponse.json(
-                { success: false, error: '伺服器未設定 OPENROUTER_API_KEY' },
-                { status: 500 }
-            );
+            return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, '伺服器未設定 OPENROUTER_API_KEY');
         }
 
         // Build angle-specific prompt
@@ -69,13 +61,7 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('Reference analysis error:', error);
-        return NextResponse.json(
-            {
-                success: false,
-                error: error instanceof Error ? error.message : '分析失敗',
-            },
-            { status: 500 }
-        );
+        return apiErrorFromUnknown(error, { message: '分析失敗' });
     }
 }
 

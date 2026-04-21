@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_APP_ORIGIN = 'http://localhost:3000';
@@ -47,20 +48,17 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-            return NextResponse.json(
-                { error: 'Client-provided apiKey is not allowed' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
         }
 
         const { imageUrl, type } = body;
         const apiKey = process.env.OPENROUTER_API_KEY;
 
-        if (!imageUrl || !type || !apiKey) {
-            return NextResponse.json(
-                { error: '缺少必要參數，或伺服器未設定 OPENROUTER_API_KEY' },
-                { status: 400 }
-            );
+        if (!imageUrl || !type) {
+            return apiError(API_ERROR_CODES.MISSING_FIELD, '缺少必要參數 imageUrl/type');
+        }
+        if (!apiKey) {
+            return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, '伺服器未設定 OPENROUTER_API_KEY');
         }
 
         const prompt = PROMPTS_BY_TYPE[type] || PROMPTS_BY_TYPE.character;
@@ -110,9 +108,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ description });
     } catch (error) {
         console.error('Describe image error:', error);
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : '描述失敗' },
-            { status: 500 }
-        );
+        return apiErrorFromUnknown(error, { message: '描述失敗' });
     }
 }

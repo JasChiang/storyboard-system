@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const maxDuration = 60;
 
@@ -10,29 +11,20 @@ export const maxDuration = 60;
 export async function POST(request: NextRequest) {
     try {
         if (request.headers.get('X-Gemini-API-Key')) {
-            return NextResponse.json(
-                { success: false, error: 'Client-provided apiKey is not allowed' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
         }
 
         const body = await request.json();
         const { imageBase64, angle, type, userNote } = body;
 
         if (!imageBase64) {
-            return NextResponse.json(
-                { success: false, error: '缺少圖片資料' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.MISSING_FIELD, '缺少圖片資料');
         }
 
         const apiKey = process.env.GEMINI_API_KEY;
 
         if (!apiKey) {
-            return NextResponse.json(
-                { success: false, error: '伺服器未設定 GEMINI_API_KEY' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, '伺服器未設定 GEMINI_API_KEY');
         }
 
         const ai = new GoogleGenAI({ apiKey });
@@ -72,10 +64,7 @@ export async function POST(request: NextRequest) {
         const description = result.text;
 
         if (!description) {
-            return NextResponse.json(
-                { success: false, error: 'Gemini 未返回描述' },
-                { status: 500 }
-            );
+            return apiError(API_ERROR_CODES.UPSTREAM_ERROR, 'Gemini 未返回描述');
         }
 
         return NextResponse.json({
@@ -88,13 +77,7 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('Reference analysis error:', error);
-        return NextResponse.json(
-            {
-                success: false,
-                error: error instanceof Error ? error.message : '分析失敗',
-            },
-            { status: 500 }
-        );
+        return apiErrorFromUnknown(error, { message: '分析失敗' });
     }
 }
 

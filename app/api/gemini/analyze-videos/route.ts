@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { analyzeVideosForEditing } from '@/lib/api/gemini';
 import type { UploadedFile } from '@/lib/api/gemini';
 import type { Storyboard } from '@/lib/types/storyboard';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export async function POST(request: NextRequest) {
     try {
@@ -10,19 +11,16 @@ export async function POST(request: NextRequest) {
             storyboard: Storyboard;
         };
         if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-            return NextResponse.json(
-                { error: 'Client-provided apiKey is not allowed' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
         }
         const { uploadedFiles, storyboard } = body;
         const apiKey = process.env.GEMINI_API_KEY;
 
-        if (!uploadedFiles || !storyboard || !apiKey) {
-            return NextResponse.json(
-                { error: 'Missing required fields (uploadedFiles, storyboard) or server GEMINI_API_KEY is not set' },
-                { status: 400 }
-            );
+        if (!uploadedFiles || !storyboard) {
+            return apiError(API_ERROR_CODES.MISSING_FIELD, 'Missing required fields: uploadedFiles, storyboard');
+        }
+        if (!apiKey) {
+            return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, 'Server GEMINI_API_KEY is not set');
         }
 
         // 調試日誌：記錄傳遞給 Gemini 的影片資訊
@@ -55,9 +53,6 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('❌ Analyze videos error:', error);
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Unknown error' },
-            { status: 500 }
-        );
+        return apiErrorFromUnknown(error, { message: 'Analyze videos failed' });
     }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { composeImagePromptWithGemini } from '@/lib/api/gemini';
 import type { ProjectReference, Scene } from '@/lib/types/storyboard';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,25 +18,16 @@ export async function POST(request: NextRequest) {
     };
 
     if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-      return NextResponse.json(
-        { error: 'Client-provided apiKey is not allowed' },
-        { status: 400 }
-      );
+      return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json(
-        { error: 'Server GEMINI_API_KEY is not set' },
-        { status: 500 }
-      );
+      return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, 'Server GEMINI_API_KEY is not set');
     }
 
     if (!body?.scene) {
-      return NextResponse.json(
-        { error: 'Missing required field: scene' },
-        { status: 400 }
-      );
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'Missing required field: scene');
     }
 
     const result = await composeImagePromptWithGemini(
@@ -56,9 +48,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, ...result });
   } catch (error) {
     console.error('Compose image prompt error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Compose image prompt failed' });
   }
 }

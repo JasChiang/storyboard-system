@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadVideoToGemini } from '@/lib/api/gemini';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData();
         if (formData.has('apiKey')) {
-            return NextResponse.json(
-                { error: 'Client-provided apiKey is not allowed' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
         }
 
         const file = formData.get('video') as File;
         const apiKey = process.env.GEMINI_API_KEY;
 
-        if (!file || !apiKey) {
-            return NextResponse.json(
-                { error: 'Missing required field (video) or server GEMINI_API_KEY is not set' },
-                { status: 400 }
-            );
+        if (!file) {
+            return apiError(API_ERROR_CODES.MISSING_FIELD, 'Missing required field: video');
+        }
+        if (!apiKey) {
+            return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, 'Server GEMINI_API_KEY is not set');
         }
 
         const uploadedFile = await uploadVideoToGemini(file, { apiKey });
@@ -29,9 +27,6 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('Upload video error:', error);
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Unknown error' },
-            { status: 500 }
-        );
+        return apiErrorFromUnknown(error, { message: 'Upload video failed' });
     }
 }
