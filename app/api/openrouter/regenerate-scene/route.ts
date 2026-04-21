@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { regenerateStoryboardScene } from '@/lib/api/openrouter';
 import { TEMPLATES } from '@/lib/prompts';
 import type { ProjectReference, Scene } from '@/lib/types/storyboard';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,12 +15,15 @@ export async function POST(request: NextRequest) {
       scenesContext: Array<Pick<Scene, 'sceneNumber' | 'description' | 'cameraMovement' | 'dialogue' | 'duration'>>;
     };
     if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-      return NextResponse.json({ error: 'Client-provided apiKey is not allowed' }, { status: 400 });
+      return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
     }
 
     const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey || !body.userPrompt || !body.scene?.sceneNumber) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!apiKey) {
+      return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, '伺服器未設定 OPENROUTER_API_KEY');
+    }
+    if (!body.userPrompt || !body.scene?.sceneNumber) {
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'Missing required fields: userPrompt, scene.sceneNumber');
     }
 
     const template = TEMPLATES.find((t) => t.id === body.templateId) || TEMPLATES[0];
@@ -43,9 +47,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: { scene: merged } });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Regenerate scene failed' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Regenerate scene failed' });
   }
 }

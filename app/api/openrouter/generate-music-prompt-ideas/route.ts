@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { suggestElevenLabsMusicPrompts } from '@/lib/api/openrouter';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 interface MusicPromptIdeaSceneInput {
   sceneNumber: number;
@@ -43,18 +44,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as MusicPromptIdeasRequestBody & { apiKey?: string };
     if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-      return NextResponse.json(
-        { error: 'Client-provided apiKey is not allowed' },
-        { status: 400 }
-      );
+      return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
     }
 
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
-      return NextResponse.json(
-        { error: 'OPENROUTER_API_KEY not configured' },
-        { status: 500 }
-      );
+      return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, '伺服器未設定 OPENROUTER_API_KEY');
     }
 
     const scenes = Array.isArray(body.scenes)
@@ -62,10 +57,7 @@ export async function POST(request: NextRequest) {
       : [];
 
     if (scenes.length === 0) {
-      return NextResponse.json(
-        { error: 'scenes is required' },
-        { status: 400 }
-      );
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'scenes is required');
     }
 
     const ideas = await suggestElevenLabsMusicPrompts(
@@ -82,9 +74,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: { ideas } });
   } catch (error) {
     console.error('Generate music prompt ideas error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Generate music prompt ideas failed' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Generate music prompt ideas failed' });
   }
 }
