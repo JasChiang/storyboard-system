@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateStoryboardScript } from '@/lib/api/openrouter';
 import { TEMPLATES } from '@/lib/prompts';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-      return NextResponse.json(
-        { error: 'Client-provided apiKey is not allowed' },
-        { status: 400 }
-      );
+      return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
     }
 
     const { userPrompt, templateId, references } = body;
@@ -22,18 +20,15 @@ export async function POST(request: NextRequest) {
       : undefined;
     const apiKey = process.env.OPENROUTER_API_KEY;
 
-    // 驗證必要參數
-    if (!userPrompt || !apiKey) {
-      return NextResponse.json(
-        { error: '缺少必要參數（userPrompt）或伺服器未設定 OPENROUTER_API_KEY' },
-        { status: 400 }
-      );
+    if (!userPrompt) {
+      return apiError(API_ERROR_CODES.MISSING_FIELD, '缺少必要參數 userPrompt');
+    }
+    if (!apiKey) {
+      return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, '伺服器未設定 OPENROUTER_API_KEY');
     }
 
-    // 取得模板
     const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
 
-    // 調用 OpenRouter API（傳遞 references）
     const result = await generateStoryboardScript(
       userPrompt,
       template,
@@ -49,12 +44,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('分鏡腳本生成錯誤:', error);
-    return NextResponse.json(
-      {
-        error: '生成失敗',
-        details: error instanceof Error ? error.message : '未知錯誤'
-      },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: '生成失敗' });
   }
 }

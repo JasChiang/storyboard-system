@@ -76,8 +76,12 @@ export default function StoryboardPage() {
       if (!response.ok) {
         let errorMessage = '生成失敗';
         try {
-          const error = await response.json();
-          errorMessage = error.details || error.error || '生成失敗';
+          const payload = await response.json();
+          if (payload?.error && typeof payload.error === 'object' && 'message' in payload.error) {
+            errorMessage = payload.error.message || '生成失敗';
+          } else {
+            errorMessage = payload?.details || payload?.error || '生成失敗';
+          }
         } catch {
           const text = await response.text();
           errorMessage = text || `請求失敗 (${response.status})`;

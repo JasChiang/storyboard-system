@@ -1,30 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { reviewStoryboardCreativity } from '@/lib/api/openrouter';
 import type { Scene } from '@/lib/types/storyboard';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: 'OPENROUTER_API_KEY not configured' }, { status: 500 });
+    return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, '伺服器未設定 OPENROUTER_API_KEY');
   }
 
   let body: { scenes?: Scene[] };
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return apiError(API_ERROR_CODES.INVALID_INPUT, 'Invalid JSON body');
   }
 
   const { scenes } = body;
   if (!Array.isArray(scenes) || scenes.length === 0) {
-    return NextResponse.json({ error: 'scenes array is required' }, { status: 400 });
+    return apiError(API_ERROR_CODES.MISSING_FIELD, 'scenes array is required');
   }
 
   try {
     const review = await reviewStoryboardCreativity(scenes, { apiKey });
     return NextResponse.json({ success: true, data: review });
   } catch (error) {
-    const message = error instanceof Error ? error.message : '創意評估失敗';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return apiErrorFromUnknown(error, { message: '創意評估失敗' });
   }
 }
