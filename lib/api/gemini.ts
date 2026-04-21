@@ -4,6 +4,7 @@ import { EditingSuggestion } from '../types/project';
 import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
 import { getReferenceTag } from '@/lib/references/scene-references';
+import { withGeminiUsageLogging } from './llm-usage';
 
 export interface GeminiConfig {
   apiKey: string;
@@ -250,18 +251,21 @@ export async function analyzeVideosForEditing(
     const prompt = buildEditingAnalysisPrompt(storyboard, uploadedFiles);
 
     // 使用新 SDK 的 models API
-    const result = await ai.models.generateContent({
-      model: modelName,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            ...processedFiles,
-            { text: prompt }
-          ]
-        }
-      ],
-    });
+    const result = await withGeminiUsageLogging(
+      { model: modelName, purpose: 'editing_analysis' },
+      () => ai.models.generateContent({
+        model: modelName,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              ...processedFiles,
+              { text: prompt }
+            ]
+          }
+        ],
+      })
+    );
 
     const responseText = result.text || '';
     return parseEditingSuggestion(responseText, storyboard);
@@ -369,21 +373,24 @@ ${modelSpecificRule}
       : [],
   };
 
-  const result = await ai.models.generateContent({
-    model: modelName,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: VIDEO_PROMPT_COMPOSER_RESPONSE_SCHEMA,
-    },
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          { text: `${systemPrompt}\n\nInput JSON:\n${JSON.stringify(userPayload, null, 2)}` },
-        ],
+  const result = await withGeminiUsageLogging(
+    { model: modelName, purpose: 'video_prompt_composer' },
+    () => ai.models.generateContent({
+      model: modelName,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: VIDEO_PROMPT_COMPOSER_RESPONSE_SCHEMA,
       },
-    ],
-  });
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: `${systemPrompt}\n\nInput JSON:\n${JSON.stringify(userPayload, null, 2)}` },
+          ],
+        },
+      ],
+    })
+  );
 
   const parsed = parseGeminiJsonResponse<{
     composedPrompt?: string;
@@ -494,21 +501,24 @@ Rules:
     selectedReferences: buildSelectedReferenceContext(input.scene, input.references || []),
   };
 
-  const result = await ai.models.generateContent({
-    model: modelName,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: IMAGE_PROMPT_COMPOSER_RESPONSE_SCHEMA,
-    },
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          { text: `${systemPrompt}\n\nInput JSON:\n${JSON.stringify(userPayload, null, 2)}` },
-        ],
+  const result = await withGeminiUsageLogging(
+    { model: modelName, purpose: 'image_prompt_composer' },
+    () => ai.models.generateContent({
+      model: modelName,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: IMAGE_PROMPT_COMPOSER_RESPONSE_SCHEMA,
       },
-    ],
-  });
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: `${systemPrompt}\n\nInput JSON:\n${JSON.stringify(userPayload, null, 2)}` },
+          ],
+        },
+      ],
+    })
+  );
 
   const parsed = parseGeminiJsonResponse<{
     suggestedEndFrameDescription?: string;

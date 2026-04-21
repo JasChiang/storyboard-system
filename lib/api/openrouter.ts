@@ -6,6 +6,7 @@ import { getSceneReferencePlan } from '../references/reference-plan';
 import { normalizeTag } from '../references/scene-references';
 import { sanitizeStaticFrameDescription } from '../prompts/image-static';
 import { STORYBOARD_CONTRACT_PROMPT_BLOCK, STORYBOARD_PRODUCTION_RISKS, STORYBOARD_REFERENCE_PRIORITY_MODES, STORYBOARD_RENDER_LANES, STORYBOARD_VIEW_INTENTS } from '../prompts/storyboard-contract';
+import { estimateCostUsd, logLlmUsage } from './llm-usage';
 import type {
   ElevenLabsMusicPromptIdea,
   IndexTtsEmotionalStrengths,
@@ -82,18 +83,39 @@ async function callOpenRouterJson<T>({
   messages,
   schemaName,
   schema,
+  purpose,
 }: {
   apiKey: string;
   model: string;
   messages: OpenRouterMessage[];
   schemaName: string;
   schema: OpenRouterJsonSchema;
+  purpose: string;
 }): Promise<T> {
   const responseFormats = [
     buildStrictJsonResponseFormat(schemaName, schema),
     { type: 'json_object' as const },
   ];
   let fallbackReason = '';
+  const startedAt = Date.now();
+
+  const emitUsage = (data: OpenRouterResponse | null, success: boolean, errorMessage?: string) => {
+    const promptTokens = data?.usage?.prompt_tokens ?? 0;
+    const completionTokens = data?.usage?.completion_tokens ?? 0;
+    const totalTokens = data?.usage?.total_tokens ?? promptTokens + completionTokens;
+    logLlmUsage({
+      provider: 'openrouter',
+      model,
+      purpose,
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      estimatedCostUsd: estimateCostUsd(model, promptTokens, completionTokens),
+      durationMs: Date.now() - startedAt,
+      success,
+      errorMessage,
+    });
+  };
 
   for (let index = 0; index < responseFormats.length; index += 1) {
     const format = responseFormats[index];
@@ -119,6 +141,7 @@ async function callOpenRouterJson<T>({
         fallbackReason = errorDetails;
         continue;
       }
+      emitUsage(null, false, `HTTP ${response.status}: ${errorDetails}`);
       throw new Error(`OpenRouter API error (${response.status}): ${errorDetails}`);
     }
 
@@ -128,11 +151,17 @@ async function callOpenRouterJson<T>({
 
     const data: OpenRouterResponse = await response.json();
     const content = data.choices[0]?.message?.content;
-    if (!content) throw new Error('OpenRouter 沒有回傳任何內容');
+    if (!content) {
+      emitUsage(data, false, 'empty content');
+      throw new Error('OpenRouter 沒有回傳任何內容');
+    }
 
     try {
-      return JSON.parse(cleanJsonText(content)) as T;
+      const parsed = JSON.parse(cleanJsonText(content)) as T;
+      emitUsage(data, true);
+      return parsed;
     } catch (error) {
+      emitUsage(data, false, error instanceof Error ? error.message : 'parse error');
       throw new Error(`OpenRouter 回傳格式錯誤，無法解析 JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -592,13 +621,14 @@ export async function generateStoryboardScript(
 
   const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
   const responseSchema = template.outputSchema as OpenRouterJsonSchema;
-  const callJsonCompletion = (messages: OpenRouterMessage[]) =>
+  const callJsonCompletion = (messages: OpenRouterMessage[], purpose: string) =>
     callOpenRouterJson<unknown>({
       apiKey: config.apiKey,
       model,
       messages,
       schemaName: 'storyboard_generation_response',
       schema: responseSchema,
+      purpose,
     });
 
   // 使用 prompt builder 構建包含參考圖資訊的系統提示詞
@@ -623,7 +653,7 @@ export async function generateStoryboardScript(
 - requiresEndFrame 採保守判斷，非必要不要設 true。
 - 只輸出 JSON，不要包含其他文字。`,
     },
-  ]);
+  ], 'storyboard_first_pass');
 
   console.log('第一輪分鏡回應（前 200 字）:', JSON.stringify(firstPassParsed).substring(0, 200));
 
@@ -673,7 +703,7 @@ ${violations.length ? violations.map(v => `- Scene ${v.sceneNumber}: ${v.message
 請修正這份分鏡 JSON：
 ${JSON.stringify(firstPassParsed, null, 2)}`,
       },
-    ]);
+    ], 'storyboard_qa_pass');
     console.log('第二輪修正回應（前 200 字）:', JSON.stringify(finalParsed).substring(0, 200));
   } catch (error) {
     console.warn('第二輪修正失敗，改用第一輪結果:', error);
@@ -786,6 +816,7 @@ export async function regenerateStoryboardScene(
     apiKey: config.apiKey,
     model,
     schemaName: 'storyboard_scene_regeneration',
+    purpose: 'storyboard_scene_regeneration',
     schema: {
       type: 'object',
       properties: {
@@ -992,6 +1023,7 @@ export async function generateCharacterProfile(
     apiKey: config.apiKey,
     model,
     schemaName: 'character_profile_generation',
+    purpose: 'character_profile_generation',
     schema: {
       type: 'object',
       properties: {
@@ -1049,6 +1081,7 @@ export async function reviewStoryboardCreativity(
     apiKey: config.apiKey,
     model,
     schemaName: 'creative_review',
+    purpose: 'creative_review',
     schema: {
       type: 'object',
       properties: {
@@ -1137,6 +1170,7 @@ export async function generateHookVariants(
     apiKey: config.apiKey,
     model,
     schemaName: 'hook_variants',
+    purpose: 'hook_variants',
     schema: {
       type: 'object',
       properties: {
@@ -1294,6 +1328,7 @@ export async function planIndexTtsVoiceovers(
     apiKey: config.apiKey,
     model,
     schemaName: 'index_tts_planning',
+    purpose: 'voiceover_tts_planning',
     schema: {
       type: 'object',
       properties: {
@@ -1506,6 +1541,7 @@ export async function suggestElevenLabsMusicPrompts(
     apiKey: config.apiKey,
     model,
     schemaName: 'elevenlabs_music_prompt_ideas',
+    purpose: 'bgm_prompt_ideas',
     schema: {
       type: 'object',
       properties: {
