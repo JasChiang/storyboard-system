@@ -9,6 +9,7 @@ import { buildImageGenerationPrompt } from '@/lib/prompts/image-prompt';
 import { getReferenceTag, getSceneRequiredTags } from '@/lib/references/scene-references';
 import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
+import { translateReferencesForPrompt } from '@/lib/references/translate-for-prompt';
 import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
 import { resolveContinuationSource } from '@/lib/utils/transition';
 import { formatBlockersForAlert, getSceneGenerationBlockers } from '@/lib/workflow/generation-guard';
@@ -82,11 +83,15 @@ export function BatchImageGenerator({
         });
     };
 
-    const buildImagePrompt = (scene: Scene, isEndFrame: boolean = false) => {
+    const buildImagePrompt = (
+        scene: Scene,
+        isEndFrame: boolean = false,
+        translatedContentRefs?: ProjectReference[]
+    ) => {
         const routedSceneRefs = splitSceneReferencesByPriority(scene, contentProjectReferences, {
             fallbackPolicy: 'non_environment',
         });
-        const sceneScopedContentRefs = routedSceneRefs.all;
+        const sceneScopedContentRefs = translatedContentRefs ?? routedSceneRefs.all;
         const continuityMemoryLines = buildContinuityMemoryLines(scene, scenes, {
             stage: isEndFrame ? 'image_end' : 'image_start',
             sharedAnchors,
@@ -107,6 +112,13 @@ export function BatchImageGenerator({
         });
     };
 
+    const getTranslatedSceneRefs = async (scene: Scene): Promise<ProjectReference[]> => {
+        const routed = splitSceneReferencesByPriority(scene, contentProjectReferences, {
+            fallbackPolicy: 'non_environment',
+        });
+        return translateReferencesForPrompt(routed.all);
+    };
+
     const generateSingleImage = async (
         scene: Scene,
         isEndFrame: boolean = false,
@@ -115,7 +127,7 @@ export function BatchImageGenerator({
         const routedSceneRefs = splitSceneReferencesByPriority(scene, contentProjectReferences, {
             fallbackPolicy: 'non_environment',
         });
-        const sceneScopedContentRefs = routedSceneRefs.all;
+        const sceneScopedContentRefs = await translateReferencesForPrompt(routedSceneRefs.all);
         const requiredTags = getSceneRequiredTags(scene);
         const requiredContentRefs = sceneScopedContentRefs.filter((ref) => {
             const tag = getReferenceTag(ref);
@@ -138,7 +150,7 @@ export function BatchImageGenerator({
             includeStyleReferenceImages: !hasAnyContentRefs,
         });
         const prompt = normalizePromptParts([
-            buildImagePrompt(scene, isEndFrame),
+            buildImagePrompt(scene, isEndFrame, sceneScopedContentRefs),
             isEndFrame && options?.primaryReferenceUrl
                 ? 'Use the provided start frame as the primary continuity reference. Keep everything the same as the primary reference image. Only apply the explicit end-frame delta.'
                 : '',
@@ -250,7 +262,7 @@ export function BatchImageGenerator({
                     continuationUrl
                         ? {
                             url: continuationUrl,
-                            prompt: `${buildImagePrompt(scene, false)}. Start frame reused from previous scene ${continuationContext?.source === 'start' ? 'start frame' : 'end frame'} due to continuation transition.`,
+                            prompt: `${buildImagePrompt(scene, false, await getTranslatedSceneRefs(scene))}. Start frame reused from previous scene ${continuationContext?.source === 'start' ? 'start frame' : 'end frame'} due to continuation transition.`,
                             seed: undefined,
                         }
                         : await generateSingleImage(scene, false, {

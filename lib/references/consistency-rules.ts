@@ -31,10 +31,27 @@ function uniqueStrings(values: string[]): string[] {
   });
 }
 
+function splitIdentityCore(value?: string): string[] {
+  if (!value) return [];
+  return value
+    .split(/\n|；|;/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function mergeIdentityCore(existing?: string, incoming?: string): string | undefined {
+  const merged = uniqueStrings([
+    ...splitIdentityCore(existing),
+    ...splitIdentityCore(incoming),
+  ]);
+  if (merged.length === 0) return undefined;
+  return merged.join('; ');
+}
+
 /**
  * Consolidate multiple references (multi-angle / repeated uploads) into stable character/product rules.
  * Priority:
- * 1) first non-empty identityCore (usually user-curated)
+ * 1) merged identityCore across angles (dedup; distinct angle anchors are preserved)
  * 2) merged mustKeepFeatures
  * 3) merged guideline lines
  */
@@ -59,7 +76,7 @@ export function buildConsolidatedReferenceRules(
         type: ref.type,
         tag,
         name,
-        identityCore: ref.identityCore?.trim() || undefined,
+        identityCore: mergeIdentityCore(undefined, ref.identityCore),
         mustKeepFeatures: uniqueStrings([...(ref.mustKeepFeatures || [])]),
         guidelines: uniqueStrings(splitGuidelines(ref.guidelines)),
         structuredIdentityLock: derivedLock,
@@ -68,9 +85,7 @@ export function buildConsolidatedReferenceRules(
       continue;
     }
 
-    if (!current.identityCore && ref.identityCore?.trim()) {
-      current.identityCore = ref.identityCore.trim();
-    }
+    current.identityCore = mergeIdentityCore(current.identityCore, ref.identityCore);
 
     current.mustKeepFeatures = uniqueStrings([
       ...current.mustKeepFeatures,

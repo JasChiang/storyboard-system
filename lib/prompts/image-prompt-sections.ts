@@ -26,9 +26,12 @@ function pickBestDescription(ref: ProjectReference): string {
 }
 
 function topFeatures(ref: ProjectReference, max = 3): string[] {
+  // CJK content is translated upstream via /api/gemini/translate-references.
+  // Anything still CJK here means translation was unavailable — keep the original
+  // so the model still has the anchor (prefer partial signal over silently dropping).
   const features = (ref.mustKeepFeatures || [])
     .map(f => f.trim())
-    .filter(f => f && !isMostlyCJK(f));
+    .filter(Boolean);
   return features.slice(0, max);
 }
 
@@ -97,7 +100,7 @@ export function buildCompositionSection(
   const parts: string[] = [];
 
   // Shot intent (e.g., "highlight product texture")
-  if (scene.shotIntent?.trim() && !isMostlyCJK(scene.shotIntent)) {
+  if (scene.shotIntent?.trim()) {
     parts.push(scene.shotIntent.trim());
   }
 
@@ -113,7 +116,7 @@ export function buildCompositionSection(
   }
 
   // Start composition
-  if (scene.startComposition?.trim() && !isMostlyCJK(scene.startComposition)) {
+  if (scene.startComposition?.trim()) {
     parts.push(clip(scene.startComposition.trim(), 80));
   }
 

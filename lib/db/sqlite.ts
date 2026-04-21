@@ -76,6 +76,14 @@ function ensureDb() {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS translation_cache (
+      text_hash TEXT PRIMARY KEY,
+      source_text TEXT NOT NULL,
+      translated_text TEXT NOT NULL,
+      field_kind TEXT,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS generation_runs (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
@@ -628,6 +636,33 @@ export const sqliteQaRepo = {
       .prepare('SELECT * FROM storyboard_qa_reports WHERE project_id = ? ORDER BY created_at DESC LIMIT 1')
       .get(projectId) as DbRow | undefined;
     return row ? rowToQaReport(row) : null;
+  },
+};
+
+export const sqliteTranslationCacheRepo = {
+  get(textHash: string): string | null {
+    const conn = ensureDb();
+    const row = conn
+      .prepare('SELECT translated_text FROM translation_cache WHERE text_hash = ?')
+      .get(textHash) as { translated_text?: string } | undefined;
+    return row?.translated_text ?? null;
+  },
+
+  set(textHash: string, sourceText: string, translatedText: string, fieldKind?: string): void {
+    const conn = ensureDb();
+    conn.prepare(`
+      INSERT INTO translation_cache (text_hash, source_text, translated_text, field_kind, created_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(text_hash) DO UPDATE SET
+        translated_text = excluded.translated_text,
+        field_kind = excluded.field_kind
+    `).run(
+      textHash,
+      sourceText,
+      translatedText,
+      fieldKind || null,
+      new Date().toISOString()
+    );
   },
 };
 

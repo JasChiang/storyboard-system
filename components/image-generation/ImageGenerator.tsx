@@ -11,6 +11,7 @@ import { buildImageGenerationPrompt } from '@/lib/prompts/image-prompt';
 import { getReferenceTag, getSceneRequiredTags } from '@/lib/references/scene-references';
 import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
+import { translateReferencesForPrompt } from '@/lib/references/translate-for-prompt';
 import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
 import { formatBlockersForAlert, getSceneGenerationBlockers } from '@/lib/workflow/generation-guard';
 
@@ -156,6 +157,34 @@ export function ImageGenerator({
         return withDefault?.ipProfile?.generationDefaults?.preferredOutputAspectRatio;
     }, [sceneScopedContentRefs]);
 
+    // Translated copy of scene refs: CJK fields translated to English for prompt clarity.
+    // Original ProjectReference objects (stored in project) are never mutated.
+    const [translatedContentRefs, setTranslatedContentRefs] = useState<ProjectReference[]>(sceneScopedContentRefs);
+    const translationKey = useMemo(
+        () => sceneScopedContentRefs
+            .map((ref) => [
+                ref.id,
+                ref.identityCore || '',
+                ref.description || '',
+                (ref.mustKeepFeatures || []).join('|'),
+                ref.guidelines || '',
+            ].join('\u0001'))
+            .join('\u0002'),
+        [sceneScopedContentRefs]
+    );
+    useEffect(() => {
+        if (sceneScopedContentRefs.length === 0) {
+            setTranslatedContentRefs([]);
+            return;
+        }
+        let cancelled = false;
+        setTranslatedContentRefs(sceneScopedContentRefs);
+        translateReferencesForPrompt(sceneScopedContentRefs).then((result) => {
+            if (!cancelled) setTranslatedContentRefs(result);
+        });
+        return () => { cancelled = true; };
+    }, [translationKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
     useEffect(() => {
         const requiredOnly = contentProjectReferences
             .filter((ref) => requiredProjectRefIds.has(ref.id))
@@ -276,7 +305,7 @@ export function ImageGenerator({
             hasStartFrame: !!(isEndFrame && scene.generatedImage?.url),
             customPrompt: customPrompt || undefined,
             promptMode,
-            contentRefs: sceneScopedContentRefs,
+            contentRefs: translatedContentRefs,
             styleRefs: selectedStyleRefs,
             styleProfile,
             continuityMemoryLines,
