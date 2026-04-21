@@ -14,6 +14,7 @@ import type { Scene, Storyboard } from '@/lib/types/storyboard';
 import type { EditingSuggestion, SceneEditSuggestion } from '@/lib/types/project';
 import { buildTimelineComposition } from '@/lib/types/timeline';
 import { completeGenerationRun, startGenerationRun } from '@/lib/workflow/run-logger';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 // 設定 FFmpeg 路径
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -449,10 +450,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!scenes || scenes.length === 0) {
-      return NextResponse.json(
-        { error: '沒有可渲染的場景' },
-        { status: 400 }
-      );
+      return apiError(API_ERROR_CODES.MISSING_FIELD, '沒有可渲染的場景');
     }
 
     // 過濾出有影片或圖片的場景
@@ -465,10 +463,7 @@ export async function POST(request: NextRequest) {
     const globalTransitionDuration = Number(editingSuggestion?.transitionDuration);
 
     if (renderableScenes.length === 0) {
-      return NextResponse.json(
-        { error: '沒有可用的影片或圖片素材' },
-        { status: 400 }
-      );
+      return apiError(API_ERROR_CODES.MISSING_FIELD, '沒有可用的影片或圖片素材');
     }
 
     const storyboardForTimeline: Storyboard = {
@@ -709,12 +704,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : '渲染失敗',
-        details: error instanceof Error ? error.stack : undefined,
-      },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: '渲染失敗' });
   }
 }
