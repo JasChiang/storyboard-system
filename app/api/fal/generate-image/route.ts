@@ -5,6 +5,7 @@ import {
     resolveImageModelEndpoint,
     type ImageGenerationModel,
 } from '@/lib/constants/image-models';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export async function POST(request: NextRequest) {
     try {
@@ -13,37 +14,22 @@ export async function POST(request: NextRequest) {
         const apiKey = process.env.FAL_API_KEY;
 
         if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-            return NextResponse.json(
-                { error: 'Client-provided apiKey is not allowed' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
         }
 
         if (!prompt) {
-            return NextResponse.json(
-                { error: 'Missing required fields' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.MISSING_FIELD, 'Missing required field: prompt');
         }
         if (!apiKey) {
-            return NextResponse.json(
-                { error: 'Missing FAL_API_KEY on server' },
-                { status: 500 }
-            );
+            return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, 'Missing FAL_API_KEY on server');
         }
         if (typeof seed !== 'undefined' && (typeof seed !== 'number' || !Number.isFinite(seed))) {
-            return NextResponse.json(
-                { error: 'Invalid seed value' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.INVALID_INPUT, 'Invalid seed value');
         }
 
         const normalizedModel = typeof model === 'string' ? model.trim() as ImageGenerationModel : undefined;
         if (normalizedModel && !(normalizedModel in IMAGE_GENERATION_MODEL_ENDPOINTS)) {
-            return NextResponse.json(
-                { error: 'Invalid image model type' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.INVALID_INPUT, 'Invalid image model type');
         }
 
         const baseModel = normalizedModel
@@ -54,10 +40,7 @@ export async function POST(request: NextRequest) {
         const { endpoint: resolvedEndpoint, isEditOnlyEndpoint } = resolveImageModelEndpoint(baseModel, Boolean(hasReference));
 
         if (isEditOnlyEndpoint && !hasReference) {
-            return NextResponse.json(
-                { error: 'Selected image model requires at least one reference image' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.MISSING_FIELD, 'Selected image model requires at least one reference image');
         }
 
         const result = await generateImage(
@@ -85,9 +68,6 @@ export async function POST(request: NextRequest) {
         });
     } catch (error) {
         console.error('Generate image error:', error);
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Unknown error' },
-            { status: 500 }
-        );
+        return apiErrorFromUnknown(error, { message: 'Generate image failed' });
     }
 }

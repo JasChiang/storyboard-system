@@ -5,6 +5,7 @@ import {
   generateVoiceoverIndexTts,
 } from '@/lib/api/fal';
 import type { IndexTtsEmotionalStrengths, IndexTtsRequestInput } from '@/lib/types/audio';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 type AudioKind = 'voiceover' | 'music';
 type MusicProvider = 'elevenlabs' | 'minimax';
@@ -158,41 +159,26 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.FAL_API_KEY;
 
     if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-      return NextResponse.json(
-        { error: 'Client-provided apiKey is not allowed' },
-        { status: 400 }
-      );
+      return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
     }
 
     if (!apiKey) {
-      return NextResponse.json(
-        { error: 'Missing FAL_API_KEY on server' },
-        { status: 500 }
-      );
+      return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, 'Missing FAL_API_KEY on server');
     }
 
     if (body.kind !== 'voiceover' && body.kind !== 'music') {
-      return NextResponse.json(
-        { error: 'Invalid kind. Supported: voiceover | music' },
-        { status: 400 }
-      );
+      return apiError(API_ERROR_CODES.INVALID_INPUT, 'Invalid kind. Supported: voiceover | music');
     }
 
     if (body.kind === 'voiceover') {
       const provider = (body.provider as VoiceProvider | undefined) || 'index-tts-2';
       if (provider !== 'index-tts-2') {
-        return NextResponse.json(
-          { error: `Unsupported voiceover provider: ${provider}` },
-          { status: 400 }
-        );
+        return apiError(API_ERROR_CODES.INVALID_INPUT, `Unsupported voiceover provider: ${provider}`);
       }
 
       const built = buildIndexTtsInput(body);
       if (!built.input) {
-        return NextResponse.json(
-          { error: built.error || 'Invalid Index TTS input' },
-          { status: 400 }
-        );
+        return apiError(API_ERROR_CODES.INVALID_INPUT, built.error || 'Invalid Index TTS input');
       }
 
       const result = await generateVoiceoverIndexTts(built.input, { apiKey });
@@ -206,10 +192,7 @@ export async function POST(request: NextRequest) {
     const provider = (body.provider as MusicProvider | undefined) || 'elevenlabs';
     const prompt = normalizeText(body.prompt);
     if (!prompt) {
-      return NextResponse.json(
-        { error: 'Missing prompt for music generation' },
-        { status: 400 }
-      );
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'Missing prompt for music generation');
     }
 
     if (provider === 'elevenlabs') {
@@ -243,15 +226,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(
-      { error: `Unsupported music provider: ${provider}` },
-      { status: 400 }
-    );
+    return apiError(API_ERROR_CODES.INVALID_INPUT, `Unsupported music provider: ${provider}`);
   } catch (error) {
     console.error('Generate audio error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Generate audio failed' });
   }
 }

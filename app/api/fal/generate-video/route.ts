@@ -6,6 +6,7 @@ import {
     type SeedanceVariant,
 } from '@/lib/api/fal';
 import { enforceVideoPromptPolicy } from '@/lib/video/prompt-policy';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 const KLING_VARIANTS: readonly KlingVariant[] = ['v26', 'o3', 'o1', 'o1_ref'] as const;
 const SEEDANCE_VARIANTS: readonly SeedanceVariant[] = ['v15', 'v20', 'v20_ref', 'v20_fast_ref'] as const;
@@ -39,10 +40,7 @@ export async function POST(request: NextRequest) {
         const apiKey = process.env.FAL_API_KEY;
 
         if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-            return NextResponse.json(
-                { error: 'Client-provided apiKey is not allowed' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
         }
 
         const normalizedImageUrl = typeof imageUrl === 'string' ? imageUrl.trim() : '';
@@ -60,28 +58,16 @@ export async function POST(request: NextRequest) {
         const parsedReferenceUrls = parseReferenceImageUrls(referenceImageUrls);
 
         if (!normalizedPrompt || !model) {
-            return NextResponse.json(
-                { error: 'Missing required fields' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.MISSING_FIELD, 'Missing required fields: prompt, model');
         }
         if (!isReferenceMode && !normalizedImageUrl) {
-            return NextResponse.json(
-                { error: 'Missing required start image URL' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.MISSING_FIELD, 'Missing required start image URL');
         }
         if (isReferenceMode && !parsedReferenceUrls) {
-            return NextResponse.json(
-                { error: 'reference-to-video 模式需要至少一張 referenceImageUrls' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.MISSING_FIELD, 'reference-to-video 模式需要至少一張 referenceImageUrls');
         }
         if (!apiKey) {
-            return NextResponse.json(
-                { error: 'Missing FAL_API_KEY on server' },
-                { status: 500 }
-            );
+            return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, 'Missing FAL_API_KEY on server');
         }
 
         const promptPolicy = enforceVideoPromptPolicy(prompt, model);
@@ -138,18 +124,12 @@ export async function POST(request: NextRequest) {
             );
             endpoint = result.endpoint || '';
         } else {
-            return NextResponse.json(
-                { error: 'Invalid model type' },
-                { status: 400 }
-            );
+            return apiError(API_ERROR_CODES.INVALID_INPUT, 'Invalid model type');
         }
 
         return NextResponse.json({ ...result, endpoint, promptPolicy });
     } catch (error) {
         console.error('Generate video error:', error);
-        return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Unknown error' },
-            { status: 500 }
-        );
+        return apiErrorFromUnknown(error, { message: 'Generate video failed' });
     }
 }
