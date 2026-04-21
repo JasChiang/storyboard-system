@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sqliteCharacterLibraryRepo } from '@/lib/db/sqlite';
 import { diffProjectReferencesAgainstLibrary } from '@/lib/characters/library-sync';
 import type { ProjectReference } from '@/lib/types/storyboard';
+import { apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 
@@ -22,9 +23,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ diffs });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to check library updates' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to check library updates' });
   }
 }

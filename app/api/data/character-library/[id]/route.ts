@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sqliteCharacterLibraryRepo } from '@/lib/db/sqlite';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
 import { saveRemoteImageToLocalMedia } from '@/lib/storage/local-media';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 
@@ -37,14 +38,11 @@ export async function GET(
     const { id } = await params;
     const item = sqliteCharacterLibraryRepo.getById(id);
     if (!item) {
-      return NextResponse.json({ error: 'Character library item not found' }, { status: 404 });
+      return apiError(API_ERROR_CODES.NOT_FOUND, 'Character library item not found');
     }
     return NextResponse.json({ data: item });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch character library item' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to fetch character library item' });
   }
 }
 
@@ -57,7 +55,7 @@ export async function PATCH(
     const body = (await req.json()) as Partial<CharacterLibraryItem>;
     const existing = sqliteCharacterLibraryRepo.getById(id);
     if (!existing) {
-      return NextResponse.json({ error: 'Character library item not found' }, { status: 404 });
+      return apiError(API_ERROR_CODES.NOT_FOUND, 'Character library item not found');
     }
 
     const updates: Partial<CharacterLibraryItem> = { ...body };
@@ -67,14 +65,11 @@ export async function PATCH(
 
     const updated = sqliteCharacterLibraryRepo.update(id, updates);
     if (!updated) {
-      return NextResponse.json({ error: 'Character library item not found' }, { status: 404 });
+      return apiError(API_ERROR_CODES.NOT_FOUND, 'Character library item not found');
     }
     return NextResponse.json({ data: updated });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update character library item' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to update character library item' });
   }
 }
 
@@ -86,13 +81,10 @@ export async function DELETE(
     const { id } = await params;
     const deleted = sqliteCharacterLibraryRepo.delete(id);
     if (!deleted) {
-      return NextResponse.json({ error: 'Character library item not found' }, { status: 404 });
+      return apiError(API_ERROR_CODES.NOT_FOUND, 'Character library item not found');
     }
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete character library item' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to delete character library item' });
   }
 }

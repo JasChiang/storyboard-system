@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sqliteProjectRepo } from '@/lib/db/sqlite';
 import type { Project } from '@/lib/types/project';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 
@@ -12,14 +13,11 @@ export async function GET(
     const { id } = await params;
     const project = sqliteProjectRepo.getById(id);
     if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      return apiError(API_ERROR_CODES.NOT_FOUND, 'Project not found');
     }
     return NextResponse.json({ data: project });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch project' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to fetch project' });
   }
 }
 
@@ -33,15 +31,12 @@ export async function PATCH(
     const updated = sqliteProjectRepo.update(id, body);
 
     if (!updated) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      return apiError(API_ERROR_CODES.NOT_FOUND, 'Project not found');
     }
 
     return NextResponse.json({ data: updated });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update project' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to update project' });
   }
 }
 
@@ -53,14 +48,11 @@ export async function DELETE(
     const { id } = await params;
     const deleted = sqliteProjectRepo.delete(id);
     if (!deleted) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      return apiError(API_ERROR_CODES.NOT_FOUND, 'Project not found');
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete project' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to delete project' });
   }
 }

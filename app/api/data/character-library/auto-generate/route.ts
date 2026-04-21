@@ -5,6 +5,7 @@ import { sqliteCharacterLibraryRepo } from '@/lib/db/sqlite';
 import { buildCharacterLibraryItem } from '@/lib/characters/normalize';
 import { saveRemoteImageToLocalMedia } from '@/lib/storage/local-media';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -265,10 +266,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
-      return NextResponse.json(
-        { error: 'Client-provided apiKey is not allowed' },
-        { status: 400 }
-      );
+      return apiError(API_ERROR_CODES.INVALID_INPUT, 'Client-provided apiKey is not allowed');
     }
 
     const name = String(body?.name || '').trim();
@@ -279,19 +277,19 @@ export async function POST(req: NextRequest) {
     const generationMode: GenerationMode = body?.generationMode === 'video_ready' ? 'video_ready' : 'quick';
 
     if (!name) {
-      return NextResponse.json({ error: 'name is required' }, { status: 400 });
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'name is required');
     }
     if (!prompt) {
-      return NextResponse.json({ error: 'prompt is required' }, { status: 400 });
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'prompt is required');
     }
 
     const falApiKey = process.env.FAL_API_KEY;
     const openrouterApiKey = process.env.OPENROUTER_API_KEY;
     if (!falApiKey) {
-      return NextResponse.json({ error: 'Missing FAL_API_KEY on server' }, { status: 500 });
+      return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, 'Missing FAL_API_KEY on server');
     }
     if (!openrouterApiKey) {
-      return NextResponse.json({ error: 'Missing OPENROUTER_API_KEY on server' }, { status: 500 });
+      return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, 'Missing OPENROUTER_API_KEY on server');
     }
 
     const endpoint = process.env.FAL_IMAGE_MODEL || 'fal-ai/nano-banana-pro';
@@ -452,9 +450,6 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
   } catch (error) {
     console.error('Auto generate character error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to auto generate character' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to auto generate character' });
   }
 }

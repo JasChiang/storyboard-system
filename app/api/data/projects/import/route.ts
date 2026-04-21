@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sqliteProjectRepo } from '@/lib/db/sqlite';
 import type { Project } from '@/lib/types/project';
+import { apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 
@@ -20,9 +21,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ imported });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to import projects' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to import projects' });
   }
 }

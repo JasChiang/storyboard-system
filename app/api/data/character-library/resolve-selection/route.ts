@@ -16,6 +16,7 @@ import {
 } from '@/lib/storage/local-media';
 import type { ProjectReference } from '@/lib/types/storyboard';
 import { normalizeProjectReferenceWorkflow, type ReferenceUsageRole } from '@/lib/characters/workflow';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 
@@ -211,12 +212,12 @@ export async function POST(req: NextRequest) {
     const selections = uniqueSelections(Array.isArray(body.selections) ? body.selections : []);
 
     if (selections.length === 0) {
-      return NextResponse.json({ error: 'selections is required' }, { status: 400 });
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'selections is required');
     }
 
     const falApiKey = process.env.FAL_API_KEY;
     if (!falApiKey) {
-      return NextResponse.json({ error: 'Missing FAL_API_KEY on server' }, { status: 500 });
+      return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, 'Missing FAL_API_KEY on server');
     }
 
     const references: ProjectReference[] = [];
@@ -262,9 +263,6 @@ export async function POST(req: NextRequest) {
       warnings,
     });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to resolve character references' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to resolve character references' });
   }
 }

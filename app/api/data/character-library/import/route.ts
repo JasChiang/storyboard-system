@@ -3,6 +3,7 @@ import { sqliteCharacterLibraryRepo } from '@/lib/db/sqlite';
 import type { CharacterLibraryItem } from '@/lib/types/character-library';
 import { saveRemoteImageToLocalMedia } from '@/lib/storage/local-media';
 import { normalizeCharacterItem } from '@/lib/characters/workflow';
+import { apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 
@@ -51,9 +52,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ imported });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to import character library items' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to import character library items' });
   }
 }

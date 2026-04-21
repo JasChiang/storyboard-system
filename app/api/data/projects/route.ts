@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sqliteProjectRepo } from '@/lib/db/sqlite';
 import type { Project } from '@/lib/types/project';
+import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
 
@@ -26,10 +27,7 @@ export async function GET() {
     const projects = sqliteProjectRepo.getAll();
     return NextResponse.json({ data: projects });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch projects' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to fetch projects' });
   }
 }
 
@@ -43,7 +41,7 @@ export async function POST(req: NextRequest) {
     const targetDurationSec = allowedDurations.has(rawTargetDuration) ? rawTargetDuration : undefined;
 
     if (!name) {
-      return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
+      return apiError(API_ERROR_CODES.MISSING_FIELD, 'Project name is required');
     }
 
     const created = sqliteProjectRepo.create(buildProject({
@@ -53,9 +51,6 @@ export async function POST(req: NextRequest) {
     }));
     return NextResponse.json({ data: created }, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create project' },
-      { status: 500 }
-    );
+    return apiErrorFromUnknown(error, { message: 'Failed to create project' });
   }
 }
