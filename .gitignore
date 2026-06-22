@@ -50,3 +50,6 @@ next-env.d.ts
 .claude/
 .codex-dev.log
 .codex-dev.pid
+
+# 一次性產圖/產片工作腳本（不進版控）
+/scripts
