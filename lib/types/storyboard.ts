@@ -25,7 +25,7 @@ export type WorkflowStage = 'storyboard' | 'image_start' | 'image_end' | 'video'
 export type RenderLane = 'hero' | 'performance' | 'continuity' | 'plate' | 'insert' | 'utility';
 export type ProductionRisk = 'low' | 'medium' | 'high';
 export type ReferencePriorityMode = 'identity_first' | 'continuity_first' | 'style_first' | 'stage_balanced';
-export type ViewIntent = 'auto' | 'front' | 'side' | 'back' | 'three_quarter' | 'top';
+export type ViewIntent = 'auto' | 'front' | 'side' | 'side_left' | 'side_right' | 'back' | 'three_quarter' | 'top';
 export type ReferenceViewHints = Record<string, ViewIntent>;
 export type ReferencePlanEntityType = 'character' | 'product';
 
@@ -35,6 +35,24 @@ export interface SceneReferencePlanItem {
   requestedView: ViewIntent;
   required: boolean;
   visibleFeatures?: string;
+}
+
+export type SceneRefSourceKind = 'image' | 'video' | 'audio';
+export type SceneRefSourceUsage =
+  | 'identity'     // 身份一致性（人/物臉/服裝）
+  | 'camera'       // 運鏡復刻
+  | 'motion'       // 動作/走位復刻
+  | 'effect'       // 特效/轉場復刻
+  | 'voice'        // 音色參考
+  | 'music'        // 配樂/節奏參考
+  | 'environment'; // 環境/場景參考
+
+export interface SceneRefSource {
+  refId: string;              // 指向 ProjectReference.id
+  kind: SceneRefSourceKind;   // image / video / audio
+  usage: SceneRefSourceUsage; // 用途
+  atIndex?: number;           // @圖片N / @視頻N / @音頻N 的 N（1-based）
+  note?: string;              // 使用者備註
 }
 
 export interface SharedContinuityDirective {
@@ -77,7 +95,27 @@ export interface Scene {
   qaIssues?: string[];
 
   // 影片生成模式（影響圖片頁是否還需要尾幀）
-  videoMode?: 'standard' | 'reference'; // 'reference' = 使用 Kling O1 ref / Seedance 2.0 ref，從多張角色/商品參考圖生成影片，無需尾幀
+  // 'standard'  = image-to-video（需首幀，必要時尾幀）
+  // 'reference' = Kling O1 ref / Seedance 2.0 ref（多圖/多片/多音→影片，不需首尾幀）
+  // 'text'      = Seedance 2.0 text-to-video（純文字生成，連首幀都不需要）
+  videoMode?: 'standard' | 'reference' | 'text';
+
+  // Seedance 2.0 進階能力標記（對應官方 10 能力）；不設即視為一般生成。
+  // consistency=身份鎖定、camera_ref=運鏡複刻、effect_ref=特效/轉場複刻、
+  // extension=視頻延長、one_shot=一鏡到底、edit=視頻編輯、emotion=情緒演繹
+  videoCapability?: 'consistency' | 'camera_ref' | 'effect_ref' | 'extension' | 'one_shot' | 'edit' | 'emotion';
+
+  // Ref 模式的多模態來源；每筆指定專案參考 ID + 用途（身份 / 運鏡 / 音色 / 節奏 / 特效）
+  refSources?: SceneRefSource[];
+
+  // videoCapability='extension' 時指向要延長的來源場景（會帶出其 generatedVideo.url）
+  extendsSceneId?: string;
+
+  // videoCapability='edit' 時指向被編輯的來源場景
+  editSourceSceneId?: string;
+
+  // 一鏡到底跨多場標記（前綴插入「一镜到底 + 全程不切镜头」）
+  oneShot?: boolean;
 
   // Smart Keyframing (智慧首尾幀)
   requiresEndFrame?: boolean;    // AI 判斷是否需要生成尾幀
@@ -236,6 +274,41 @@ export type ReferenceAnchorRole =
   | 'environment_anchor'
   | 'style_modifier';
 
+/**
+ * 角色庫 schema v2 的渲染媒介與結構化負面指令（鏡像自 lib/types/character-library）。
+ * 型別在此複製以避免循環依賴 — 如 character-library 定義有變動，兩邊需同步。
+ */
+export type ReferenceRenderingMedium = 'flat_2d' | 'cel_3d' | 'clay_3d' | 'photoreal' | 'painterly' | 'mixed';
+
+export interface ReferenceDriftHotspot {
+  part: string;
+  correctShape?: string;
+  commonFailures: string[];
+}
+
+export interface ReferenceActionSafety {
+  forbiddenVerbs?: string[];
+  rewriteRules?: Array<{ trigger: string; rewrite: string }>;
+  anatomyConstraints?: string[];
+}
+
+export interface ReferenceFeatureVariantPreset {
+  mood: string;
+  innerFill: string;
+  description?: string;
+}
+
+export interface ReferenceFeatureVariantGroup {
+  identityLayer: string;
+  defaultInner: string;
+  presets: ReferenceFeatureVariantPreset[];
+}
+
+export interface ReferenceFeatureVariants {
+  eyes?: ReferenceFeatureVariantGroup;
+  mouth?: ReferenceFeatureVariantGroup;
+}
+
 export interface ProjectReference {
   id: string;
   url: string;                   // Fal Storage URL
@@ -244,15 +317,22 @@ export interface ProjectReference {
   name?: string;                 // 角色名稱 或 商品名稱
   anchorRole?: ReferenceAnchorRole; // 進入專案後扮演的 continuity / reference 角色
   descriptionSource: 'manual' | 'ai';  // 描述來源
-  guidelines?: string;           // 規則/限制（生成提示詞用）
 
   // Multi-Angle Support (多視角支援)
-  angle?: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';  // 視角標籤
+  angle?: 'front' | 'side' | 'side_left' | 'side_right' | 'three_quarter' | 'back' | 'top' | 'other';  // 視角標籤
   aiDescription?: string;        // Vision AI 自動生成的詳細描述
-  mustKeepFeatures?: string[];   // 生成時不可改變的關鍵特徵
-  identityCore?: string;         // 核心身份描述（形狀/比例/Logo）
-  styleTraits?: string;          // 風格特徵描述
-  angleVisibility?: string;      // 此視角可見/不可見重點
+
+  // v2 Structured identity (preferred)
+  identityAnchor?: string;       // 一句話名詞短語，prompt 第一句
+  renderingMedium?: ReferenceRenderingMedium;
+  styleDirective?: string;       // prompt 結尾風格指令
+  preserveList?: string[];       // 短名詞短語，取代 mustKeepFeatures
+  driftHotspots?: ReferenceDriftHotspot[];
+  actionSafety?: ReferenceActionSafety;
+  featureVariants?: ReferenceFeatureVariants;
+  visibleFeatures?: string[];    // 此視角可見（per-view 展開）
+  hiddenFeatures?: string[];
+
   ipProfile?: IpProfile;         // 來自角色庫的 IP 套件設定
   structuredIdentityLock?: StructuredIdentityLock; // 結構化保真鎖（可選，缺省時由既有欄位自動推導）
   sourceCharacterLibraryItemId?: string;
@@ -262,6 +342,18 @@ export interface ProjectReference {
   referenceVersionSeed?: string;   // 鎖定專案引用時使用的版本快照種子
   isAnchor?: boolean;
   usageRole?: 'anchor' | 'supporting' | 'style_support';
+
+  // v1 Deprecated — retained for fallback during migration window
+  /** @deprecated v2：改用 `identityAnchor` + `preserveList` + `driftHotspots` 組合。 */
+  guidelines?: string;
+  /** @deprecated v2：改用 `preserveList`。 */
+  mustKeepFeatures?: string[];
+  /** @deprecated v2：合併進 `identityAnchor`。 */
+  identityCore?: string;
+  /** @deprecated v2：改用 `styleDirective`。 */
+  styleTraits?: string;
+  /** @deprecated v2：改用 `visibleFeatures` + `hiddenFeatures`。 */
+  angleVisibility?: string;
 }
 
 // 提示詞模板
@@ -279,7 +371,7 @@ export type ConsistencySeverity = 'pass' | 'warn' | 'fail';
 export interface SceneConsistencyEntityCheck {
   tag: string;                 // 例 <Alice> / <iPhone>
   entityType: 'character' | 'product';
-  referenceAngle?: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
+  referenceAngle?: 'front' | 'side' | 'side_left' | 'side_right' | 'three_quarter' | 'back' | 'top' | 'other';
   score: number;               // 0-1，1 為完全一致
   severity: ConsistencySeverity;
   differences: string[];       // 具體差異描述（顏色、髮型、logo 等）

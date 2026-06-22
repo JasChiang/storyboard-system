@@ -9,7 +9,7 @@ import type { CharacterLibraryItem } from '@/lib/types/character-library';
 import type { ProjectReference } from '@/lib/types/storyboard';
 import { CHARACTER_STATUS_LABELS, REFERENCE_USAGE_ROLE_LABELS, type ReferenceUsageRole } from '@/lib/characters/workflow';
 
-type CharacterAngle = 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
+type CharacterAngle = 'front' | 'side' | 'side_left' | 'side_right' | 'three_quarter' | 'back' | 'top' | 'other';
 
 interface CharacterSelectorProps {
   isOpen: boolean;
@@ -64,6 +64,8 @@ const STATUS_COLORS: Record<CharacterLibraryItem['status'], string> = {
 const ANGLE_LABELS: Record<CharacterAngle, string> = {
   front: '正面',
   side: '側面',
+  side_left: '左側',
+  side_right: '右側',
   three_quarter: '3/4 側',
   back: '背面',
   top: '頂部',
@@ -123,7 +125,7 @@ export function CharacterSelector({
     const query = searchQuery.trim().toLowerCase();
     const matchesSearch = query === ''
       || character.name.toLowerCase().includes(query)
-      || character.tags.some((tag) => tag.toLowerCase().includes(query));
+      || (character.tags ?? []).some((tag) => tag.toLowerCase().includes(query));
 
     const matchesType = filterType === 'all' || character.type === filterType;
     const matchesStatus = filterStatus === 'all' || character.status === filterStatus;
@@ -306,7 +308,7 @@ export function CharacterSelector({
                         <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                           <span>{character.views.length} 視角</span>
                           <span>•</span>
-                          <span>{character.tags.length} 標籤</span>
+                          <span>{character.tags?.length ?? 0} 標籤</span>
                           <span>•</span>
                           <span>使用 {character.usageCount} 次</span>
                         </div>

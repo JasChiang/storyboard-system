@@ -10,7 +10,7 @@ import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
-type ViewAngle = 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
+type ViewAngle = 'front' | 'side' | 'side_left' | 'side_right' | 'three_quarter' | 'back' | 'top' | 'other';
 type GenerationMode = 'quick' | 'video_ready';
 
 interface StructuredReferenceAnalysis {
@@ -151,6 +151,8 @@ function buildImagePrompt({
     front: 'Front view, clear full silhouette, neutral pose.',
     three_quarter: 'Three-quarter view, body and face clearly readable, neutral pose.',
     side: 'Side profile view, silhouette and proportions clearly readable, neutral pose.',
+    side_left: 'Strict left side profile: character facing left, the left half of the body toward the viewer.',
+    side_right: 'Strict right side profile: character facing right, the right half of the body toward the viewer.',
     back: 'Back view, silhouette and outfit clearly readable, neutral pose.',
     top: 'Top view, shape and layout clearly readable.',
     other: 'Neutral readable angle with clean silhouette.',
@@ -179,6 +181,8 @@ function buildAnalysisPrompt(type: CharacterLibraryItem['type'], angle: ViewAngl
   const angleInstructions: Record<ViewAngle, string> = {
     front: '正面視角的',
     side: '側面視角的',
+    side_left: '左側視角的',
+    side_right: '右側視角的',
     three_quarter: '3/4 側面視角的',
     back: '背面視角的',
     top: '頂部俯視的',

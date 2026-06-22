@@ -5,10 +5,14 @@ import { getReferencePlanItemForTag } from '@/lib/references/reference-plan';
 function rankReference(reference: ProjectReference, intent: ViewIntent): number {
   if (!reference.angle || intent === 'auto') return 1;
   if (reference.angle === intent) return 4;
-  if (intent === 'three_quarter' && (reference.angle === 'front' || reference.angle === 'side')) return 3;
+  if ((intent === 'side_left' || intent === 'side_right') && reference.angle === 'side') return 3;
+  if (intent === 'side' && (reference.angle === 'side_left' || reference.angle === 'side_right')) return 3;
+  if (intent === 'side_left' && reference.angle === 'side_right') return 1;
+  if (intent === 'side_right' && reference.angle === 'side_left') return 1;
+  if (intent === 'three_quarter' && (reference.angle === 'front' || reference.angle === 'side' || reference.angle === 'side_left' || reference.angle === 'side_right')) return 3;
   if (intent === 'front' && reference.angle === 'three_quarter') return 2;
-  if (intent === 'side' && reference.angle === 'three_quarter') return 2;
-  if (intent === 'back' && reference.angle === 'side') return 2;
+  if ((intent === 'side' || intent === 'side_left' || intent === 'side_right') && reference.angle === 'three_quarter') return 2;
+  if (intent === 'back' && (reference.angle === 'side' || reference.angle === 'side_left' || reference.angle === 'side_right')) return 2;
   return 0;
 }
 

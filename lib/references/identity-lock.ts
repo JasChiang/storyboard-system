@@ -57,15 +57,67 @@ function trimBucket(lines: string[], maxItems: number): string[] {
 }
 
 export function buildStructuredIdentityLock(
-  reference: Pick<ProjectReference, 'type' | 'identityCore' | 'mustKeepFeatures' | 'guidelines' | 'description'>
+  reference: Pick<
+    ProjectReference,
+    | 'type'
+    | 'identityAnchor'
+    | 'preserveList'
+    | 'driftHotspots'
+    | 'actionSafety'
+    | 'styleDirective'
+    | 'identityCore'
+    | 'mustKeepFeatures'
+    | 'guidelines'
+    | 'description'
+  >
 ): StructuredIdentityLock | undefined {
   if (reference.type !== 'character' && reference.type !== 'product') return undefined;
 
+  // v2 primary sources
+  const v2Anchor = reference.identityAnchor?.trim();
+  const v2Preserve = (reference.preserveList || []).map(item => item.trim()).filter(Boolean);
+  const v2DriftForbid: string[] = [];
+  for (const spot of reference.driftHotspots || []) {
+    for (const failure of spot.commonFailures || []) {
+      const trimmed = failure.trim();
+      if (trimmed) v2DriftForbid.push(`${spot.part}: avoid ${trimmed}`);
+    }
+  }
+  const v2AnatomyForbid = (reference.actionSafety?.anatomyConstraints || [])
+    .map(item => item.trim())
+    .filter(Boolean);
+  const v2VerbForbid = (reference.actionSafety?.forbiddenVerbs || [])
+    .map(v => v.trim())
+    .filter(Boolean)
+    .map(verb => `avoid verb "${verb}"`);
+
+  // v1 fallback sources (for characters not yet migrated)
   const identityLines = splitTextLines(reference.identityCore);
   const guidelineLines = splitTextLines(reference.guidelines);
-  const mustKeep = (reference.mustKeepFeatures || []).map(item => item.trim()).filter(Boolean);
-  const descriptionSummary = reference.description?.trim();
+  const legacyMustKeep = (reference.mustKeepFeatures || []).map(item => item.trim()).filter(Boolean);
 
+  const appearanceSummary = v2Anchor || reference.description?.trim() || undefined;
+
+  // If v2 is populated, short-circuit to structured output without heuristic categorization.
+  if (v2Anchor || v2Preserve.length > 0 || v2DriftForbid.length > 0) {
+    const requiredParts = trimBucket(v2Preserve.length > 0 ? v2Preserve : legacyMustKeep, 8);
+    const forbiddenChanges = trimBucket(
+      [...v2DriftForbid, ...v2AnatomyForbid, ...v2VerbForbid],
+      12
+    );
+    return {
+      version: 2,
+      entityType: reference.type,
+      appearanceSummary,
+      geometry: v2Anchor ? trimBucket([v2Anchor], 6) : [],
+      materials: reference.styleDirective?.trim() ? [reference.styleDirective.trim()] : [],
+      logoText: [],
+      requiredParts,
+      forbiddenChanges,
+    };
+  }
+
+  // v1 legacy categorization path
   const buckets = {
     geometry: [] as string[],
     materials: [] as string[],
@@ -74,12 +126,12 @@ export function buildStructuredIdentityLock(
     forbiddenChanges: [] as string[],
   };
 
-  [...identityLines, ...mustKeep, ...guidelineLines].forEach(line => categorizeLine(line, buckets));
+  [...identityLines, ...legacyMustKeep, ...guidelineLines].forEach(line => categorizeLine(line, buckets));
 
   const geometry = trimBucket([...identityLines, ...buckets.geometry], 6);
   const materials = trimBucket(buckets.materials, 5);
   const logoText = trimBucket(buckets.logoText, 5);
-  const requiredParts = trimBucket([...mustKeep, ...buckets.requiredParts], 8);
+  const requiredParts = trimBucket([...legacyMustKeep, ...buckets.requiredParts], 8);
   const forbiddenChanges = trimBucket(buckets.forbiddenChanges, 10);
 
   const hasContent =
@@ -89,12 +141,12 @@ export function buildStructuredIdentityLock(
     requiredParts.length > 0 ||
     forbiddenChanges.length > 0;
 
-  if (!hasContent && !descriptionSummary) return undefined;
+  if (!hasContent && !appearanceSummary) return undefined;
 
   return {
     version: 1,
     entityType: reference.type,
-    appearanceSummary: descriptionSummary || undefined,
+    appearanceSummary,
     geometry,
     materials,
     logoText,

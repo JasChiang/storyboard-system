@@ -5,8 +5,22 @@ import { createPortal } from 'react-dom';
 import { X, Plus, Loader2, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fal } from '@fal-ai/client';
-import type { CharacterLibraryItem } from '@/lib/types/character-library';
+import type {
+  CharacterLibraryItem,
+  CharacterDriftHotspot,
+  CharacterActionSafety,
+  RenderingMedium,
+} from '@/lib/types/character-library';
 import { CHARACTER_STATUS_LABELS, type CharacterLibraryStatus } from '@/lib/characters/workflow';
+
+const RENDERING_MEDIUM_OPTIONS: Array<{ value: RenderingMedium; label: string; hint: string }> = [
+  { value: 'flat_2d', label: 'Flat 2D', hint: '向量扁平 / 粗黑輪廓' },
+  { value: 'cel_3d', label: 'Cel 3D', hint: '3D + 賽璐璐陰影' },
+  { value: 'clay_3d', label: 'Clay 3D', hint: '黏土 / 毛氈 / 手作' },
+  { value: 'photoreal', label: 'Photoreal', hint: '寫實攝影' },
+  { value: 'painterly', label: 'Painterly', hint: '繪畫筆觸' },
+  { value: 'mixed', label: 'Mixed', hint: '其他 / 混合' },
+];
 
 interface CharacterCreateDialogProps {
   isOpen: boolean;
@@ -16,13 +30,18 @@ interface CharacterCreateDialogProps {
 }
 
 interface ViewUpload {
-  angle: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
+  angle: 'front' | 'side' | 'side_left' | 'side_right' | 'three_quarter' | 'back' | 'top' | 'other';
   url: string;
-  description: string;
+  archivedLocalPath?: string;
+  visibleFeatures?: string[];
+  hiddenFeatures?: string[];
+  description?: string;
   mustKeepFeatures?: string[];
   identityCore?: string;
   styleTraits?: string;
   angleVisibility?: string;
+  // Cached base64 for batch analysis (not persisted — only during dialog session)
+  _imageBase64?: string;
 }
 
 const DEFAULT_IP_PROFILE = {
@@ -41,7 +60,9 @@ const DEFAULT_IP_PROFILE = {
 
 const ANGLE_OPTIONS = [
   { value: 'front' as const, label: '正面', emoji: '⬛' },
-  { value: 'side' as const, label: '側面', emoji: '◼️' },
+  { value: 'side_left' as const, label: '左側', emoji: '◀️' },
+  { value: 'side_right' as const, label: '右側', emoji: '▶️' },
+  { value: 'side' as const, label: '側面（對稱）', emoji: '◼️' },
   { value: 'three_quarter' as const, label: '3/4 側', emoji: '📐' },
   { value: 'back' as const, label: '背面', emoji: '⬜' },
   { value: 'top' as const, label: '頂部', emoji: '🔼' },
@@ -68,10 +89,20 @@ export function CharacterCreateDialog({
   const [guidelines, setGuidelines] = useState(editingCharacter?.guidelines || '');
   const [tags, setTags] = useState<string[]>(editingCharacter?.tags || []);
   const [views, setViews] = useState<ViewUpload[]>(editingCharacter?.views || []);
+  const [identityCore, setIdentityCore] = useState<string>(editingCharacter?.identityCore || '');
+  const [mustKeepFeatures, setMustKeepFeatures] = useState<string[]>(editingCharacter?.mustKeepFeatures || []);
+  // v2 structured identity
+  const [identityAnchor, setIdentityAnchor] = useState<string>(editingCharacter?.identityAnchor || '');
+  const [renderingMedium, setRenderingMedium] = useState<RenderingMedium | ''>(editingCharacter?.renderingMedium || '');
+  const [styleDirective, setStyleDirective] = useState<string>(editingCharacter?.styleDirective || '');
+  const [preserveList, setPreserveList] = useState<string[]>(editingCharacter?.preserveList || []);
+  const [driftHotspots, setDriftHotspots] = useState<CharacterDriftHotspot[]>(editingCharacter?.driftHotspots || []);
+  const [actionSafety, setActionSafety] = useState<CharacterActionSafety | undefined>(editingCharacter?.actionSafety);
   const [currentTag, setCurrentTag] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadingAngle, setUploadingAngle] = useState<ViewUpload['angle'] | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [batchAnalysisError, setBatchAnalysisError] = useState<string | null>(null);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [isGeneratingGuidelines, setIsGeneratingGuidelines] = useState(false);
   const [showIpSettings, setShowIpSettings] = useState(false);
@@ -119,6 +150,15 @@ export function CharacterCreateDialog({
       setGuidelines(editingCharacter.guidelines || '');
       setTags(editingCharacter.tags || []);
       setViews(editingCharacter.views || []);
+      setIdentityCore(editingCharacter.identityCore || '');
+      setMustKeepFeatures(editingCharacter.mustKeepFeatures || []);
+      setIdentityAnchor(editingCharacter.identityAnchor || '');
+      setRenderingMedium(editingCharacter.renderingMedium || '');
+      setStyleDirective(editingCharacter.styleDirective || '');
+      setPreserveList(editingCharacter.preserveList || []);
+      setDriftHotspots(editingCharacter.driftHotspots || []);
+      setActionSafety(editingCharacter.actionSafety);
+      setBatchAnalysisError(null);
       setProfileVersion(editingCharacter.ipProfile?.profileVersion ?? DEFAULT_IP_PROFILE.profileVersion);
       setStrictIdentity(editingCharacter.ipProfile?.strictIdentity ?? DEFAULT_IP_PROFILE.strictIdentity);
       setAllowAccessoryChanges(editingCharacter.ipProfile?.allowAccessoryChanges ?? DEFAULT_IP_PROFILE.allowAccessoryChanges);
@@ -149,6 +189,15 @@ export function CharacterCreateDialog({
       setGuidelines('');
       setTags([]);
       setViews([]);
+      setIdentityCore('');
+      setMustKeepFeatures([]);
+      setIdentityAnchor('');
+      setRenderingMedium('');
+      setStyleDirective('');
+      setPreserveList([]);
+      setDriftHotspots([]);
+      setActionSafety(undefined);
+      setBatchAnalysisError(null);
       setProfileVersion(DEFAULT_IP_PROFILE.profileVersion);
       setStrictIdentity(DEFAULT_IP_PROFILE.strictIdentity);
       setAllowAccessoryChanges(DEFAULT_IP_PROFILE.allowAccessoryChanges);
@@ -173,45 +222,142 @@ export function CharacterCreateDialog({
     setUploadingAngle(angle);
 
     try {
-      const uploadedUrl = await fal.storage.upload(file);
-
-      // 使用 AI 分析圖片
-      setIsAnalyzing(true);
-      const imageBase64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
-      });
-
-      const response = await fetch('/api/openrouter/analyze-reference', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64,
-          angle,
-          type,
-          userNote: `${name} - ${angle}`,
+      const [uploadedUrl, imageBase64] = await Promise.all([
+        fal.storage.upload(file),
+        new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
         }),
-      });
+      ]);
 
-      const data = await response.json();
-      const aiDescription = response.ok ? data.description : `${name} 的 ${ANGLE_OPTIONS.find(a => a.value === angle)?.label}`;
-
-      setViews([...views, {
-        angle,
-        url: uploadedUrl,
-        description: aiDescription,
-        mustKeepFeatures: data.analysis?.mustKeep || [],
-        identityCore: data.analysis?.identityCore,
-        styleTraits: data.analysis?.styleTraits,
-        angleVisibility: data.analysis?.angleVisibility,
-      }]);
+      const angleLabel = ANGLE_OPTIONS.find((a) => a.value === angle)?.label || angle;
+      setViews((prev) => [
+        ...prev.filter((v) => v.angle !== angle),
+        {
+          angle,
+          url: uploadedUrl,
+          description: `${name || '角色'} 的 ${angleLabel}`,
+          _imageBase64: imageBase64,
+        },
+      ]);
+      setBatchAnalysisError(null);
     } catch (error) {
       console.error('上傳錯誤:', error);
       alert(error instanceof Error ? error.message : '上傳失敗');
     } finally {
       setIsUploading(false);
       setUploadingAngle(null);
+    }
+  };
+
+  const handleBatchAnalyzeAllViews = async () => {
+    const analyzable = views.filter((v) => v._imageBase64);
+    if (analyzable.length === 0) {
+      setBatchAnalysisError('沒有可分析的視角（編輯舊角色時請重新上傳圖片以進行批次分析）。');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setBatchAnalysisError(null);
+
+    try {
+      const response = await fetch('/api/openrouter/analyze-character-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          type,
+          userNote: guidelines.trim() || undefined,
+          views: analyzable.map((v) => ({ angle: v.angle, imageBase64: v._imageBase64 })),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error?.message || data?.message || '批次分析失敗');
+      }
+
+      const canonical = data.canonical || {};
+      const perView: Array<{
+        angle: ViewUpload['angle'];
+        visibleFeatures?: string[];
+        hiddenFeatures?: string[];
+        description?: string;
+        angleVisibility?: string;
+        styleTraits?: string;
+      }> = Array.isArray(data.perView) ? data.perView : [];
+
+      // v2 fields — these are primary now
+      if (canonical.identityAnchor) setIdentityAnchor(String(canonical.identityAnchor));
+      if (canonical.renderingMedium) setRenderingMedium(canonical.renderingMedium as RenderingMedium);
+      if (canonical.styleDirective) setStyleDirective(String(canonical.styleDirective));
+      if (Array.isArray(canonical.preserveList)) {
+        setPreserveList(canonical.preserveList.map((f: unknown) => String(f)).filter(Boolean));
+      }
+      if (Array.isArray(canonical.driftHotspots)) {
+        const spots: CharacterDriftHotspot[] = canonical.driftHotspots
+          .map((s: Record<string, unknown>) => ({
+            part: String(s.part || '').trim(),
+            correctShape: s.correctShape ? String(s.correctShape).trim() : undefined,
+            commonFailures: Array.isArray(s.commonFailures)
+              ? s.commonFailures.map((f: unknown) => String(f).trim()).filter(Boolean)
+              : [],
+          }))
+          .filter((s: CharacterDriftHotspot) => s.part.length > 0);
+        setDriftHotspots(spots);
+      }
+      if (canonical.actionSafety && typeof canonical.actionSafety === 'object') {
+        const as = canonical.actionSafety as Record<string, unknown>;
+        setActionSafety({
+          forbiddenVerbs: Array.isArray(as.forbiddenVerbs)
+            ? as.forbiddenVerbs.map((v: unknown) => String(v).trim()).filter(Boolean)
+            : undefined,
+          rewriteRules: Array.isArray(as.rewriteRules)
+            ? as.rewriteRules
+                .map((r: Record<string, unknown>) => ({
+                  trigger: String(r?.trigger || '').trim(),
+                  rewrite: String(r?.rewrite || '').trim(),
+                }))
+                .filter((r: { trigger: string; rewrite: string }) => r.trigger && r.rewrite)
+            : undefined,
+          anatomyConstraints: Array.isArray(as.anatomyConstraints)
+            ? as.anatomyConstraints.map((a: unknown) => String(a).trim()).filter(Boolean)
+            : undefined,
+        });
+      }
+
+      // v1 fallback fields (still populated by API for legacy display)
+      if (canonical.identityCore) setIdentityCore(String(canonical.identityCore));
+      if (Array.isArray(canonical.mustKeepFeatures)) {
+        setMustKeepFeatures(canonical.mustKeepFeatures.map((f: unknown) => String(f)).filter(Boolean));
+      }
+      if (canonical.description && !description.trim()) {
+        setDescription(String(canonical.description));
+      }
+
+      setViews((prev) =>
+        prev.map((view) => {
+          const match = perView.find((p) => p.angle === view.angle);
+          if (!match) return view;
+          return {
+            ...view,
+            visibleFeatures: Array.isArray(match.visibleFeatures)
+              ? match.visibleFeatures.map((f) => String(f).trim()).filter(Boolean)
+              : view.visibleFeatures,
+            hiddenFeatures: Array.isArray(match.hiddenFeatures)
+              ? match.hiddenFeatures.map((f) => String(f).trim()).filter(Boolean)
+              : view.hiddenFeatures,
+            description: match.description?.trim() || view.description,
+            angleVisibility: match.angleVisibility || view.angleVisibility,
+            styleTraits: match.styleTraits || view.styleTraits,
+          };
+        })
+      );
+    } catch (error) {
+      console.error('批次分析錯誤:', error);
+      setBatchAnalysisError(error instanceof Error ? error.message : '批次分析失敗');
+    } finally {
       setIsAnalyzing(false);
     }
   };
@@ -242,6 +388,9 @@ export function CharacterCreateDialog({
       return;
     }
 
+    // Strip the transient _imageBase64 cache before persisting.
+    const persistedViews = views.map(({ _imageBase64, ...rest }) => rest);
+
     await onSave({
       name: name.trim(),
       type,
@@ -249,7 +398,20 @@ export function CharacterCreateDialog({
       description: description.trim() || `${name} - ${TYPE_OPTIONS.find(t => t.value === type)?.label}`,
       guidelines: guidelines.trim() || undefined,
       tags,
-      views,
+      views: persistedViews,
+      identityCore: identityCore.trim() || undefined,
+      mustKeepFeatures: mustKeepFeatures.length > 0 ? mustKeepFeatures : undefined,
+      // v2 structured identity (preferred by prompt-builder)
+      identityAnchor: identityAnchor.trim() || undefined,
+      renderingMedium: renderingMedium || undefined,
+      styleDirective: styleDirective.trim() || undefined,
+      preserveList: preserveList.length > 0 ? preserveList : undefined,
+      driftHotspots: driftHotspots.length > 0 ? driftHotspots : undefined,
+      actionSafety: actionSafety && (
+        (actionSafety.forbiddenVerbs?.length ?? 0) > 0 ||
+        (actionSafety.rewriteRules?.length ?? 0) > 0 ||
+        (actionSafety.anatomyConstraints?.length ?? 0) > 0
+      ) ? actionSafety : undefined,
       ipProfile: {
         profileVersion: Number.isFinite(profileVersion) ? Math.max(1, Math.floor(profileVersion)) : 1,
         strictIdentity,
@@ -275,6 +437,15 @@ export function CharacterCreateDialog({
     setGuidelines('');
     setTags([]);
     setViews([]);
+    setIdentityCore('');
+    setMustKeepFeatures([]);
+    setIdentityAnchor('');
+    setRenderingMedium('');
+    setStyleDirective('');
+    setPreserveList([]);
+    setDriftHotspots([]);
+    setActionSafety(undefined);
+    setBatchAnalysisError(null);
     setProfileVersion(DEFAULT_IP_PROFILE.profileVersion);
     setStrictIdentity(DEFAULT_IP_PROFILE.strictIdentity);
     setAllowAccessoryChanges(DEFAULT_IP_PROFILE.allowAccessoryChanges);
@@ -300,13 +471,14 @@ export function CharacterCreateDialog({
     }
 
     try {
+      const viewsForProfile = views.map(({ _imageBase64, ...rest }) => rest);
       const response = await fetch('/api/openrouter/generate-character-profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
           type,
-          views,
+          views: viewsForProfile,
         }),
       });
 
@@ -699,7 +871,33 @@ export function CharacterCreateDialog({
 
           {/* 視角圖片上傳 */}
           <div className="surface-soft p-5">
-            <label className="block text-sm font-medium mb-3">視角圖片 *</label>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <label className="block text-sm font-medium">視角圖片 *</label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleBatchAnalyzeAllViews}
+                disabled={
+                  isAnalyzing
+                  || isUploading
+                  || views.filter((v) => v._imageBase64).length === 0
+                }
+                title="將所有已上傳視角一次送入 AI 分析，產出單一一致的身份描述"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    批次分析中
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-1" />
+                    批次分析所有視角
+                  </>
+                )}
+              </Button>
+            </div>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               {ANGLE_OPTIONS.map(angle => {
                 const existingView = views.find(v => v.angle === angle.value);
@@ -767,7 +965,156 @@ export function CharacterCreateDialog({
             {isAnalyzing && (
               <div className="mt-3 flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
                 <Sparkles className="w-4 h-4 animate-pulse" />
-                AI 正在分析圖片...
+                AI 正在跨角度分析所有視角，產出一致身份描述...
+              </div>
+            )}
+            {batchAnalysisError && (
+              <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-300">
+                {batchAnalysisError}
+              </div>
+            )}
+            {(identityAnchor || preserveList.length > 0 || driftHotspots.length > 0 || actionSafety) && (
+              <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 text-xs dark:border-emerald-800/60 dark:bg-emerald-950/30 space-y-3">
+                <div>
+                  <p className="font-semibold text-emerald-900 dark:text-emerald-200">結構化身份（v2 canonical — 注入所有 prompt）</p>
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    此區由 AI 批次分析產出；可手動微調。prompt-builder 會優先使用這些欄位而非散文描述。
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Identity Anchor（英文，≤200 字，prompt 第一句）</label>
+                  <input
+                    type="text"
+                    value={identityAnchor}
+                    onChange={(e) => setIdentityAnchor(e.target.value)}
+                    placeholder="e.g. a round white vinyl-robot mascot with two asymmetric O-shaped eyes"
+                    className="w-full px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Rendering Medium</label>
+                    <select
+                      value={renderingMedium || ''}
+                      onChange={(e) => setRenderingMedium(e.target.value as RenderingMedium | '')}
+                      className="w-full px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-xs"
+                    >
+                      <option value="">（未指定）</option>
+                      {RENDERING_MEDIUM_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label} — {opt.hint}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Style Directive（prompt 尾巴）</label>
+                    <input
+                      type="text"
+                      value={styleDirective}
+                      onChange={(e) => setStyleDirective(e.target.value)}
+                      placeholder="flat 2D vector, thick black outlines, no gradients"
+                      className="w-full px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-900 text-xs"
+                    />
+                  </div>
+                </div>
+
+                {preserveList.length > 0 && (
+                  <div>
+                    <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Preserve List（跨角度必守特徵）</label>
+                    <div className="flex flex-wrap gap-1">
+                      {preserveList.map((feature, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 rounded">
+                          {feature}
+                          <button
+                            onClick={() => setPreserveList(preserveList.filter((_, i) => i !== idx))}
+                            className="hover:text-red-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {driftHotspots.length > 0 && (
+                  <div>
+                    <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Drift Hotspots（部位級負面指令，{driftHotspots.length} 項）
+                    </label>
+                    <ul className="space-y-1">
+                      {driftHotspots.map((spot, idx) => (
+                        <li key={idx} className="rounded border border-emerald-200 dark:border-emerald-800/60 bg-white/50 dark:bg-slate-900/40 p-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">{spot.part}</span>
+                              {spot.correctShape && (
+                                <p className="mt-0.5 text-slate-600 dark:text-slate-400">正確：{spot.correctShape}</p>
+                              )}
+                              {spot.commonFailures.length > 0 && (
+                                <p className="mt-0.5 text-rose-700 dark:text-rose-300">
+                                  避免：{spot.commonFailures.join(', ')}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => setDriftHotspots(driftHotspots.filter((_, i) => i !== idx))}
+                              className="shrink-0 text-slate-400 hover:text-red-600"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {actionSafety && (
+                  <div className="space-y-1">
+                    <label className="block font-medium text-slate-700 dark:text-slate-300">Action Safety（動作 prior 規避）</label>
+                    {actionSafety.forbiddenVerbs && actionSafety.forbiddenVerbs.length > 0 && (
+                      <p className="text-slate-600 dark:text-slate-400">
+                        禁用動詞：{actionSafety.forbiddenVerbs.join(', ')}
+                      </p>
+                    )}
+                    {actionSafety.rewriteRules && actionSafety.rewriteRules.length > 0 && (
+                      <ul className="list-disc pl-4 text-slate-600 dark:text-slate-400 space-y-0.5">
+                        {actionSafety.rewriteRules.map((rule, idx) => (
+                          <li key={idx}>
+                            <span className="text-rose-700 dark:text-rose-300">{rule.trigger}</span>
+                            {' → '}
+                            <span className="text-emerald-700 dark:text-emerald-300">{rule.rewrite}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {actionSafety.anatomyConstraints && actionSafety.anatomyConstraints.length > 0 && (
+                      <p className="text-slate-600 dark:text-slate-400">
+                        解剖限制：{actionSafety.anatomyConstraints.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(identityCore || mustKeepFeatures.length > 0) && !identityAnchor && preserveList.length === 0 && (
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs dark:border-slate-700 dark:bg-slate-900/30">
+                <p className="font-semibold text-slate-600 dark:text-slate-400">v1 舊身份描述（建議重新執行批次分析以升級為 v2 結構化）</p>
+                {identityCore && (
+                  <p className="mt-1 text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{identityCore}</p>
+                )}
+                {mustKeepFeatures.length > 0 && (
+                  <ul className="mt-2 list-disc space-y-0.5 pl-4 text-slate-600 dark:text-slate-400">
+                    {mustKeepFeatures.map((feature, idx) => (
+                      <li key={idx}>{feature}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </div>

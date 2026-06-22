@@ -31,7 +31,7 @@ export default function CharacterLibraryPage() {
   const filteredCharacters = characters.filter(char => {
     const matchesSearch = searchQuery === '' ||
       char.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      char.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      (char.tags ?? []).some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesType = filterType === 'all' || char.type === filterType;
     const matchesStatus = filterStatus === 'all' || char.status === filterStatus;
@@ -258,12 +258,12 @@ function CharacterCard({
           </div>
         )}
 
-        {character.tags.length > 0 && (
+        {(character.tags?.length ?? 0) > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
-            {character.tags.slice(0, 3).map(tag => (
+            {(character.tags ?? []).slice(0, 3).map(tag => (
               <span key={tag} className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">{tag}</span>
             ))}
-            {character.tags.length > 3 && <span className="text-xs text-slate-500">+{character.tags.length - 3}</span>}
+            {(character.tags?.length ?? 0) > 3 && <span className="text-xs text-slate-500">+{(character.tags?.length ?? 0) - 3}</span>}
           </div>
         )}
 

@@ -184,9 +184,9 @@ class CharacterLibraryStorage {
     const items = await this.getAll();
     return items.filter(item =>
       item.name.toLowerCase().includes(lowerQuery) ||
-      item.description.toLowerCase().includes(lowerQuery) ||
+      (item.identityAnchor || item.description || '').toLowerCase().includes(lowerQuery) ||
       (item.guidelines || '').toLowerCase().includes(lowerQuery) ||
-      item.tags.some(tag => tag.toLowerCase().includes(lowerQuery))
+      (item.tags ?? []).some(tag => tag.toLowerCase().includes(lowerQuery))
     );
   }
 

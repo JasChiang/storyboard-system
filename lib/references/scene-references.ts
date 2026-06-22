@@ -61,6 +61,8 @@ export function inferSceneViewIntent(
   if (/top view|top-down|bird'?s-eye|俯視|頂視|平鋪/.test(haystack)) return 'top';
   if (/back view|from behind|rear|背面|背影/.test(haystack)) return 'back';
   if (/three[-\s]?quarter|3\/4|angled hero|斜角|三分之四/.test(haystack)) return 'three_quarter';
+  if (/left[-\s]?(side|profile)|from (the )?left|左側(面|拍|臉)?|左邊側面/.test(haystack)) return 'side_left';
+  if (/right[-\s]?(side|profile)|from (the )?right|右側(面|拍|臉)?|右邊側面/.test(haystack)) return 'side_right';
   if (/profile|side view|側面|側拍|側臉/.test(haystack)) return 'side';
   if (/front view|front-facing|facing camera|正面|面向鏡頭/.test(haystack)) return 'front';
   return 'auto';
@@ -69,10 +71,15 @@ export function inferSceneViewIntent(
 function rankReferenceForViewIntent(reference: ProjectReference, intent: ViewIntent): number {
   if (!reference.angle || intent === 'auto') return 1;
   if (reference.angle === intent) return 4;
-  if (intent === 'three_quarter' && (reference.angle === 'front' || reference.angle === 'side')) return 3;
+  // side intent flexibility: accept legacy `side` or either left/right as partial match
+  if ((intent === 'side_left' || intent === 'side_right') && reference.angle === 'side') return 3;
+  if (intent === 'side' && (reference.angle === 'side_left' || reference.angle === 'side_right')) return 3;
+  if (intent === 'side_left' && reference.angle === 'side_right') return 1;
+  if (intent === 'side_right' && reference.angle === 'side_left') return 1;
+  if (intent === 'three_quarter' && (reference.angle === 'front' || reference.angle === 'side' || reference.angle === 'side_left' || reference.angle === 'side_right')) return 3;
   if (intent === 'front' && reference.angle === 'three_quarter') return 2;
-  if (intent === 'side' && reference.angle === 'three_quarter') return 2;
-  if (intent === 'back' && reference.angle === 'side') return 2;
+  if ((intent === 'side' || intent === 'side_left' || intent === 'side_right') && reference.angle === 'three_quarter') return 2;
+  if (intent === 'back' && (reference.angle === 'side' || reference.angle === 'side_left' || reference.angle === 'side_right')) return 2;
   return 0;
 }
 

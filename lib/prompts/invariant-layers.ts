@@ -67,9 +67,41 @@ export function buildImageReferenceConstraintLines(input: {
   return uniqueLines(lines);
 }
 
+/**
+ * Build a single line that instructs the model to swap an eye/mouth "inner fill"
+ * while keeping the outer identity layer fixed. Used when a scene/shot specifies
+ * a mood (e.g. 'happy_closed', 'excited') that matches a preset in the ref's
+ * featureVariants.eyes or featureVariants.mouth.
+ *
+ * Returns empty string when no matching variant is found (so callers can safely
+ * concatenate the result into a prompt).
+ */
+export function buildFeatureVariantLine(
+  refs: ProjectReference[],
+  moods: { eyes?: string; mouth?: string }
+): string {
+  const lines: string[] = [];
+  for (const ref of refs) {
+    const tag = ref.name ? `<${ref.name}>` : ref.type;
+    const fv = ref.featureVariants;
+    if (!fv) continue;
+    for (const key of ['eyes', 'mouth'] as const) {
+      const group = fv[key];
+      const mood = moods[key];
+      if (!group || !mood) continue;
+      const preset = group.presets.find((p) => p.mood === mood);
+      if (!preset) continue;
+      lines.push(
+        `${tag} ${key} (${mood}): change ONLY the inner layer to "${preset.innerFill}". The outer identity layer "${group.identityLayer}" must remain exactly as in the reference images — do not change its color, shape, size, or position.`
+      );
+    }
+  }
+  return lines.length ? `Expression variant directives — ${lines.join(' | ')}` : '';
+}
+
 export function buildImageIdentityConstraintLines(
   refs: ProjectReference[],
-  options?: { includeFallbackObjectIdentity?: boolean }
+  options?: { includeFallbackObjectIdentity?: boolean; moods?: { eyes?: string; mouth?: string } }
 ): string[] {
   const hasCharacterRefs = refs.some((ref) => ref.type === 'character');
   const hasProductRefs = refs.some((ref) => ref.type === 'product');
@@ -100,6 +132,59 @@ export function buildImageIdentityConstraintLines(
   }
   if (hasForbidNewText) {
     lines.push('Do not invent any new letters, numbers, logos, or package text.');
+  }
+
+  // v2 rendering-medium guard — prevents models from auto-3D-ifying flat mascots, etc.
+  const mediums = new Set(refs.map((ref) => ref.renderingMedium).filter(Boolean));
+  if (mediums.has('flat_2d')) {
+    lines.push('Flat-2D mascot refs: keep vector/flat rendering with solid colors and bold outlines; do not convert to 3D, do not add gradients, shadows, or photoreal textures.');
+  }
+  if (mediums.has('clay_3d')) {
+    lines.push('Clay/felt refs: keep handmade material quality (clay, felt, wool); do not convert to vector flat or photoreal.');
+  }
+  if (mediums.has('cel_3d')) {
+    lines.push('Cel-shaded 3D refs: keep toon-shaded look with flat cel highlights; do not smooth into photoreal.');
+  }
+
+  // v2 drift-hotspots and action-safety — per-subject structured negatives.
+  const hotspotLines: string[] = [];
+  const anatomyLines: string[] = [];
+  const rewriteLines: string[] = [];
+  const verbAvoidance: string[] = [];
+  for (const ref of refs) {
+    const tag = ref.name ? `<${ref.name}>` : ref.type;
+    for (const spot of ref.driftHotspots || []) {
+      const failures = (spot.commonFailures || []).slice(0, 4).join(', ');
+      if (!failures) continue;
+      const correct = spot.correctShape ? ` Keep as: ${spot.correctShape}.` : '';
+      hotspotLines.push(`${tag} ${spot.part}: avoid ${failures}.${correct}`);
+    }
+    for (const c of ref.actionSafety?.anatomyConstraints || []) {
+      anatomyLines.push(`${tag}: ${c}`);
+    }
+    for (const rule of ref.actionSafety?.rewriteRules || []) {
+      rewriteLines.push(`${tag}: prefer "${rule.rewrite}" over "${rule.trigger}"`);
+    }
+    for (const verb of ref.actionSafety?.forbiddenVerbs || []) {
+      verbAvoidance.push(`${tag}: avoid verb "${verb}"`);
+    }
+  }
+  if (hotspotLines.length) {
+    lines.push(`Per-part drift guards: ${hotspotLines.slice(0, 8).join(' | ')}`);
+  }
+  if (anatomyLines.length) {
+    lines.push(`Anatomy constraints: ${anatomyLines.slice(0, 8).join(' | ')}`);
+  }
+  if (rewriteLines.length) {
+    lines.push(`Action phrasing: ${rewriteLines.slice(0, 6).join(' | ')}`);
+  }
+  if (verbAvoidance.length) {
+    lines.push(`Verb avoidance (triggers wrong priors): ${verbAvoidance.slice(0, 6).join(' | ')}`);
+  }
+
+  if (options?.moods) {
+    const variantLine = buildFeatureVariantLine(refs, options.moods);
+    if (variantLine) lines.push(variantLine);
   }
 
   return uniqueLines(lines);
