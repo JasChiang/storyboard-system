@@ -95,7 +95,8 @@ npm run dev
 | `OPENROUTER_VISION_MODEL` | — | 參考圖分析模型 |
 | `FAL_IMAGE_MODEL` | `openai/gpt-image-2` | 圖片生成 endpoint |
 | `FAL_VIDEO_SEEDANCE_MODELS` | 內建預設 | Seedance variant→endpoint JSON 覆寫（key：`v20_i2v` / `v20_i2v_fast` / `v20_ref` / `v20_ref_fast` / `v20_t2v` / `v20_t2v_fast`） |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | 影片分析模型 |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | 影片分析 + 圖片/影片提示詞合成 |
+| `GEMINI_PROMPT_COMPOSER_MODEL` | 同 `GEMINI_MODEL` | 僅覆寫提示詞合成用的 Gemini 模型 |
 | `APP_ORIGIN` / `NEXT_PUBLIC_APP_ORIGIN` | `http://localhost:3000` | 非預設 origin 時設定 |
 
 完整清單見 `.env.local.example`。
