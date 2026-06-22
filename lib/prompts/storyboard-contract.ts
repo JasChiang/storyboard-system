@@ -1,7 +1,7 @@
 export const STORYBOARD_RENDER_LANES = ['hero', 'performance', 'continuity', 'plate', 'insert', 'utility'] as const;
 export const STORYBOARD_PRODUCTION_RISKS = ['low', 'medium', 'high'] as const;
 export const STORYBOARD_REFERENCE_PRIORITY_MODES = ['identity_first', 'continuity_first', 'style_first', 'stage_balanced'] as const;
-export const STORYBOARD_VIEW_INTENTS = ['auto', 'front', 'side', 'back', 'three_quarter', 'top'] as const;
+export const STORYBOARD_VIEW_INTENTS = ['auto', 'front', 'side', 'side_left', 'side_right', 'back', 'three_quarter', 'top'] as const;
 export const STORYBOARD_WORKFLOW_STAGES = ['storyboard', 'image_start', 'image_end', 'video', 'export'] as const;
 export const STORYBOARD_TRANSITION_TYPES = ['cut', 'dissolve', 'fade_black', 'fade_white', 'continuation', 'match_cut', 'wipe', 'push'] as const;
 export const STORYBOARD_VIDEO_MODES = ['standard', 'reference', 'text'] as const;
@@ -17,7 +17,7 @@ const sceneProperties = {
   continuityLock: { type: 'string', description: '此鏡頭不允許改變的連續性約束' },
   shotIntent: { type: 'string', description: '鏡頭在整體敘事中的任務（一句話）' },
   continuityAnchor: { type: 'string', description: '跨鏡頭必須維持的一個關鍵連續性錨點' },
-  viewIntent: { type: 'string', enum: [...STORYBOARD_VIEW_INTENTS], description: '本鏡頭整體主視角（auto/front/side/back/three_quarter/top）' },
+  viewIntent: { type: 'string', enum: [...STORYBOARD_VIEW_INTENTS], description: '本鏡頭整體主視角（auto/front/side/side_left/side_right/back/three_quarter/top；分不清左右側時用 side）' },
   referenceViewHints: {
     type: 'object',
     description: '每個角色/商品標記各自的視角需求，如 {"<台灣男性>":"front","<Galaxy S26>":"back"}',
@@ -111,7 +111,9 @@ const sceneRequired = [
   'hookScore',
   'hookScoreReason',
   'retentionRisk',
+  'videoMode',
   'requiresEndFrame',
+  'endFrameDescription',
   'endFrameDelta',
   'dialogue',
   'duration',
