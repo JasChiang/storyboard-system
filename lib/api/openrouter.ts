@@ -278,7 +278,8 @@ export async function generateStoryboardScript(
   const manualSceneCount = Number.isFinite(rawManualSceneCount)
     ? Math.floor(rawManualSceneCount)
     : undefined;
-  const hasManualSceneCount = typeof manualSceneCount === 'number' && manualSceneCount > 6;
+  // Honor any explicit user count (1+), not only counts above the default ceiling of 6.
+  const hasManualSceneCount = typeof manualSceneCount === 'number' && manualSceneCount >= 1;
   const durationSceneMapping: Record<number, number> = {
     15: 3,
     20: 4,
@@ -700,28 +701,40 @@ export async function generateStoryboardScript(
 - 只輸出 JSON。`;
 
   let finalParsed: unknown = firstPassParsed;
-  try {
-    const violations = buildConsistencyViolations(firstPassParsed);
-    finalParsed = await callJsonCompletion([
-      {
-        role: 'system',
-        content: `${secondPassSystemPrompt}\n\n${STORYBOARD_CONTRACT_PROMPT_BLOCK}\n請遵循以下 JSON 結構：${outputSchemaText}`,
-      },
-      {
-        role: 'user',
-        content: `參考規則（合併後）：
+  const violations = buildConsistencyViolations(firstPassParsed);
+  // The second LLM pass costs a full generation. Skip it when the first pass is
+  // already clean (no consistency violations) AND the opening shot's hook is
+  // strong enough (>= 4). Otherwise run it to repair violations / a weak hook.
+  const firstSceneHookScore = Number(
+    (firstPassParsed as { scenes?: Array<{ hookScore?: unknown }> })?.scenes?.[0]?.hookScore
+  );
+  const weakFirstHook = Number.isFinite(firstSceneHookScore) && firstSceneHookScore < 4;
+  const needsSecondPass = violations.length > 0 || weakFirstHook;
+  if (needsSecondPass) {
+    try {
+      finalParsed = await callJsonCompletion([
+        {
+          role: 'system',
+          content: `${secondPassSystemPrompt}\n\n${STORYBOARD_CONTRACT_PROMPT_BLOCK}\n請遵循以下 JSON 結構：${outputSchemaText}`,
+        },
+        {
+          role: 'user',
+          content: `參考規則（合併後）：
 ${JSON.stringify(consolidatedRules, null, 2)}
 
 檢查到的疑似問題：
-${violations.length ? violations.map(v => `- Scene ${v.sceneNumber}: ${v.message}`).join('\n') : '- 無明顯違規，請只做最小修正。'}
+${violations.length ? violations.map(v => `- Scene ${v.sceneNumber}: ${v.message}`).join('\n') : `- 無明顯一致性違規，但首場 Hook 偏弱（hookScore=${Number.isFinite(firstSceneHookScore) ? firstSceneHookScore : 'N/A'}），請優先強化第一場。`}
 
 請修正這份分鏡 JSON：
 ${JSON.stringify(firstPassParsed, null, 2)}`,
-      },
-    ], 'storyboard_qa_pass');
-    console.log('第二輪修正回應（前 200 字）:', JSON.stringify(finalParsed).substring(0, 200));
-  } catch (error) {
-    console.warn('第二輪修正失敗，改用第一輪結果:', error);
+        },
+      ], 'storyboard_qa_pass');
+      console.log('第二輪修正回應（前 200 字）:', JSON.stringify(finalParsed).substring(0, 200));
+    } catch (error) {
+      console.warn('第二輪修正失敗，改用第一輪結果:', error);
+    }
+  } else {
+    console.log('第一輪無違規且首場 Hook 充足，略過第二輪校正以節省成本');
   }
 
   const normalized = normalizeStoryboard(finalParsed);

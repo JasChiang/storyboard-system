@@ -15,8 +15,9 @@ export async function POST(request: NextRequest) {
     const allowedDurations = new Set([15, 20, 25, 30, 60]);
     const targetDurationSec = allowedDurations.has(rawTargetDuration) ? rawTargetDuration : undefined;
     const rawTargetSceneCount = Number(body?.targetSceneCount);
-    const targetSceneCount = Number.isFinite(rawTargetSceneCount) && rawTargetSceneCount > 6
-      ? Math.min(20, Math.floor(rawTargetSceneCount))
+    // Honor any explicit count (1-20), not only counts above the default ceiling of 6.
+    const targetSceneCount = Number.isFinite(rawTargetSceneCount) && rawTargetSceneCount >= 1
+      ? Math.min(20, Math.max(1, Math.floor(rawTargetSceneCount)))
       : undefined;
     const apiKey = process.env.OPENROUTER_API_KEY;
 
