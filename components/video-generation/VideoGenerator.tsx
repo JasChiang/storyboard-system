@@ -331,6 +331,21 @@ export function VideoGenerator({
     const composePromptWithAI = async (activeMotionPrompt: string): Promise<string> => {
         setIsComposingPrompt(true);
         try {
+            // Build the exact @token map so Gemini binds reference-to-video inputs
+            // positionally (@图片N / @视频N / @音频N) instead of composing prose-only.
+            const AT_PREFIX: Record<SceneRefSource['kind'], string> = { image: '图片', video: '视频', audio: '音频' };
+            const USAGE_LABEL: Record<string, string> = {
+                identity: 'identity/身份', camera: 'camera/运镜', motion: 'motion/动作',
+                effect: 'effect/特效', voice: 'voice/音色', music: 'music/配乐', environment: 'environment/场景',
+            };
+            const refTokenHints = builtRefSources
+                .filter((s) => typeof s.atIndex === 'number' && s.atIndex > 0)
+                .map((s) => {
+                    const token = `@${AT_PREFIX[s.kind]}${s.atIndex}`;
+                    const name = scopedRefs.find((r) => r.id === s.refId)?.name;
+                    return `${token} = ${USAGE_LABEL[s.usage] || s.usage}${name ? ` (<${name}>)` : ''}`;
+                });
+            const videoMode: Scene['videoMode'] = isSeedanceTextMode ? 'text' : isSeedanceReferenceMode ? 'reference' : 'standard';
             const response = await fetch('/api/gemini/compose-video-prompt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -361,6 +376,8 @@ export function VideoGenerator({
                     references: scopedRefs,
                     continuityMemoryLines,
                     hasPreviousEndFrame: Boolean(previousEndFrameUrl),
+                    videoMode,
+                    refTokenHints,
                 }),
             });
             const data = await response.json();

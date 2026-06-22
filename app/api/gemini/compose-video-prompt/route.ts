@@ -12,6 +12,8 @@ export async function POST(request: NextRequest) {
       references?: ProjectReference[];
       continuityMemoryLines?: string[];
       hasPreviousEndFrame?: boolean;
+      videoMode?: Scene['videoMode'];
+      refTokenHints?: string[];
     };
 
     if (Object.prototype.hasOwnProperty.call(body, 'apiKey')) {
@@ -40,6 +42,8 @@ export async function POST(request: NextRequest) {
         references: body.references || [],
         continuityMemoryLines: Array.isArray(body.continuityMemoryLines) ? body.continuityMemoryLines : [],
         hasPreviousEndFrame: Boolean(body.hasPreviousEndFrame),
+        videoMode: body.videoMode,
+        refTokenHints: Array.isArray(body.refTokenHints) ? body.refTokenHints : [],
       },
       { apiKey }
     );

@@ -3,6 +3,7 @@ import type { Storyboard, Scene, ProjectReference } from '../types/storyboard';
 import { EditingSuggestion } from '../types/project';
 import { buildConsolidatedReferenceRules } from '@/lib/references/consistency-rules';
 import { buildIdentityLockPromptLine, buildStructuredIdentityLock } from '@/lib/references/identity-lock';
+import { buildImageIdentityConstraintLines } from '@/lib/prompts/invariant-layers';
 import { getReferenceTag } from '@/lib/references/scene-references';
 import { withGeminiUsageLogging } from './llm-usage';
 
@@ -25,6 +26,10 @@ export interface ComposeVideoPromptInput {
   references: ProjectReference[];
   continuityMemoryLines?: string[];
   hasPreviousEndFrame?: boolean;
+  /** standard (i2v) | reference (multi-modal refs) | text (t2v). Drives @token rules. */
+  videoMode?: Scene['videoMode'];
+  /** Human-readable @token map for reference-to-video, e.g. "@图片1 = <Alice> identity reference". */
+  refTokenHints?: string[];
 }
 
 export interface ComposeVideoPromptResult {
@@ -315,6 +320,17 @@ export async function composeVideoPromptWithGemini(
 
   const modelSpecificRule = '8) For Seedance: prioritize smooth temporal continuity across all frames and avoid frame flicker.'
 
+  const resolvedVideoMode = input.videoMode || 'standard';
+  const refTokenHints = (input.refTokenHints || []).filter((hint) => typeof hint === 'string' && hint.trim());
+  // Seedance 2.0 multi-modal reference-to-video binds inputs positionally via
+  // @图片N / @视频N / @音频N tokens. The composer must reuse the EXACT tokens it is
+  // given (do not invent new ones) and front-load the identity @token clause.
+  const refTokenRule = resolvedVideoMode === 'reference' && refTokenHints.length
+    ? `\n15) This is Seedance reference-to-video. Use these EXACT @tokens (do not invent or renumber) to bind each referenced aspect, and put the identity @token clause (保持与 @图片N 一致) at the very FRONT of the composed prompt: ${refTokenHints.join('; ')}.`
+    : resolvedVideoMode === 'text'
+      ? '\n15) This is Seedance text-to-video — there is no start frame. The composed prompt must fully describe the subject, environment, and composition from scratch; do not reference @tokens or a start frame.'
+      : '';
+
   const systemPrompt = `You are a professional video prompt composer for ${input.model.toUpperCase()} image-to-video generation.
 Return JSON only with keys:
 {
@@ -337,10 +353,12 @@ ${modelSpecificRule}
 11) Keep continuity memory constraints stable unless this shot explicitly overrides them.
 12) Respect scene-level view control: follow viewIntent/referenceViewHints/requiredReferences as hard routing signals for which reference angle to emphasize.
 13) If a requested view is side/back/top/three_quarter, explicitly describe the visible features from that view and avoid inventing hidden front-only details.
-14) If visible text/logo exists, require exact spelling and placement. JSON only, no markdown.`;
+14) If visible text/logo exists, require exact spelling and placement. JSON only, no markdown.${refTokenRule}`;
 
   const userPayload = {
     mode: input.model,
+    videoMode: resolvedVideoMode,
+    refTokenHints,
     scene: {
       id: input.scene.id,
       sceneNumber: input.scene.sceneNumber,
@@ -435,6 +453,15 @@ export async function composeImagePromptWithGemini(
     };
   });
 
+  // v2 Character Library structured constraints (renderingMedium guards, per-part
+  // drift hotspots, action-safety rewrites, feature variants). These are NOT
+  // captured by the compressed structuredLockLine, so inject them as explicit text
+  // directives the composer must honor verbatim.
+  const v2ConstraintLines = buildImageIdentityConstraintLines(input.references || []);
+  const v2ConstraintBlock = v2ConstraintLines.length
+    ? `\n\nHard reference constraints (from the locked character/product library — apply ALL of them verbatim; never paraphrase away or drop any):\n${v2ConstraintLines.map((line) => `- ${line}`).join('\n')}`
+    : '';
+
   const systemPrompt = `You are an image prompt assistant for storyboard static frame generation.
 Return JSON only with keys:
 {
@@ -458,7 +485,7 @@ Rules:
 12) Respect scene-level view control: follow viewIntent/referenceViewHints/requiredReferences as hard routing signals for which reference angle to emphasize.
 13) If a requested view is side/back/top/three_quarter, the composed prompt must mention the visible features from that view instead of relying on the subject name alone.
 14) Keep output concise and production-ready.
-15) JSON only, no markdown.`;
+15) JSON only, no markdown.${v2ConstraintBlock}`;
 
   const userPayload = {
     scene: {

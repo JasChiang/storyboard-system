@@ -25,14 +25,25 @@ function dedupe(lines: string[]): string[] {
  * Build a natural-language video prompt from structured input.
  *
  * Output order follows Seedance best practices:
- *   Action/Motion → Camera → Identity constraint
+ *   (@token identity, if any) → Action/Motion → Camera → generic identity
  *
  * No section labels (like "Subject state:") — just clean sentences.
  */
 export function buildVideoPromptFromParts(input: VideoPromptInput): string {
   const parts: string[] = [];
+  const identity = input.identityLine?.trim();
+  // @token-based identity (reference-to-video, e.g. "Keep identity consistent
+  // with @图片1") is the single most important constraint, yet
+  // enforceVideoPromptPolicy truncates by keeping the FRONT of the prompt.
+  // Front-load the identity line when it carries @tokens so it survives
+  // truncation; otherwise keep the generic identity sentence at the end where it
+  // reads more naturally.
+  const identityIsAtToken = Boolean(identity && identity.includes('@'));
+  if (identity && identityIsAtToken) {
+    parts.push(identity);
+  }
 
-  // 1. Action / motion lines first (highest priority for both models)
+  // 1. Action / motion lines (highest priority after @token identity)
   const actions = dedupe(input.actionLines);
   if (actions.length > 0) {
     parts.push(actions.join('. '));
@@ -44,9 +55,9 @@ export function buildVideoPromptFromParts(input: VideoPromptInput): string {
     parts.push(camera);
   }
 
-  // 3. Identity preservation (concise)
-  if (input.identityLine?.trim()) {
-    parts.push(input.identityLine.trim());
+  // 3. Generic identity preservation (no @tokens) at the end
+  if (identity && !identityIsAtToken) {
+    parts.push(identity);
   }
 
   return parts.join('. ').replace(/\.+\s*\./g, '.').replace(/\s+/g, ' ').trim();
