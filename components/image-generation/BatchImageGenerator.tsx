@@ -10,7 +10,14 @@ import { getReferenceTag, getSceneRequiredTags } from '@/lib/references/scene-re
 import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildPrioritizedReferenceUrls } from '@/lib/references/reference-priority';
 import { translateReferencesForPrompt } from '@/lib/references/translate-for-prompt';
-import { IMAGE_GENERATION_MODEL_LABELS, type ImageGenerationModel } from '@/lib/constants/image-models';
+import {
+    DEFAULT_IMAGE_MODEL,
+    GPT_IMAGE_2_DEFAULT_QUALITY,
+    IMAGE_GENERATION_MODEL_LABELS,
+    VISIBLE_IMAGE_MODELS,
+    type GptImage2Quality,
+    type ImageGenerationModel,
+} from '@/lib/constants/image-models';
 import { resolveContinuationSource } from '@/lib/utils/transition';
 import { formatBlockersForAlert, getSceneGenerationBlockers } from '@/lib/workflow/generation-guard';
 
@@ -64,7 +71,8 @@ export function BatchImageGenerator({
     const [statuses, setStatuses] = useState<Map<string, GenerationStatus>>(new Map());
     const [aspectRatio, setAspectRatio] = useState<string>('16:9');
     const [resolution, setResolution] = useState<'1K' | '2K' | '4K'>('2K');
-    const [imageModel, setImageModel] = useState<ImageGenerationModel>('nano-banana-pro');
+    const [imageModel, setImageModel] = useState<ImageGenerationModel>(DEFAULT_IMAGE_MODEL);
+    const [gptImage2Quality, setGptImage2Quality] = useState<GptImage2Quality>(GPT_IMAGE_2_DEFAULT_QUALITY);
 
     const scenesToProcess = scenes.filter((scene) => {
         const needsStartFrame = !scene.generatedImage?.url;
@@ -197,6 +205,7 @@ export function BatchImageGenerator({
                 referenceImage: referenceImages, // 結合場景個別參考圖與專案級參考圖
                 aspectRatio,
                 resolution,
+                ...(imageModel === 'gpt-image-2' ? { quality: gptImage2Quality } : {}),
             }),
         });
 
@@ -507,10 +516,30 @@ export function BatchImageGenerator({
                             className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
                        text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
                         >
-                            <option value="nano-banana-pro">{IMAGE_GENERATION_MODEL_LABELS['nano-banana-pro']}</option>
-                            <option value="seedream-5-lite">{IMAGE_GENERATION_MODEL_LABELS['seedream-5-lite']}</option>
+                            {VISIBLE_IMAGE_MODELS.map((m) => (
+                                <option key={m} value={m}>{IMAGE_GENERATION_MODEL_LABELS[m]}</option>
+                            ))}
                         </select>
                     </div>
+
+                    {imageModel === 'gpt-image-2' && (
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Quality
+                            </label>
+                            <select
+                                value={gptImage2Quality}
+                                onChange={(e) => setGptImage2Quality(e.target.value as GptImage2Quality)}
+                                disabled={isGenerating}
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg
+                       text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-600"
+                            >
+                                <option value="low">Low（探索 / 批次）</option>
+                                <option value="medium">Medium（平衡）</option>
+                                <option value="high">High（成品）</option>
+                            </select>
+                        </div>
+                    )}
 
                     <div className="space-y-2">
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">

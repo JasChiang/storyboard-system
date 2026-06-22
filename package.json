@@ -14,7 +14,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@fal-ai/client": "^1.8.4",
+    "@fal-ai/client": "^1.9.5",
     "@fal-ai/server-proxy": "^1.1.2",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@google/genai": "^0.3.0",

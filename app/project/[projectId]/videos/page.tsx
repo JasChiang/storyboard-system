@@ -12,7 +12,7 @@ import { VideoGenerator } from '@/components/video-generation/VideoGenerator';
 import { LibrarySyncNotice } from '@/components/characters/LibrarySyncNotice';
 import { Button } from '@/components/ui/button';
 import { resolveContinuationSource } from '@/lib/utils/transition';
-import type { ProjectReference } from '@/lib/types/storyboard';
+import type { ProjectReference, Scene } from '@/lib/types/storyboard';
 
 type VideoModel = 'kling' | 'seedance';
 
@@ -308,13 +308,30 @@ export default function VideosPage() {
     });
   };
 
-  const handleVideoModeChanged = (sceneId: string, mode: 'standard' | 'reference') => {
+  const handleVideoModeChanged = (sceneId: string, mode: 'standard' | 'reference' | 'text') => {
     if (!currentProject?.storyboard) return;
 
     const updatedScenes = currentProject.storyboard.scenes.map(scene =>
       scene.id === sceneId ? { ...scene, videoMode: mode } : scene
     );
 
+    updateProject(projectId, {
+      storyboard: {
+        ...currentProject.storyboard,
+        scenes: updatedScenes,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  };
+
+  const handleCapabilityUpdated = (
+    sceneId: string,
+    updates: Partial<Pick<Scene, 'videoCapability' | 'extendsSceneId' | 'editSourceSceneId' | 'oneShot'>>
+  ) => {
+    if (!currentProject?.storyboard) return;
+    const updatedScenes = currentProject.storyboard.scenes.map(scene =>
+      scene.id === sceneId ? { ...scene, ...updates } : scene
+    );
     updateProject(projectId, {
       storyboard: {
         ...currentProject.storyboard,
@@ -677,6 +694,7 @@ export default function VideosPage() {
                       handleVideoPromptDraftChanged(selectedScene.id, draftPrompt, notes)
                     }
                     onVideoModeChanged={(mode) => handleVideoModeChanged(selectedScene.id, mode)}
+                    onCapabilityUpdated={(updates) => handleCapabilityUpdated(selectedScene.id, updates)}
                     onVideoGenerated={(url, motionPrompt, composedPrompt, model, durationSeconds) =>
                       handleVideoGenerated(selectedScene.id, url, motionPrompt, composedPrompt, model, durationSeconds)
                     }

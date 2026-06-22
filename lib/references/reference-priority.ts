@@ -2,6 +2,7 @@ import type { ImageGenerationModel } from '@/lib/constants/image-models';
 import type { ProjectReference, ReferencePriorityMode, WorkflowStage } from '@/lib/types/storyboard';
 
 const MAX_REFERENCE_IMAGES: Record<ImageGenerationModel, number> = {
+  'gpt-image-2': 10,
   'nano-banana-pro': 14,
   'seedream-5-lite': 4,
 };

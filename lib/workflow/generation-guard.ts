@@ -12,10 +12,16 @@ export interface GenerationBlocker {
 
 interface SceneGenerationGuardInput {
   stage: GenerationStage;
-  scene: Pick<Scene, 'qaStatus' | 'qaIssues' | 'requiredReferences'>;
+  scene: Pick<Scene, 'qaStatus' | 'qaIssues' | 'requiredReferences' | 'videoMode'>;
   projectReferences?: Array<Pick<ProjectReference, 'name' | 'type'>>;
   effectiveStartFrameUrl?: string;
   allowPendingStartFrame?: boolean;
+}
+
+// Seedance ref / t2v 模式不依賴首幀：ref 吃多模態參考、t2v 純文字。
+// 圖片生成階段也套用同規則（不對 ref/t2v 場景強制首幀）。
+function sceneSkipsStartFrame(videoMode?: Scene['videoMode']): boolean {
+  return videoMode === 'reference' || videoMode === 'text';
 }
 
 function toAvailableReferenceTags(
@@ -85,7 +91,13 @@ export function getSceneGenerationBlockers(input: SceneGenerationGuardInput): Ge
   // will select the closest available angle automatically.
 
   const requiresStartFrame = input.stage === 'image_end' || input.stage === 'video';
-  if (requiresStartFrame && !input.allowPendingStartFrame && !input.effectiveStartFrameUrl) {
+  const scenarioSkipsFrame = sceneSkipsStartFrame(input.scene.videoMode);
+  if (
+    requiresStartFrame
+    && !input.allowPendingStartFrame
+    && !scenarioSkipsFrame
+    && !input.effectiveStartFrameUrl
+  ) {
     blockers.push({
       code: 'missing_start_frame',
       message: input.stage === 'video'

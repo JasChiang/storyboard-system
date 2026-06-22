@@ -15,7 +15,7 @@ import { ConsistencyPanel } from '@/components/consistency/ConsistencyPanel';
 import { LibrarySyncNotice } from '@/components/characters/LibrarySyncNotice';
 import { Button } from '@/components/ui/button';
 import { DEFAULT_STYLE_PROFILE_ID, findStyleProfileById } from '@/lib/constants/style-profiles';
-import { getWorkflowProgress } from '@/lib/project/workflow';
+import { getWorkflowProgress, sceneSkipsImageStage } from '@/lib/project/workflow';
 import { resolveContinuationSource } from '@/lib/utils/transition';
 import type { ProjectReference, SceneConsistencyReport, StyleProfile } from '@/lib/types/storyboard';
 
@@ -99,7 +99,9 @@ export default function ImagesPage() {
     [currentProject?.storyboard?.scenes]
   );
   const blockedScenes = scenes.filter((s) => s.qaStatus === 'block');
-  const processableScenes = scenes.filter((s) => s.qaStatus !== 'block');
+  // 批次生圖只處理「需要首幀」的場景：排除 QA block、排除 ref / t2v（videoMode 會跳過圖片階段）
+  const processableScenes = scenes.filter((s) => s.qaStatus !== 'block' && !sceneSkipsImageStage(s));
+  const skippedByVideoModeCount = scenes.filter(sceneSkipsImageStage).length;
   const progress = getWorkflowProgress(currentProject);
   const filteredScenes = useMemo(() => {
     const query = sceneQuery.trim().toLowerCase();
@@ -855,6 +857,26 @@ export default function ImagesPage() {
                     />
                   )}
 
+                  {sceneSkipsImageStage(selectedScene) && (
+                    <div className={`rounded-lg border px-4 py-4 text-sm backdrop-blur-sm ${
+                      selectedScene.videoMode === 'text'
+                        ? 'border-amber-200 bg-amber-50/80 text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200'
+                        : 'border-indigo-200 bg-indigo-50/80 text-indigo-800 dark:border-indigo-900/40 dark:bg-indigo-900/20 dark:text-indigo-200'
+                    }`}>
+                      <p className="font-medium">
+                        {selectedScene.videoMode === 'text'
+                          ? '此場景為 Text-to-Video 模式'
+                          : '此場景為 Reference-to-Video 模式'}
+                      </p>
+                      <p className="mt-1 text-xs opacity-80">
+                        {selectedScene.videoMode === 'text'
+                          ? '不需要生成首幀 / 尾幀，直接前往影片頁以 Seedance 2.0 t2v 生成。'
+                          : '不需要生成首幀 / 尾幀，影片頁會直接使用專案參考圖（角色 / 商品 / 運鏡片段 / 音軌）生成。'}
+                        若你仍想產生一張參考用首幀，可在下方選擇「生成首幀」按鈕（可選）。
+                      </p>
+                    </div>
+                  )}
+
                   {selectedScene.qaStatus !== 'block' && (
                     <div className="bg-white/50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 p-6 backdrop-blur-sm">
                       <ImageGenerator
@@ -897,6 +919,11 @@ export default function ImagesPage() {
             {blockedScenes.length > 0 && (
               <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
                 有 {blockedScenes.length} 個場景被 QA 阻擋，批次生成會自動跳過它們。
+              </div>
+            )}
+            {skippedByVideoModeCount > 0 && (
+              <div className="mb-4 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800 dark:border-indigo-900/40 dark:bg-indigo-900/20 dark:text-indigo-300">
+                有 {skippedByVideoModeCount} 個場景為 Reference / Text-to-Video 模式，直接跳過圖片階段進入影片生成。
               </div>
             )}
             <BatchImageGenerator
@@ -966,7 +993,11 @@ export default function ImagesPage() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         場景 {scene.sceneNumber}
                       </p>
-                      {scene.videoMode === 'reference' ? (
+                      {scene.videoMode === 'text' ? (
+                        <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded">
+                          Text→影片
+                        </span>
+                      ) : scene.videoMode === 'reference' ? (
                         <span className="text-xs px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded">
                           Ref→影片
                         </span>

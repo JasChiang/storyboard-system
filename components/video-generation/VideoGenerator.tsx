@@ -6,7 +6,7 @@ import { ModelSelector } from './ModelSelector';
 import { MotionPromptEditor } from './MotionPromptEditor';
 import { VideoPreview } from './VideoPreview';
 import { Button } from '@/components/ui/button';
-import type { Scene, ProjectReference, SharedContinuityDirective } from '@/lib/types/storyboard';
+import type { Scene, ProjectReference, SharedContinuityDirective, SceneRefSource, SceneRefSourceUsage } from '@/lib/types/storyboard';
 import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
 import { buildKlingPrompt } from '@/lib/video/adapters/kling';
@@ -17,12 +17,36 @@ import { formatBlockersForAlert, getSceneGenerationBlockers } from '@/lib/workfl
 type VideoModel = 'kling' | 'seedance';
 type PromptMode = 'deterministic' | 'ai_composer';
 type KlingVariant = 'v26' | 'o3' | 'o1' | 'o1_ref';
-type SeedanceVariant = 'v15' | 'v20' | 'v20_ref' | 'v20_fast_ref';
+type SeedanceVariant =
+    | 'v20_i2v'
+    | 'v20_i2v_fast'
+    | 'v20_ref'
+    | 'v20_ref_fast'
+    | 'v20_t2v'
+    | 'v20_t2v_fast';
 
 const KLING_REFERENCE_VARIANTS: ReadonlyArray<KlingVariant> = ['o1_ref'];
-const SEEDANCE_REFERENCE_VARIANTS: ReadonlyArray<SeedanceVariant> = ['v20_ref', 'v20_fast_ref'];
+const SEEDANCE_REFERENCE_VARIANTS: ReadonlyArray<SeedanceVariant> = ['v20_ref', 'v20_ref_fast'];
+const SEEDANCE_TEXT_VARIANTS: ReadonlyArray<SeedanceVariant> = ['v20_t2v', 'v20_t2v_fast'];
+const SEEDANCE_FAST_VARIANTS: ReadonlyArray<SeedanceVariant> = ['v20_i2v_fast', 'v20_ref_fast', 'v20_t2v_fast'];
 const KLING_REF_MAX = 7;
 const SEEDANCE_REF_MAX = 9;
+const SEEDANCE_VIDEO_REF_MAX = 3;
+const SEEDANCE_AUDIO_REF_MAX = 3;
+const SEEDANCE_MIXED_TOTAL_MAX = 12;
+
+const USAGE_OPTIONS: Array<{ value: SceneRefSourceUsage; label: string; kinds: SceneRefSource['kind'][] }> = [
+    { value: 'identity', label: '身份一致性', kinds: ['image', 'video'] },
+    { value: 'camera', label: '運鏡復刻', kinds: ['video'] },
+    { value: 'motion', label: '動作復刻', kinds: ['video', 'image'] },
+    { value: 'effect', label: '特效 / 轉場', kinds: ['video'] },
+    { value: 'voice', label: '音色', kinds: ['audio', 'video'] },
+    { value: 'music', label: '配樂 / 節奏', kinds: ['audio', 'video'] },
+    { value: 'environment', label: '場景 / 環境', kinds: ['image', 'video'] },
+];
+
+type SeedanceAspectRatio = 'auto' | '21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
+type SeedanceResolution = '480p' | '720p' | '1080p';
 
 interface VideoGeneratorProps {
     projectId: string;
@@ -34,7 +58,8 @@ interface VideoGeneratorProps {
     sharedAnchors?: string[];
     sharedContinuityDirectives?: SharedContinuityDirective[];
     onPromptDraftChanged?: (draftPrompt: string, notes?: string) => void;
-    onVideoModeChanged?: (mode: 'standard' | 'reference') => void;
+    onVideoModeChanged?: (mode: 'standard' | 'reference' | 'text') => void;
+    onCapabilityUpdated?: (updates: Partial<Pick<Scene, 'videoCapability' | 'extendsSceneId' | 'editSourceSceneId' | 'oneShot'>>) => void;
     onVideoGenerated: (
         videoUrl: string,
         motionPrompt: string,
@@ -75,6 +100,7 @@ export function VideoGenerator({
     sharedContinuityDirectives = [],
     onPromptDraftChanged,
     onVideoModeChanged,
+    onCapabilityUpdated,
     onVideoGenerated
 }: VideoGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
@@ -99,11 +125,19 @@ export function VideoGenerator({
     const [klingVariant, setKlingVariant] = useState<KlingVariant>('v26');
 
     // Seedance 選項
-    const [seedanceVariant, setSeedanceVariant] = useState<SeedanceVariant>('v20');
+    const [seedanceVariant, setSeedanceVariant] = useState<SeedanceVariant>('v20_i2v');
     const [seedanceDuration, setSeedanceDuration] = useState(5);
-    const [seedanceAspectRatio, setSeedanceAspectRatio] = useState<'21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16'>('16:9');
-    const [seedanceResolution, setSeedanceResolution] = useState<'480p' | '720p' | '1080p'>('720p');
+    const [seedanceAspectRatio, setSeedanceAspectRatio] = useState<SeedanceAspectRatio>('16:9');
+    const [seedanceResolution, setSeedanceResolution] = useState<SeedanceResolution>('720p');
     const [seedanceEnableAudio, setSeedanceEnableAudio] = useState(false);
+
+    // Seedance 多模態 ref 輸入（ref 模式下可手動加入影片 / 音訊 URL）
+    const [videoRefUrlsText, setVideoRefUrlsText] = useState('');
+    const [audioRefUrlsText, setAudioRefUrlsText] = useState('');
+    // 每張自動帶入的 image ref 的 usage — key 為 ref id
+    const [imageRefUsageMap, setImageRefUsageMap] = useState<Record<string, SceneRefSourceUsage>>({});
+    // 延長模式的新增秒數
+    const [extensionSeconds, setExtensionSeconds] = useState(5);
     const isGenerationLocked = isGenerating || externalGenerating;
     const endFrameUrl = scene.generatedEndFrame?.url;
     const shouldUseEndFrameForVideo = Boolean(
@@ -143,6 +177,8 @@ export function VideoGenerator({
     );
     const isKlingReferenceMode = model === 'kling' && KLING_REFERENCE_VARIANTS.includes(klingVariant);
     const isSeedanceReferenceMode = model === 'seedance' && SEEDANCE_REFERENCE_VARIANTS.includes(seedanceVariant);
+    const isSeedanceTextMode = model === 'seedance' && SEEDANCE_TEXT_VARIANTS.includes(seedanceVariant);
+    const isSeedanceFastVariant = model === 'seedance' && SEEDANCE_FAST_VARIANTS.includes(seedanceVariant);
     const isReferenceMode = isKlingReferenceMode || isSeedanceReferenceMode;
     const referenceImageUrls = useMemo(() => {
         if (!isReferenceMode) return [] as string[];
@@ -194,15 +230,19 @@ export function VideoGenerator({
         setSeedanceVariant((prev) => (SEEDANCE_REFERENCE_VARIANTS.includes(prev) ? prev : 'v20_ref'));
     }, [scene.id, scene.videoMode]);
 
-    // 將目前的 reference / standard 模式回寫到場景，讓圖片頁可同步隱藏尾幀流程
+    // 將目前的 reference / standard / text 模式回寫到場景，讓圖片頁可同步隱藏首尾幀流程
     useEffect(() => {
         if (!onVideoModeChanged) return;
-        const nextMode: 'standard' | 'reference' = isReferenceMode ? 'reference' : 'standard';
+        const nextMode: 'standard' | 'reference' | 'text' = isSeedanceTextMode
+            ? 'text'
+            : isReferenceMode
+                ? 'reference'
+                : 'standard';
         const persistedMode = scene.videoMode || 'standard';
         if (nextMode !== persistedMode) {
             onVideoModeChanged(nextMode);
         }
-    }, [isReferenceMode, scene.videoMode, onVideoModeChanged]);
+    }, [isReferenceMode, isSeedanceTextMode, scene.videoMode, onVideoModeChanged]);
 
     useEffect(() => {
         const profileWithDefaults = scopedRefs.find((ref) => ref.ipProfile?.generationDefaults);
@@ -220,15 +260,96 @@ export function VideoGenerator({
             setKlingDuration(defaults.preferredKlingDuration);
         }
         if (typeof defaults.preferredSeedanceDuration === 'number') {
-            setSeedanceDuration(Math.max(4, Math.min(12, Math.round(defaults.preferredSeedanceDuration))));
+            setSeedanceDuration(Math.max(4, Math.min(15, Math.round(defaults.preferredSeedanceDuration))));
         }
     }, [scene.id, scopedRefs]);
+
+    // Fast variants only support up to 720p — auto-downgrade if user switches into a fast variant while on 1080p.
+    useEffect(() => {
+        if (isSeedanceFastVariant && seedanceResolution === '1080p') {
+            setSeedanceResolution('720p');
+        }
+    }, [isSeedanceFastVariant, seedanceResolution]);
+
+    const parseUrlList = (text: string, max: number): string[] => {
+        if (!text) return [];
+        const urls = text
+            .split(/[\n,]+/)
+            .map((raw) => raw.trim())
+            .filter(Boolean);
+        return Array.from(new Set(urls)).slice(0, max);
+    };
+
+    const parsedVideoRefUrls = useMemo(() => {
+        if (!isSeedanceReferenceMode) return [] as string[];
+        const manual = parseUrlList(videoRefUrlsText, SEEDANCE_VIDEO_REF_MAX);
+        // 延長 / 編輯能力：自動把來源鏡的 generatedVideo.url 插到第一位，保證 @視頻1 指向它
+        const capability = scene.videoCapability;
+        const sourceSceneId = capability === 'extension'
+            ? scene.extendsSceneId
+            : capability === 'edit'
+                ? scene.editSourceSceneId
+                : undefined;
+        const sourceUrl = sourceSceneId
+            ? (allScenes || []).find((s) => s.id === sourceSceneId)?.generatedVideo?.url
+            : undefined;
+        if (!sourceUrl) return manual;
+        const deduped = [sourceUrl, ...manual.filter((u) => u !== sourceUrl)];
+        return deduped.slice(0, SEEDANCE_VIDEO_REF_MAX);
+    }, [isSeedanceReferenceMode, videoRefUrlsText, scene.videoCapability, scene.extendsSceneId, scene.editSourceSceneId, allScenes]);
+    const parsedAudioRefUrls = useMemo(
+        () => (isSeedanceReferenceMode ? parseUrlList(audioRefUrlsText, SEEDANCE_AUDIO_REF_MAX) : []),
+        [isSeedanceReferenceMode, audioRefUrlsText]
+    );
+
+    // 依 @圖片 N / @視頻 N / @音頻 N 官方規則，依序給每個 ref 分配 atIndex（從 1 起）
+    const builtRefSources = useMemo<SceneRefSource[]>(() => {
+        if (!isSeedanceReferenceMode) return [];
+        const sources: SceneRefSource[] = [];
+        referenceImageUrls.forEach((url, idx) => {
+            // 透過 scopedRefs 找回 ref 物件（以 url 對應）
+            const matchedRef = scopedRefs.find((ref) => ref.url === url);
+            const refId = matchedRef?.id || `image-${idx + 1}`;
+            const usage = imageRefUsageMap[refId] || 'identity';
+            sources.push({ refId, kind: 'image', usage, atIndex: idx + 1 });
+        });
+        parsedVideoRefUrls.forEach((url, idx) => {
+            sources.push({ refId: `video-${idx + 1}:${url}`, kind: 'video', usage: 'camera', atIndex: idx + 1 });
+        });
+        parsedAudioRefUrls.forEach((url, idx) => {
+            sources.push({ refId: `audio-${idx + 1}:${url}`, kind: 'audio', usage: 'music', atIndex: idx + 1 });
+        });
+        return sources;
+    }, [isSeedanceReferenceMode, referenceImageUrls, imageRefUsageMap, parsedVideoRefUrls, parsedAudioRefUrls, scopedRefs]);
+
+    const totalRefCount = referenceImageUrls.length + parsedVideoRefUrls.length + parsedAudioRefUrls.length;
+    const isRefMixOverflow = isSeedanceReferenceMode && totalRefCount > SEEDANCE_MIXED_TOTAL_MAX;
+
+    // 可作為延長 / 編輯來源的場景（必須有 generatedVideo.url 且非當前場景）
+    const videoSourceCandidates = useMemo(() => {
+        return (allScenes || [])
+            .filter((s) => s.id !== scene.id && Boolean(s.generatedVideo?.url))
+            .map((s) => ({
+                id: s.id,
+                sceneNumber: s.sceneNumber,
+                url: s.generatedVideo!.url,
+                label: `Scene ${s.sceneNumber}`,
+            }));
+    }, [allScenes, scene.id]);
 
     const buildVideoPrompt = (activeMotionPrompt: string) => {
         if (model === 'kling') {
             return buildKlingPrompt({ scene, motionPrompt: activeMotionPrompt, scopedRefs, continuityMemoryLines });
         }
-        return buildSeedancePrompt({ scene, motionPrompt: activeMotionPrompt, scopedRefs, continuityMemoryLines });
+        return buildSeedancePrompt({
+            scene,
+            motionPrompt: activeMotionPrompt,
+            scopedRefs,
+            continuityMemoryLines,
+            refSources: builtRefSources.length > 0 ? builtRefSources : undefined,
+            videoMode: isSeedanceTextMode ? 'text' : isSeedanceReferenceMode ? 'reference' : 'standard',
+            extensionDurationSeconds: scene.videoCapability === 'extension' ? extensionSeconds : undefined,
+        });
     };
 
     const composePromptWithAI = async (activeMotionPrompt: string): Promise<string> => {
@@ -296,13 +417,17 @@ export function VideoGenerator({
             return;
         }
 
-        // image-to-video 模式需要起幀；reference-to-video 模式只需要參考圖
-        if (!isReferenceMode && !effectiveStartFrameUrl) {
+        // image-to-video 模式需要起幀；reference-to-video 模式只需要參考圖；text-to-video 不需要起幀或參考圖
+        if (!isReferenceMode && !isSeedanceTextMode && !effectiveStartFrameUrl) {
             alert('請先生成場景圖片');
             return;
         }
-        if (isReferenceMode && referenceImageUrls.length === 0) {
-            alert('Reference-to-video 模式需要至少一張專案參考圖（角色/商品）');
+        if (isReferenceMode && referenceImageUrls.length === 0 && parsedVideoRefUrls.length === 0 && parsedAudioRefUrls.length === 0) {
+            alert('Reference-to-video 模式需要至少一個參考素材（圖片 / 影片 / 音訊）');
+            return;
+        }
+        if (isRefMixOverflow) {
+            alert(`Seedance ref 模式合計上限 ${SEEDANCE_MIXED_TOTAL_MAX} 個素材（目前 ${totalRefCount}），請減少參考。`);
             return;
         }
 
@@ -343,9 +468,9 @@ export function VideoGenerator({
                 }),
             });
             // Continuation 轉場邏輯：如果有 previousEndFrameUrl，使用它作為起始幀
-            // reference-to-video 模式 start frame 可選；image-to-video 模式必須
+            // reference-to-video 與 text-to-video 模式不強制起幀；image-to-video 模式必須
             const startImageUrl = effectiveStartFrameUrl || '';
-            if (!isReferenceMode && !startImageUrl.trim()) {
+            if (!isReferenceMode && !isSeedanceTextMode && !startImageUrl.trim()) {
                 throw new Error('Missing start image URL');
             }
 
@@ -364,8 +489,10 @@ export function VideoGenerator({
                     resolution: model === 'seedance' ? seedanceResolution : undefined,
                     enableSound: model === 'kling' ? klingEnableSound : undefined,
                     enableAudio: model === 'seedance' ? seedanceEnableAudio : undefined,
-                    endImageUrl: !isReferenceMode && shouldUseEndFrameForVideo ? scene.generatedEndFrame?.url : undefined,
+                    endImageUrl: !isReferenceMode && !isSeedanceTextMode && shouldUseEndFrameForVideo ? scene.generatedEndFrame?.url : undefined,
                     referenceImageUrls: isReferenceMode ? referenceImageUrls : undefined,
+                    referenceVideoUrls: isSeedanceReferenceMode && parsedVideoRefUrls.length > 0 ? parsedVideoRefUrls : undefined,
+                    referenceAudioUrls: isSeedanceReferenceMode && parsedAudioRefUrls.length > 0 ? parsedAudioRefUrls : undefined,
                 }),
             });
 
@@ -507,9 +634,13 @@ export function VideoGenerator({
     const hasStartFrame = Boolean(effectiveStartFrameUrl);
     const hasEndFrame = Boolean(endFrameUrl);
     const hasGeneratedVideo = Boolean(scene.generatedVideo?.url);
-    const canGenerateVideo = isReferenceMode
-        ? referenceImageUrls.length > 0
-        : Boolean(effectiveStartFrameUrl);
+    const canGenerateVideo = isSeedanceTextMode
+        ? true
+        : isSeedanceReferenceMode
+            ? (referenceImageUrls.length + parsedVideoRefUrls.length + parsedAudioRefUrls.length) > 0 && !isRefMixOverflow
+            : isKlingReferenceMode
+                ? referenceImageUrls.length > 0
+                : Boolean(effectiveStartFrameUrl);
 
     return (
         <div className="space-y-5">
@@ -533,13 +664,13 @@ export function VideoGenerator({
                     <div className="surface-inset px-3 py-2">
                         <p className="text-xs text-slate-500">首幀</p>
                         <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                            {hasStartFrame ? '已就緒' : isReferenceMode ? '不使用' : '尚未就緒'}
+                            {hasStartFrame ? '已就緒' : (isReferenceMode || isSeedanceTextMode) ? '不使用' : '尚未就緒'}
                         </p>
                     </div>
                     <div className="surface-inset px-3 py-2">
                         <p className="text-xs text-slate-500">尾幀</p>
                         <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                            {isReferenceMode ? '不使用' : shouldUseEndFrameForVideo ? (hasEndFrame ? '已就緒' : '尚未就緒') : '不使用'}
+                            {(isReferenceMode || isSeedanceTextMode) ? '不使用' : shouldUseEndFrameForVideo ? (hasEndFrame ? '已就緒' : '尚未就緒') : '不使用'}
                         </p>
                     </div>
                     <div className="surface-inset px-3 py-2">
@@ -557,6 +688,15 @@ export function VideoGenerator({
                         </p>
                         <p className="mt-0.5 text-[11px] opacity-80">
                             自動帶入場景相關的角色 / 商品參考圖，不使用起幀 / 尾幀
+                        </p>
+                    </div>
+                )}
+
+                {isSeedanceTextMode && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+                        <p className="font-medium">Text-to-Video 模式</p>
+                        <p className="mt-0.5 text-[11px] opacity-80">
+                            純文字生成，不使用起幀 / 尾幀 / 參考圖；請在下方「提示詞」區完整描述場景內容。
                         </p>
                     </div>
                 )}
@@ -723,19 +863,19 @@ export function VideoGenerator({
                         </p>
                     </div>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                        目前：{isReferenceMode ? 'Reference 模式' : '起始幀模式'}
+                        目前：{isSeedanceTextMode ? 'Text-to-Video 模式' : isReferenceMode ? 'Reference 模式' : '起始幀模式'}
                     </span>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className={`grid gap-2 ${model === 'seedance' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                     <button
                         type="button"
                         onClick={() => {
                             if (model === 'kling') setKlingVariant('v26');
-                            if (model === 'seedance') setSeedanceVariant('v20');
+                            if (model === 'seedance') setSeedanceVariant('v20_i2v');
                         }}
                         disabled={isGenerationLocked}
                         className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
-                            !isReferenceMode
+                            !isReferenceMode && !isSeedanceTextMode
                                 ? 'border-primary/40 bg-primary/10 text-foreground'
                                 : 'border-slate-200 bg-white/60 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:bg-slate-800'
                         }`}
@@ -759,8 +899,225 @@ export function VideoGenerator({
                         <p className="font-medium">Reference 模式（多參考圖→影片）推薦</p>
                         <p className="mt-0.5 opacity-80">直接帶入角色 / 商品參考圖（最多 {model === 'kling' ? KLING_REF_MAX : SEEDANCE_REF_MAX} 張），對保持角色臉部、商品 logo 一致最有效，且不再需要尾幀。</p>
                     </button>
+                    {model === 'seedance' && (
+                        <button
+                            type="button"
+                            onClick={() => setSeedanceVariant('v20_t2v')}
+                            disabled={isGenerationLocked}
+                            className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                                isSeedanceTextMode
+                                    ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
+                                    : 'border-slate-200 bg-white/60 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:bg-slate-800'
+                            }`}
+                        >
+                            <p className="font-medium">Text-to-Video 模式（純文字）</p>
+                            <p className="mt-0.5 opacity-80">不需要首幀或參考圖，僅由提示詞從零生成影片。適合概念探索或沒有現成素材時。</p>
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {isSeedanceReferenceMode && (
+                <div className="surface-panel space-y-4 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">Seedance 多模態參考素材</h4>
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                                圖片 {referenceImageUrls.length}/{SEEDANCE_REF_MAX}　影片 {parsedVideoRefUrls.length}/{SEEDANCE_VIDEO_REF_MAX}　音訊 {parsedAudioRefUrls.length}/{SEEDANCE_AUDIO_REF_MAX}　合計 {totalRefCount}/{SEEDANCE_MIXED_TOTAL_MAX}
+                            </p>
+                        </div>
+                        {isRefMixOverflow && (
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                                合計超過 {SEEDANCE_MIXED_TOTAL_MAX} 檔上限
+                            </span>
+                        )}
+                    </div>
+
+                    {referenceImageUrls.length > 0 && (
+                        <div className="space-y-2">
+                            <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                                圖片參考（自動帶入場景相關角色 / 商品，可逐張指定用途）
+                            </p>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                {referenceImageUrls.map((url, idx) => {
+                                    const matchedRef = scopedRefs.find((ref) => ref.url === url);
+                                    const refId = matchedRef?.id || `image-${idx + 1}`;
+                                    const currentUsage = imageRefUsageMap[refId] || 'identity';
+                                    return (
+                                        <div key={refId} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white/60 p-2 text-xs dark:border-slate-700 dark:bg-slate-900/40">
+                                            <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                                @圖片{idx + 1}
+                                            </span>
+                                            <span className="flex-1 truncate text-slate-600 dark:text-slate-300">
+                                                {matchedRef?.name || '未命名參考'}
+                                            </span>
+                                            <select
+                                                value={currentUsage}
+                                                onChange={(e) => setImageRefUsageMap((prev) => ({ ...prev, [refId]: e.target.value as SceneRefSourceUsage }))}
+                                                disabled={isGenerationLocked}
+                                                className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] dark:border-slate-600 dark:bg-slate-800"
+                                            >
+                                                {USAGE_OPTIONS.filter((opt) => opt.kinds.includes('image')).map((opt) => (
+                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="space-y-2">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+                            影片參考 URLs（每行一個，最多 {SEEDANCE_VIDEO_REF_MAX} 個；2-15 秒、解析度 ≤720p、單檔 &lt;50MB）
+                        </label>
+                        <textarea
+                            value={videoRefUrlsText}
+                            onChange={(e) => setVideoRefUrlsText(e.target.value)}
+                            placeholder="https://… (mp4 / mov)"
+                            disabled={isGenerationLocked}
+                            rows={2}
+                            className="w-full resize-none rounded-lg border border-border/80 bg-white/80 px-2 py-1.5 font-mono text-[11px] text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
+                        />
+                        {parsedVideoRefUrls.length > 0 && (
+                            <p className="text-[11px] text-slate-500">
+                                將以 {parsedVideoRefUrls.map((_, i) => `@視頻${i + 1}`).join(' / ')} 送進提示詞
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+                            音訊參考 URLs（每行一個，最多 {SEEDANCE_AUDIO_REF_MAX} 個；總時長 ≤15 秒，單檔 &lt;15MB）
+                        </label>
+                        <textarea
+                            value={audioRefUrlsText}
+                            onChange={(e) => setAudioRefUrlsText(e.target.value)}
+                            placeholder="https://… (mp3 / wav)"
+                            disabled={isGenerationLocked}
+                            rows={2}
+                            className="w-full resize-none rounded-lg border border-border/80 bg-white/80 px-2 py-1.5 font-mono text-[11px] text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
+                        />
+                        {parsedAudioRefUrls.length > 0 && (
+                            <p className="text-[11px] text-slate-500">
+                                將以 {parsedAudioRefUrls.map((_, i) => `@音頻${i + 1}`).join(' / ')} 送進提示詞
+                            </p>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {model === 'seedance' && onCapabilityUpdated && (
+                <div className="surface-panel space-y-3 p-4">
+                    <div>
+                        <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">Seedance 進階能力</h4>
+                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                            指定 Seedance 2.0 的專屬能力：延長同一鏡、在既有片段上編輯、或鎖定一鏡到底。
+                        </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1">
+                            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">能力類型</label>
+                            <select
+                                value={scene.videoCapability || ''}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    const capability = val ? (val as NonNullable<Scene['videoCapability']>) : undefined;
+                                    const updates: Partial<Pick<Scene, 'videoCapability' | 'extendsSceneId' | 'editSourceSceneId' | 'oneShot'>> = {
+                                        videoCapability: capability,
+                                    };
+                                    if (capability !== 'extension') updates.extendsSceneId = undefined;
+                                    if (capability !== 'edit') updates.editSourceSceneId = undefined;
+                                    onCapabilityUpdated(updates);
+                                }}
+                                disabled={isGenerationLocked}
+                                className="w-full rounded-lg border border-border/80 bg-white/80 px-2 py-1.5 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
+                            >
+                                <option value="">（無 / 一般生成）</option>
+                                <option value="consistency">consistency（身份鎖定）</option>
+                                <option value="camera_ref">camera_ref（運鏡複刻）</option>
+                                <option value="effect_ref">effect_ref（特效 / 轉場）</option>
+                                <option value="extension">extension（延長同一鏡）</option>
+                                <option value="edit">edit（在現有片段上編輯）</option>
+                                <option value="emotion">emotion（情緒演繹）</option>
+                            </select>
+                        </div>
+
+                        {scene.videoCapability === 'extension' && (
+                            <>
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+                                        要延長的來源鏡（必須已生成影片）
+                                    </label>
+                                    <select
+                                        value={scene.extendsSceneId || ''}
+                                        onChange={(e) => onCapabilityUpdated({ extendsSceneId: e.target.value || undefined })}
+                                        disabled={isGenerationLocked || videoSourceCandidates.length === 0}
+                                        className="w-full rounded-lg border border-border/80 bg-white/80 px-2 py-1.5 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
+                                    >
+                                        <option value="">—</option>
+                                        {videoSourceCandidates.map((c) => (
+                                            <option key={c.id} value={c.id}>{c.label}</option>
+                                        ))}
+                                    </select>
+                                    {videoSourceCandidates.length === 0 && (
+                                        <p className="text-[11px] text-amber-600">沒有可延長的來源（其他場景尚未生成影片）</p>
+                                    )}
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+                                        新增秒數（3-10s）
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min={3}
+                                        max={10}
+                                        value={extensionSeconds}
+                                        onChange={(e) => setExtensionSeconds(Math.max(3, Math.min(10, Number(e.target.value) || 5)))}
+                                        disabled={isGenerationLocked}
+                                        className="w-full rounded-lg border border-border/80 bg-white/80 px-2 py-1.5 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {scene.videoCapability === 'edit' && (
+                            <div className="space-y-1 sm:col-span-1">
+                                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+                                    要編輯的來源鏡
+                                </label>
+                                <select
+                                    value={scene.editSourceSceneId || ''}
+                                    onChange={(e) => onCapabilityUpdated({ editSourceSceneId: e.target.value || undefined })}
+                                    disabled={isGenerationLocked || videoSourceCandidates.length === 0}
+                                    className="w-full rounded-lg border border-border/80 bg-white/80 px-2 py-1.5 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
+                                >
+                                    <option value="">—</option>
+                                    {videoSourceCandidates.map((c) => (
+                                        <option key={c.id} value={c.id}>{c.label}</option>
+                                    ))}
+                                </select>
+                                {videoSourceCandidates.length === 0 && (
+                                    <p className="text-[11px] text-amber-600">沒有可編輯的來源（其他場景尚未生成影片）</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                        <input
+                            type="checkbox"
+                            checked={Boolean(scene.oneShot)}
+                            onChange={(e) => onCapabilityUpdated({ oneShot: e.target.checked || undefined })}
+                            disabled={isGenerationLocked}
+                            className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
+                        />
+                        一鏡到底（插入「一镜到底 + 全程不切镜头」指令，與 transition = continuation 搭配最佳）
+                    </label>
+                </div>
+            )}
 
             <div className="space-y-3">
                 <button
@@ -848,10 +1205,12 @@ export function VideoGenerator({
                                         disabled={isGenerationLocked}
                                         className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                     >
-                                        <option value="v20">Seedance 2.0（起+尾幀）</option>
-                                        <option value="v20_ref">Seedance 2.0 Reference（多參考圖，最多 9 張）</option>
-                                        <option value="v20_fast_ref">Seedance 2.0 Fast Reference（快速低成本版）</option>
-                                        <option value="v15">Seedance 1.5 Pro（legacy）</option>
+                                        <option value="v20_i2v">Seedance 2.0 Image-to-Video（起+尾幀）</option>
+                                        <option value="v20_i2v_fast">Seedance 2.0 Fast Image-to-Video（快速版，最高 720p）</option>
+                                        <option value="v20_ref">Seedance 2.0 Reference-to-Video（多參考：最多 9 圖 / 3 片 / 3 音）</option>
+                                        <option value="v20_ref_fast">Seedance 2.0 Fast Reference-to-Video（快速版）</option>
+                                        <option value="v20_t2v">Seedance 2.0 Text-to-Video（純文字生成）</option>
+                                        <option value="v20_t2v_fast">Seedance 2.0 Fast Text-to-Video（快速版）</option>
                                     </select>
                                 </div>
 
@@ -862,10 +1221,11 @@ export function VideoGenerator({
                                         </label>
                                         <select
                                             value={seedanceAspectRatio}
-                                            onChange={(event) => setSeedanceAspectRatio(event.target.value as '21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16')}
+                                            onChange={(event) => setSeedanceAspectRatio(event.target.value as SeedanceAspectRatio)}
                                             disabled={isGenerationLocked}
                                             className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
+                                            <option value="auto">Auto（依來源 / 參考圖決定）</option>
                                             <option value="21:9">21:9 (電影)</option>
                                             <option value="16:9">16:9 (橫向)</option>
                                             <option value="4:3">4:3 (傳統)</option>
@@ -877,30 +1237,32 @@ export function VideoGenerator({
 
                                     <div className="space-y-2">
                                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                            解析度
+                                            解析度{isSeedanceFastVariant && <span className="ml-1 text-[11px] text-slate-500">（Fast 版本最高 720p）</span>}
                                         </label>
                                         <select
                                             value={seedanceResolution}
-                                            onChange={(event) => setSeedanceResolution(event.target.value as '480p' | '720p' | '1080p')}
+                                            onChange={(event) => setSeedanceResolution(event.target.value as SeedanceResolution)}
                                             disabled={isGenerationLocked}
                                             className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                                         >
                                             <option value="480p">480p (快速)</option>
                                             <option value="720p">720p (平衡)</option>
-                                            <option value="1080p">1080p (高畫質)</option>
+                                            {!isSeedanceFastVariant && (
+                                                <option value="1080p">1080p (高畫質)</option>
+                                            )}
                                         </select>
                                     </div>
                                 </div>
 
                                 <div className="space-y-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                        影片長度 (4-12 秒)
+                                        影片長度 (4-15 秒)
                                     </label>
                                     <div className="flex items-center gap-3">
                                         <input
                                             type="range"
                                             min={4}
-                                            max={12}
+                                            max={15}
                                             value={seedanceDuration}
                                             onChange={(event) => setSeedanceDuration(Number(event.target.value))}
                                             disabled={isGenerationLocked}
@@ -949,7 +1311,9 @@ export function VideoGenerator({
 
             {!canGenerateVideo && (
                 <p className="text-center text-xs text-amber-600 dark:text-amber-400">
-                    {!hasStartFrame ? '請先在「圖片」頁面生成場景圖片' : '目前無法生成影片'}
+                    {isReferenceMode
+                        ? '請在專案參考圖區加入至少一張角色 / 商品圖'
+                        : !hasStartFrame ? '請先在「圖片」頁面生成場景圖片' : '目前無法生成影片'}
                 </p>
             )}
         </div>

@@ -5,7 +5,7 @@ import { buildConsolidatedReferenceRules } from '../references/consistency-rules
 import { getSceneReferencePlan } from '../references/reference-plan';
 import { normalizeTag } from '../references/scene-references';
 import { sanitizeStaticFrameDescription } from '../prompts/image-static';
-import { STORYBOARD_CONTRACT_PROMPT_BLOCK, STORYBOARD_PRODUCTION_RISKS, STORYBOARD_REFERENCE_PRIORITY_MODES, STORYBOARD_RENDER_LANES, STORYBOARD_VIEW_INTENTS } from '../prompts/storyboard-contract';
+import { STORYBOARD_CONTRACT_PROMPT_BLOCK, STORYBOARD_PRODUCTION_RISKS, STORYBOARD_REFERENCE_PRIORITY_MODES, STORYBOARD_RENDER_LANES, STORYBOARD_VIDEO_CAPABILITIES, STORYBOARD_VIDEO_MODES, STORYBOARD_VIEW_INTENTS } from '../prompts/storyboard-contract';
 import { estimateCostUsd, logLlmUsage } from './llm-usage';
 import type {
   ElevenLabsMusicPromptIdea,
@@ -545,6 +545,14 @@ export async function generateStoryboardScript(
         charactersUsed: normalizedCharactersUsed,
         productsUsed: normalizedProductsUsed,
       }, references);
+      const rawVideoMode = typeof scene.videoMode === 'string' ? scene.videoMode.trim() : '';
+      const videoMode = (STORYBOARD_VIDEO_MODES as readonly string[]).includes(rawVideoMode)
+        ? rawVideoMode as NonNullable<Scene['videoMode']>
+        : 'standard';
+      const rawVideoCapability = typeof scene.videoCapability === 'string' ? scene.videoCapability.trim() : '';
+      const videoCapability = (STORYBOARD_VIDEO_CAPABILITIES as readonly string[]).includes(rawVideoCapability)
+        ? rawVideoCapability as NonNullable<Scene['videoCapability']>
+        : undefined;
       const parsedHookScore = Number(scene.hookScore);
       const hookScore: NonNullable<Scene['hookScore']> = ([1, 2, 3, 4, 5] as const).includes(parsedHookScore as 1 | 2 | 3 | 4 | 5)
         ? parsedHookScore as NonNullable<Scene['hookScore']>
@@ -559,6 +567,11 @@ export async function generateStoryboardScript(
           ? '首場需承擔開場 Hook，因此預設要求高辨識度主體、單一焦點與明確懸念。'
           : '此鏡依敘事任務承接前後段落，Hook 以資訊推進與節奏變化為主。');
 
+      const effectiveRequiresEndFrame = videoMode === 'text' ? false : requiresEndFrame;
+      const effectiveEndFrameDescription = videoMode === 'text' ? '' : endFrameDescription;
+      const effectiveEndFrameDelta = videoMode === 'text' ? '' : endFrameDelta;
+      const effectiveEndFrameDeltaSpec = videoMode === 'text' ? undefined : endFrameDeltaSpec;
+
       return {
         sceneNumber: Number.isFinite(sceneNumberValue) ? sceneNumberValue : index + 1,
         description,
@@ -567,10 +580,12 @@ export async function generateStoryboardScript(
         subjectMotion,
         continuityLock,
         cameraMovement: typeof scene.cameraMovement === 'string' ? scene.cameraMovement.trim() : 'Static shot',
-        requiresEndFrame,
-        endFrameDescription,
-        endFrameDelta,
-        endFrameDeltaSpec,
+        videoMode,
+        videoCapability,
+        requiresEndFrame: effectiveRequiresEndFrame,
+        endFrameDescription: effectiveEndFrameDescription,
+        endFrameDelta: effectiveEndFrameDelta,
+        endFrameDeltaSpec: effectiveEndFrameDeltaSpec,
         dialogue: typeof scene.dialogue === 'string' ? scene.dialogue.trim() : '',
         duration: Number.isFinite(sceneDurationValue) ? sceneDurationValue : 3,
         notes: typeof scene.notes === 'string' ? scene.notes.trim() : '',
@@ -989,7 +1004,7 @@ export interface CharacterProfileGenerationInput {
   name: string;
   type: 'character' | 'product' | 'environment' | 'style';
   views: Array<{
-    angle: 'front' | 'side' | 'three_quarter' | 'back' | 'top' | 'other';
+    angle: 'front' | 'side' | 'side_left' | 'side_right' | 'three_quarter' | 'back' | 'top' | 'other';
     description: string;
     mustKeepFeatures?: string[];
     identityCore?: string;

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
     generateVideoKling,
     generateVideoSeedance,
+    SEEDANCE_REF_VARIANTS,
+    SEEDANCE_T2V_VARIANTS,
     type KlingVariant,
     type SeedanceVariant,
 } from '@/lib/api/fal';
@@ -9,7 +11,24 @@ import { enforceVideoPromptPolicy } from '@/lib/video/prompt-policy';
 import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors';
 
 const KLING_VARIANTS: readonly KlingVariant[] = ['v26', 'o3', 'o1', 'o1_ref'] as const;
-const SEEDANCE_VARIANTS: readonly SeedanceVariant[] = ['v15', 'v20', 'v20_ref', 'v20_fast_ref'] as const;
+const SEEDANCE_VARIANTS: readonly SeedanceVariant[] = [
+    'v20_i2v',
+    'v20_i2v_fast',
+    'v20_ref',
+    'v20_ref_fast',
+    'v20_t2v',
+    'v20_t2v_fast',
+] as const;
+
+function parseRefList(value: unknown, max: number): string[] | undefined {
+    if (!Array.isArray(value)) return undefined;
+    const urls = value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, max);
+    return urls.length > 0 ? urls : undefined;
+}
 
 function parseReferenceImageUrls(value: unknown): string[] | undefined {
     if (!Array.isArray(value)) return undefined;
@@ -35,6 +54,8 @@ export async function POST(request: NextRequest) {
             klingVariant,
             seedanceVariant,
             referenceImageUrls,
+            referenceVideoUrls,
+            referenceAudioUrls,
             resolution,
         } = body;
         const apiKey = process.env.FAL_API_KEY;
@@ -50,21 +71,28 @@ export async function POST(request: NextRequest) {
             : 'v26';
         const resolvedSeedanceVariant: SeedanceVariant = SEEDANCE_VARIANTS.includes(seedanceVariant)
             ? (seedanceVariant as SeedanceVariant)
-            : 'v15';
+            : 'v20_i2v';
         const isKlingReferenceMode = model === 'kling' && resolvedKlingVariant === 'o1_ref';
         const isSeedanceReferenceMode = model === 'seedance'
-            && (resolvedSeedanceVariant === 'v20_ref' || resolvedSeedanceVariant === 'v20_fast_ref');
+            && SEEDANCE_REF_VARIANTS.includes(resolvedSeedanceVariant);
+        const isSeedanceTextMode = model === 'seedance'
+            && SEEDANCE_T2V_VARIANTS.includes(resolvedSeedanceVariant);
         const isReferenceMode = isKlingReferenceMode || isSeedanceReferenceMode;
         const parsedReferenceUrls = parseReferenceImageUrls(referenceImageUrls);
+        const parsedReferenceVideoUrls = parseRefList(referenceVideoUrls, 3);
+        const parsedReferenceAudioUrls = parseRefList(referenceAudioUrls, 3);
 
         if (!normalizedPrompt || !model) {
             return apiError(API_ERROR_CODES.MISSING_FIELD, 'Missing required fields: prompt, model');
         }
-        if (!isReferenceMode && !normalizedImageUrl) {
+        if (!isReferenceMode && !isSeedanceTextMode && !normalizedImageUrl) {
             return apiError(API_ERROR_CODES.MISSING_FIELD, 'Missing required start image URL');
         }
-        if (isReferenceMode && !parsedReferenceUrls) {
-            return apiError(API_ERROR_CODES.MISSING_FIELD, 'reference-to-video 模式需要至少一張 referenceImageUrls');
+        if (isSeedanceReferenceMode && !parsedReferenceUrls && !parsedReferenceVideoUrls && !parsedReferenceAudioUrls) {
+            return apiError(API_ERROR_CODES.MISSING_FIELD, 'reference-to-video 模式需要至少一個 reference 資源（image/video/audio）');
+        }
+        if (isKlingReferenceMode && !parsedReferenceUrls) {
+            return apiError(API_ERROR_CODES.MISSING_FIELD, 'Kling reference-to-video 模式需要至少一張 referenceImageUrls');
         }
         if (!apiKey) {
             return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, 'Missing FAL_API_KEY on server');
@@ -109,7 +137,7 @@ export async function POST(request: NextRequest) {
             endpoint = result.endpoint || '';
         } else if (model === 'seedance') {
             result = await generateVideoSeedance(
-                normalizedImageUrl,
+                isSeedanceTextMode ? null : normalizedImageUrl,
                 safePrompt,
                 {
                     duration,
@@ -119,6 +147,8 @@ export async function POST(request: NextRequest) {
                     endImageUrl: normalizedEndImageUrl,
                     variant: resolvedSeedanceVariant,
                     referenceImageUrls: parsedReferenceUrls,
+                    referenceVideoUrls: parsedReferenceVideoUrls,
+                    referenceAudioUrls: parsedReferenceAudioUrls,
                 },
                 { apiKey }
             );

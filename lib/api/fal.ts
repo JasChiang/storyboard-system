@@ -7,7 +7,11 @@ import {
   FalAudioResult,
 } from '../types/api-responses';
 import type { IndexTtsEmotionalStrengths, IndexTtsRequestInput } from '../types/audio';
-import { resolveImageModelEndpoint } from '../constants/image-models';
+import {
+  isGptImage2Endpoint,
+  resolveImageModelEndpoint,
+  type GptImage2Quality,
+} from '../constants/image-models';
 
 export interface FalConfig {
   apiKey: string;
@@ -101,7 +105,7 @@ export async function uploadFile(
   return url;
 }
 
-// Nano Banana Pro 圖片生成
+// 圖片生成（預設走 gpt-image-2，仍相容 nano-banana-pro / seedream）
 export async function generateImage(
   prompt: string,
   options: {
@@ -110,15 +114,15 @@ export async function generateImage(
     resolution?: ImageResolution;
     modelEndpoint?: string;
     seed?: number;
+    quality?: GptImage2Quality;   // gpt-image-2 only
+    maskImageUrl?: string;         // gpt-image-2 edit only
   },
   config: FalConfig
 ): Promise<FalQueueResponse> {
   configureFal(config.apiKey);
 
-  // 從環境變數讀取模型名稱，預設為 nano-banana-pro
-  const baseModel = options.modelEndpoint || process.env.FAL_IMAGE_MODEL || 'fal-ai/nano-banana-pro';
+  const baseModel = options.modelEndpoint || process.env.FAL_IMAGE_MODEL || 'openai/gpt-image-2';
 
-  // 如果有參考圖，使用 edit endpoint
   const hasReference = options.referenceImage &&
     (Array.isArray(options.referenceImage) ? options.referenceImage.length > 0 : true);
 
@@ -133,10 +137,23 @@ export async function generateImage(
   };
 
   const isSeedream = endpoint.includes('/seedream/');
+  const isGptImage2 = isGptImage2Endpoint(endpoint);
+
   if (isSeedream) {
     const aspectRatio = (options.aspectRatio || '16:9') as ImageAspectRatio;
     const resolution = options.resolution || '1K';
     input.image_size = toSeedreamImageSize(aspectRatio, resolution);
+  } else if (isGptImage2) {
+    // gpt-image-2 uses image_size ({width,height} multiples of 16, long edge <3840)
+    input.image_size = toGptImage2ImageSize(
+      (options.aspectRatio || '16:9') as ImageAspectRatio,
+      options.resolution || '2K',
+    );
+    input.quality = options.quality || 'high';
+    input.output_format = 'png';
+    if (options.maskImageUrl) {
+      input.mask_image_url = options.maskImageUrl;
+    }
   } else {
     input.aspect_ratio = options.aspectRatio || '16:9';
     input.resolution = options.resolution || '1K';
@@ -150,7 +167,8 @@ export async function generateImage(
       : [options.referenceImage];
   }
 
-  if (typeof options.seed === 'number' && Number.isFinite(options.seed)) {
+  if (typeof options.seed === 'number' && Number.isFinite(options.seed) && !isGptImage2) {
+    // gpt-image-2 does not expose a seed parameter on fal
     input.seed = Math.trunc(options.seed);
   }
 
@@ -194,8 +212,37 @@ function toSeedreamImageSize(
   return byAspect[aspectRatio];
 }
 
+// gpt-image-2 requires {width, height}, both multiples of 16, long edge <3840,
+// aspect ratio ≤3:1. We derive dims from the UI's aspectRatio + resolution.
+function toGptImage2ImageSize(
+  aspectRatio: ImageAspectRatio,
+  resolution: ImageResolution,
+): { width: number; height: number } {
+  const longEdge = resolution === '1K' ? 1024 : resolution === '2K' ? 2048 : 3840;
+  const [aRaw, bRaw] = aspectRatio.split(':').map((n) => Number(n));
+  const a = Number.isFinite(aRaw) && aRaw > 0 ? aRaw : 16;
+  const b = Number.isFinite(bRaw) && bRaw > 0 ? bRaw : 9;
+  const longDim = a >= b ? a : b;
+  const shortDim = a >= b ? b : a;
+  const shortEdge = Math.max(16, Math.round((longEdge * shortDim) / longDim / 16) * 16);
+  return a >= b
+    ? { width: longEdge, height: shortEdge }
+    : { width: shortEdge, height: longEdge };
+}
+
 export type KlingVariant = 'v26' | 'o3' | 'o1' | 'o1_ref';
-export type SeedanceVariant = 'v15' | 'v20' | 'v20_ref' | 'v20_fast_ref';
+export type SeedanceVariant =
+  | 'v20_i2v'
+  | 'v20_i2v_fast'
+  | 'v20_ref'
+  | 'v20_ref_fast'
+  | 'v20_t2v'
+  | 'v20_t2v_fast';
+
+export const SEEDANCE_I2V_VARIANTS: readonly SeedanceVariant[] = ['v20_i2v', 'v20_i2v_fast'] as const;
+export const SEEDANCE_REF_VARIANTS: readonly SeedanceVariant[] = ['v20_ref', 'v20_ref_fast'] as const;
+export const SEEDANCE_T2V_VARIANTS: readonly SeedanceVariant[] = ['v20_t2v', 'v20_t2v_fast'] as const;
+export const SEEDANCE_FAST_VARIANTS: readonly SeedanceVariant[] = ['v20_i2v_fast', 'v20_ref_fast', 'v20_t2v_fast'] as const;
 
 const KLING_ENDPOINT_DEFAULTS: Record<KlingVariant, string> = {
   v26: 'fal-ai/kling-video/v2.6/pro/image-to-video',
@@ -205,10 +252,12 @@ const KLING_ENDPOINT_DEFAULTS: Record<KlingVariant, string> = {
 };
 
 const SEEDANCE_ENDPOINT_DEFAULTS: Record<SeedanceVariant, string> = {
-  v15: 'fal-ai/bytedance/seedance/v1.5/pro/image-to-video',
-  v20: 'fal-ai/bytedance/seedance-2.0/image-to-video',
-  v20_ref: 'fal-ai/bytedance/seedance-2.0/reference-to-video',
-  v20_fast_ref: 'fal-ai/bytedance/seedance-2.0/fast/reference-to-video',
+  v20_i2v: 'bytedance/seedance-2.0/image-to-video',
+  v20_i2v_fast: 'bytedance/seedance-2.0/fast/image-to-video',
+  v20_ref: 'bytedance/seedance-2.0/reference-to-video',
+  v20_ref_fast: 'bytedance/seedance-2.0/fast/reference-to-video',
+  v20_t2v: 'bytedance/seedance-2.0/text-to-video',
+  v20_t2v_fast: 'bytedance/seedance-2.0/fast/text-to-video',
 };
 
 function resolveKlingEndpoint(variant: KlingVariant): string {
@@ -239,10 +288,6 @@ function resolveSeedanceEndpoint(variant: SeedanceVariant): string {
     } catch (error) {
       console.warn('Invalid FAL_VIDEO_SEEDANCE_MODELS JSON, fallback to defaults.', error);
     }
-  }
-  if (variant === 'v15') {
-    const legacy = process.env.FAL_VIDEO_SEEDANCE_MODEL?.trim();
-    if (legacy) return legacy;
   }
   return SEEDANCE_ENDPOINT_DEFAULTS[variant];
 }
@@ -313,57 +358,77 @@ export async function generateVideoKling(
   };
 }
 
-// Seedance image-to-video / reference-to-video
+// Seedance 2.0 — supports image-to-video / reference-to-video / text-to-video, each with a fast variant.
 export async function generateVideoSeedance(
-  imageUrl: string,
+  imageUrl: string | null | undefined,
   prompt: string,
   options: {
     duration?: number;
-    aspectRatio?: '21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
+    aspectRatio?: 'auto' | '21:9' | '16:9' | '4:3' | '1:1' | '3:4' | '9:16';
     resolution?: '480p' | '720p' | '1080p';
     enableAudio?: boolean;
     endImageUrl?: string;
     variant?: SeedanceVariant;
     referenceImageUrls?: string[];
+    referenceVideoUrls?: string[];
+    referenceAudioUrls?: string[];
+    seed?: number;
+    endUserId?: string;
   },
   config: FalConfig
 ): Promise<FalQueueResponse> {
   configureFal(config.apiKey);
 
-  const variant: SeedanceVariant = options.variant || 'v15';
+  const variant: SeedanceVariant = options.variant || 'v20_i2v';
   const endpoint = resolveSeedanceEndpoint(variant);
-  const isReferenceMode = variant === 'v20_ref' || variant === 'v20_fast_ref';
+  const isReference = SEEDANCE_REF_VARIANTS.includes(variant);
+  const isText = SEEDANCE_T2V_VARIANTS.includes(variant);
+  const isImage = SEEDANCE_I2V_VARIANTS.includes(variant);
+  const isFast = SEEDANCE_FAST_VARIANTS.includes(variant);
+
+  // Fast variants cap at 720p (no 1080p). Silently downgrade rather than error.
+  const resolution = isFast && options.resolution === '1080p' ? '720p' : (options.resolution || '720p');
 
   const input: Record<string, unknown> = {
     prompt,
-    duration: String(options.duration || 5),
-    aspect_ratio: options.aspectRatio || '16:9',
-    resolution: options.resolution || '720p',
+    duration: options.duration == null ? 'auto' : String(options.duration),
+    aspect_ratio: options.aspectRatio || 'auto',
+    resolution,
     generate_audio: options.enableAudio ?? false,
   };
+  if (typeof options.seed === 'number') input.seed = options.seed;
+  if (options.endUserId) input.end_user_id = options.endUserId;
 
-  if (isReferenceMode) {
-    // Seedance 2.0 reference-to-video: up to 9 reference images
-    const refs = (options.referenceImageUrls || []).filter(Boolean).slice(0, 9);
-    if (refs.length === 0) {
-      throw new Error('Seedance reference-to-video requires at least one reference image URL');
+  if (isReference) {
+    const imgs = (options.referenceImageUrls || []).filter(Boolean).slice(0, 9);
+    const vids = (options.referenceVideoUrls || []).filter(Boolean).slice(0, 3);
+    const auds = (options.referenceAudioUrls || []).filter(Boolean).slice(0, 3);
+    if (imgs.length === 0 && vids.length === 0 && auds.length === 0) {
+      throw new Error('Seedance reference-to-video requires at least one image, video, or audio reference URL');
     }
-    input.image_urls = refs;
-  } else {
+    if (imgs.length) input.image_urls = imgs;
+    if (vids.length) input.video_urls = vids;
+    if (auds.length) input.audio_urls = auds;
+  } else if (isImage) {
     if (!imageUrl) {
       throw new Error('Seedance image-to-video requires start image URL');
     }
     input.image_url = imageUrl;
-    if (options.endImageUrl) {
-      input.end_image_url = options.endImageUrl;
-    }
+    if (options.endImageUrl) input.end_image_url = options.endImageUrl;
+  } else if (isText) {
+    // t2v — prompt-only, no media inputs
   }
 
   console.log('[generateVideoSeedance] submit:', {
     endpoint,
     variant,
-    referenceMode: isReferenceMode,
-    referenceCount: isReferenceMode ? (input.image_urls as string[]).length : 0,
+    mode: isReference ? 'ref' : isText ? 't2v' : 'i2v',
+    fast: isFast,
+    referenceCounts: isReference ? {
+      images: (input.image_urls as string[] | undefined)?.length ?? 0,
+      videos: (input.video_urls as string[] | undefined)?.length ?? 0,
+      audios: (input.audio_urls as string[] | undefined)?.length ?? 0,
+    } : undefined,
     hasImage: Boolean(input.image_url),
     hasEndImage: Boolean(input.end_image_url),
     aspectRatio: input.aspect_ratio,

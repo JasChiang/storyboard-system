@@ -4,6 +4,8 @@ export const STORYBOARD_REFERENCE_PRIORITY_MODES = ['identity_first', 'continuit
 export const STORYBOARD_VIEW_INTENTS = ['auto', 'front', 'side', 'back', 'three_quarter', 'top'] as const;
 export const STORYBOARD_WORKFLOW_STAGES = ['storyboard', 'image_start', 'image_end', 'video', 'export'] as const;
 export const STORYBOARD_TRANSITION_TYPES = ['cut', 'dissolve', 'fade_black', 'fade_white', 'continuation', 'match_cut', 'wipe', 'push'] as const;
+export const STORYBOARD_VIDEO_MODES = ['standard', 'reference', 'text'] as const;
+export const STORYBOARD_VIDEO_CAPABILITIES = ['consistency', 'camera_ref', 'effect_ref', 'extension', 'one_shot', 'edit', 'emotion'] as const;
 
 const sceneProperties = {
   sceneNumber: { type: 'integer', description: '場景編號' },
@@ -44,6 +46,16 @@ const sceneProperties = {
   hookScore: { type: 'integer', enum: [1, 2, 3, 4, 5], description: '此鏡頭的 Hook 強度評分（1=弱, 5=強）' },
   hookScoreReason: { type: 'string', description: '為何給此 Hook 分數' },
   retentionRisk: { type: 'string', enum: ['low', 'medium', 'high'], description: '觀眾在此鏡頭流失的風險' },
+  videoMode: {
+    type: 'string',
+    enum: [...STORYBOARD_VIDEO_MODES],
+    description: '影片生成模式：standard=i2v 需首幀；reference=Seedance 2.0 多模態參考（至少需 1 張 image/video/audio 參考）；text=純文字 t2v，不需任何首幀或參考。未填視為 standard。',
+  },
+  videoCapability: {
+    type: 'string',
+    enum: [...STORYBOARD_VIDEO_CAPABILITIES],
+    description: 'Seedance 2.0 進階能力提示：consistency/camera_ref/effect_ref/extension/one_shot/edit/emotion。沒有明確能力需求時不要輸出此欄位。',
+  },
   requiresEndFrame: { type: 'boolean', description: 'AI 判斷是否需要生成尾幀' },
   endFrameDescription: { type: 'string', description: '尾幀的靜態畫面描述（只在 requiresEndFrame = true 時填寫，否則留空）' },
   endFrameDelta: { type: 'string', description: '尾幀相對首幀的差異描述（只在 requiresEndFrame = true 時填寫）' },
@@ -166,4 +178,14 @@ export const STORYBOARD_CONTRACT_PROMPT_BLOCK = `
 - 若某個標記的 referenceViewHints 為非正面視角（side/back/three_quarter/top），description 必須描述從該視角可見的內容，例如「<Galaxy S26> 背面朝向鏡頭，相機模組陣列清晰可見」；不可只寫標記名稱而不說明可見特徵。
 - 第一場 scene 的 hookScore 應盡量 >= 4；若低於 4，hookScoreReason 必須清楚說明原因。
 - 若 requiresEndFrame = false，endFrameDescription 與 endFrameDelta 必須是空字串。
+- videoMode 判定規則：
+  · 預設 standard（走 image-to-video，需要首幀）。
+  · 若場景需要鎖定角色/商品身份且同時複刻另一鏡的運鏡/節奏/特效、或依賴音色/配樂參考，輸出 reference 並在 requiredReferences 或 notes 說明複刻的面向。
+  · 若場景是純抽象/意象/資訊圖層（如純文字動畫、抽象轉場、概念 bumper），沒有任何角色/商品需要鎖身份，輸出 text。
+  · 一旦輸出 text，requiresEndFrame 必須為 false（純文字生成沒有首尾幀）。
+- videoCapability 指引（選填）：
+  · 若本鏡要延續前一鏡的同一拍（同一路 take，只是延長秒數），輸出 extension。
+  · 若本鏡是一鏡到底/不切鏡頭的長鏡頭，輸出 one_shot 並讓 transitionToNext.type = continuation。
+  · 若本鏡以前一鏡的成片為底只做局部編輯（換色/改物件/加字），輸出 edit。
+  · 若本鏡有強烈情緒戲（哭/笑/驚訝），可輸出 emotion；若鏡頭語言（運鏡/特效/氛圍）是刻意複刻另一個參考素材，可輸出 camera_ref / effect_ref / consistency。
 `;
