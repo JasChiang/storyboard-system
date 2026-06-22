@@ -1,12 +1,10 @@
-export type VideoPromptModel = 'kling' | 'seedance';
+export type VideoPromptModel = 'seedance';
 
 const HARD_LIMITS: Record<VideoPromptModel, number> = {
-  kling: 2200,
   seedance: 3400,
 };
 
 const SOFT_TARGETS: Record<VideoPromptModel, number> = {
-  kling: 1900,
   seedance: 3000,
 };
 

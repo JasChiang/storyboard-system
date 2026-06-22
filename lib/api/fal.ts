@@ -230,7 +230,6 @@ function toGptImage2ImageSize(
     : { width: shortEdge, height: longEdge };
 }
 
-export type KlingVariant = 'v26' | 'o3' | 'o1' | 'o1_ref';
 export type SeedanceVariant =
   | 'v20_i2v'
   | 'v20_i2v_fast'
@@ -244,13 +243,6 @@ export const SEEDANCE_REF_VARIANTS: readonly SeedanceVariant[] = ['v20_ref', 'v2
 export const SEEDANCE_T2V_VARIANTS: readonly SeedanceVariant[] = ['v20_t2v', 'v20_t2v_fast'] as const;
 export const SEEDANCE_FAST_VARIANTS: readonly SeedanceVariant[] = ['v20_i2v_fast', 'v20_ref_fast', 'v20_t2v_fast'] as const;
 
-const KLING_ENDPOINT_DEFAULTS: Record<KlingVariant, string> = {
-  v26: 'fal-ai/kling-video/v2.6/pro/image-to-video',
-  o3: 'fal-ai/kling-video/o3/pro/image-to-video',
-  o1: 'fal-ai/kling-video/o1/image-to-video',
-  o1_ref: 'fal-ai/kling-video/o1/reference-to-video',
-};
-
 const SEEDANCE_ENDPOINT_DEFAULTS: Record<SeedanceVariant, string> = {
   v20_i2v: 'bytedance/seedance-2.0/image-to-video',
   v20_i2v_fast: 'bytedance/seedance-2.0/fast/image-to-video',
@@ -259,24 +251,6 @@ const SEEDANCE_ENDPOINT_DEFAULTS: Record<SeedanceVariant, string> = {
   v20_t2v: 'bytedance/seedance-2.0/text-to-video',
   v20_t2v_fast: 'bytedance/seedance-2.0/fast/text-to-video',
 };
-
-function resolveKlingEndpoint(variant: KlingVariant): string {
-  const modelsJson = process.env.FAL_VIDEO_KLING_MODELS;
-  if (modelsJson) {
-    try {
-      const parsed = JSON.parse(modelsJson) as Partial<Record<KlingVariant, string>>;
-      const configured = parsed?.[variant]?.trim();
-      if (configured) return configured;
-    } catch (error) {
-      console.warn('Invalid FAL_VIDEO_KLING_MODELS JSON, fallback to defaults.', error);
-    }
-  }
-  if (variant === 'v26') {
-    const legacy = process.env.FAL_VIDEO_KLING_MODEL?.trim();
-    if (legacy) return legacy;
-  }
-  return KLING_ENDPOINT_DEFAULTS[variant];
-}
 
 function resolveSeedanceEndpoint(variant: SeedanceVariant): string {
   const modelsJson = process.env.FAL_VIDEO_SEEDANCE_MODELS;
@@ -290,72 +264,6 @@ function resolveSeedanceEndpoint(variant: SeedanceVariant): string {
     }
   }
   return SEEDANCE_ENDPOINT_DEFAULTS[variant];
-}
-
-// Kling image-to-video / reference-to-video
-export async function generateVideoKling(
-  imageUrl: string,
-  prompt: string,
-  options: {
-    duration?: 5 | 10;
-    aspectRatio?: '16:9' | '9:16' | '1:1';
-    enableSound?: boolean;
-    endImageUrl?: string;
-    variant?: KlingVariant;
-    referenceImageUrls?: string[];
-  },
-  config: FalConfig
-): Promise<FalQueueResponse> {
-  configureFal(config.apiKey);
-  const variant: KlingVariant = options.variant || 'v26';
-  const endpoint = resolveKlingEndpoint(variant);
-  const isReferenceMode = variant === 'o1_ref';
-
-  const input: Record<string, unknown> = {
-    prompt,
-    duration: String(options.duration || 5),
-    generate_audio: options.enableSound ?? false,
-    aspect_ratio: options.aspectRatio || '16:9',
-  };
-
-  if (isReferenceMode) {
-    // O1 reference-to-video: accepts up to 7 image slots, optional start frame
-    const refs = (options.referenceImageUrls || []).filter(Boolean).slice(0, 7);
-    if (refs.length === 0) {
-      throw new Error('Kling reference-to-video requires at least one reference image URL');
-    }
-    input.image_urls = refs;
-    if (imageUrl) input.start_image_url = imageUrl;
-  } else if (variant === 'o3' || variant === 'o1') {
-    input.image_url = imageUrl;
-  } else {
-    input.start_image_url = imageUrl;
-  }
-
-  if (options.endImageUrl && !isReferenceMode) {
-    input.end_image_url = options.endImageUrl;
-  }
-
-  console.log('[generateVideoKling] submit:', {
-    endpoint,
-    variant,
-    referenceMode: isReferenceMode,
-    referenceCount: isReferenceMode ? (input.image_urls as string[]).length : 0,
-    hasStartImage: Boolean(input.image_url || input.start_image_url),
-    hasEndImage: Boolean(input.end_image_url),
-    aspectRatio: input.aspect_ratio,
-    duration: input.duration,
-    generateAudio: input.generate_audio,
-    promptLength: prompt.length,
-  });
-
-  const result = await fal.queue.submit(endpoint, { input });
-
-  return {
-    request_id: result.request_id,
-    status: 'IN_QUEUE',
-    endpoint,
-  };
 }
 
 // Seedance 2.0 — supports image-to-video / reference-to-video / text-to-video, each with a fast variant.

@@ -192,7 +192,7 @@ export function buildImageIdentityConstraintLines(
 
 /**
  * Build a single concise identity line for video prompts.
- * Video models (Kling/Seedance) work best with minimal constraint text
+ * Video models (Seedance) work best with minimal constraint text
  * since the start frame image already defines identity visually.
  */
 export function buildVideoIdentityLine(refs: ProjectReference[]): string {

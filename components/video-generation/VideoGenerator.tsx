@@ -2,21 +2,18 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Film, Settings2, Sparkles } from 'lucide-react';
-import { ModelSelector } from './ModelSelector';
 import { MotionPromptEditor } from './MotionPromptEditor';
 import { VideoPreview } from './VideoPreview';
 import { Button } from '@/components/ui/button';
 import type { Scene, ProjectReference, SharedContinuityDirective, SceneRefSource, SceneRefSourceUsage } from '@/lib/types/storyboard';
 import { buildContinuityMemoryLines } from '@/lib/prompts/continuity-memory';
 import { splitSceneReferencesByPriority } from '@/lib/references/reference-routing';
-import { buildKlingPrompt } from '@/lib/video/adapters/kling';
 import { buildSeedancePrompt } from '@/lib/video/adapters/seedance';
 import { enforceVideoPromptPolicy } from '@/lib/video/prompt-policy';
 import { formatBlockersForAlert, getSceneGenerationBlockers } from '@/lib/workflow/generation-guard';
 
-type VideoModel = 'kling' | 'seedance';
+type VideoModel = 'seedance';
 type PromptMode = 'deterministic' | 'ai_composer';
-type KlingVariant = 'v26' | 'o3' | 'o1' | 'o1_ref';
 type SeedanceVariant =
     | 'v20_i2v'
     | 'v20_i2v_fast'
@@ -25,11 +22,9 @@ type SeedanceVariant =
     | 'v20_t2v'
     | 'v20_t2v_fast';
 
-const KLING_REFERENCE_VARIANTS: ReadonlyArray<KlingVariant> = ['o1_ref'];
 const SEEDANCE_REFERENCE_VARIANTS: ReadonlyArray<SeedanceVariant> = ['v20_ref', 'v20_ref_fast'];
 const SEEDANCE_TEXT_VARIANTS: ReadonlyArray<SeedanceVariant> = ['v20_t2v', 'v20_t2v_fast'];
 const SEEDANCE_FAST_VARIANTS: ReadonlyArray<SeedanceVariant> = ['v20_i2v_fast', 'v20_ref_fast', 'v20_t2v_fast'];
-const KLING_REF_MAX = 7;
 const SEEDANCE_REF_MAX = 9;
 const SEEDANCE_VIDEO_REF_MAX = 3;
 const SEEDANCE_AUDIO_REF_MAX = 3;
@@ -72,8 +67,7 @@ interface VideoGeneratorProps {
 function isComposedPromptPollution(value: string): boolean {
     const text = (value || '').trim();
     if (!text) return false;
-    return /^Kling visual direction\b/i.test(text)
-        || /^Seedance scene direction\b/i.test(text)
+    return /^Seedance scene direction\b/i.test(text)
         || /\bShot goal:\b/i.test(text)
         || /\bIdentity invariants:\b/i.test(text);
 }
@@ -104,7 +98,7 @@ export function VideoGenerator({
     onVideoGenerated
 }: VideoGeneratorProps) {
     const [isGenerating, setIsGenerating] = useState(false);
-    const [model, setModel] = useState<VideoModel>('kling');
+    const model: VideoModel = 'seedance';
     // 優先使用 AI 生成的運鏡指令，如果沒有則使用已儲存的 motionPrompt
     const [motionPrompt, setMotionPrompt] = useState(
         resolveEditableMotionPrompt({
@@ -117,12 +111,6 @@ export function VideoGenerator({
     const [isComposingPrompt, setIsComposingPrompt] = useState(false);
     const [aiComposedPrompt, setAiComposedPrompt] = useState(scene.videoPromptDraft || '');
     const [aiComposeNotes, setAiComposeNotes] = useState(scene.videoPromptDraftNotes || '');
-
-    // Kling 選項
-    const [klingDuration, setKlingDuration] = useState<5 | 10>(5);
-    const [klingAspectRatio, setKlingAspectRatio] = useState<'16:9' | '9:16' | '1:1'>('16:9');
-    const [klingEnableSound, setKlingEnableSound] = useState(false);
-    const [klingVariant, setKlingVariant] = useState<KlingVariant>('v26');
 
     // Seedance 選項
     const [seedanceVariant, setSeedanceVariant] = useState<SeedanceVariant>('v20_i2v');
@@ -175,14 +163,13 @@ export function VideoGenerator({
         () => splitSceneReferencesByPriority(sceneReferenceScope, contentRefs, { fallbackPolicy: 'non_environment' }).all,
         [sceneReferenceScope, contentRefs]
     );
-    const isKlingReferenceMode = model === 'kling' && KLING_REFERENCE_VARIANTS.includes(klingVariant);
-    const isSeedanceReferenceMode = model === 'seedance' && SEEDANCE_REFERENCE_VARIANTS.includes(seedanceVariant);
-    const isSeedanceTextMode = model === 'seedance' && SEEDANCE_TEXT_VARIANTS.includes(seedanceVariant);
-    const isSeedanceFastVariant = model === 'seedance' && SEEDANCE_FAST_VARIANTS.includes(seedanceVariant);
-    const isReferenceMode = isKlingReferenceMode || isSeedanceReferenceMode;
+    const isSeedanceReferenceMode = SEEDANCE_REFERENCE_VARIANTS.includes(seedanceVariant);
+    const isSeedanceTextMode = SEEDANCE_TEXT_VARIANTS.includes(seedanceVariant);
+    const isSeedanceFastVariant = SEEDANCE_FAST_VARIANTS.includes(seedanceVariant);
+    const isReferenceMode = isSeedanceReferenceMode;
     const referenceImageUrls = useMemo(() => {
         if (!isReferenceMode) return [] as string[];
-        const max = isKlingReferenceMode ? KLING_REF_MAX : SEEDANCE_REF_MAX;
+        const max = SEEDANCE_REF_MAX;
         const seen = new Set<string>();
         const collected: string[] = [];
         for (const ref of scopedRefs) {
@@ -193,7 +180,7 @@ export function VideoGenerator({
             if (collected.length >= max) break;
         }
         return collected;
-    }, [isReferenceMode, isKlingReferenceMode, scopedRefs]);
+    }, [isReferenceMode, scopedRefs]);
     const continuityMemoryLines = useMemo(
         () => buildContinuityMemoryLines(scene, allScenes, {
             stage: 'video',
@@ -226,7 +213,6 @@ export function VideoGenerator({
     // 切換場景時，若該場景已記錄 videoMode='reference'，則套用對應 ref variant
     useEffect(() => {
         if (scene.videoMode !== 'reference') return;
-        setKlingVariant((prev) => (KLING_REFERENCE_VARIANTS.includes(prev) ? prev : 'o1_ref'));
         setSeedanceVariant((prev) => (SEEDANCE_REFERENCE_VARIANTS.includes(prev) ? prev : 'v20_ref'));
     }, [scene.id, scene.videoMode]);
 
@@ -249,15 +235,8 @@ export function VideoGenerator({
         const defaults = profileWithDefaults?.ipProfile?.generationDefaults;
         if (!defaults) return;
 
-        if (defaults.preferredVideoModel) {
-            setModel(defaults.preferredVideoModel);
-        }
         if (defaults.preferredOutputAspectRatio) {
-            setKlingAspectRatio(defaults.preferredOutputAspectRatio);
             setSeedanceAspectRatio(defaults.preferredOutputAspectRatio);
-        }
-        if (defaults.preferredKlingDuration) {
-            setKlingDuration(defaults.preferredKlingDuration);
         }
         if (typeof defaults.preferredSeedanceDuration === 'number') {
             setSeedanceDuration(Math.max(4, Math.min(15, Math.round(defaults.preferredSeedanceDuration))));
@@ -338,9 +317,6 @@ export function VideoGenerator({
     }, [allScenes, scene.id]);
 
     const buildVideoPrompt = (activeMotionPrompt: string) => {
-        if (model === 'kling') {
-            return buildKlingPrompt({ scene, motionPrompt: activeMotionPrompt, scopedRefs, continuityMemoryLines });
-        }
         return buildSeedancePrompt({
             scene,
             motionPrompt: activeMotionPrompt,
@@ -434,7 +410,7 @@ export function VideoGenerator({
         setIsGenerating(true);
 
         try {
-            const requestedDurationSeconds = model === 'kling' ? klingDuration : seedanceDuration;
+            const requestedDurationSeconds = seedanceDuration;
             const resolvedMotionPrompt = motionPrompt.trim()
                 || scene.cameraMovement?.trim()
                 || scene.description?.trim()
@@ -481,14 +457,12 @@ export function VideoGenerator({
                 body: JSON.stringify({
                     imageUrl: startImageUrl,
                     prompt: composedPrompt,
-                    model,
-                    klingVariant: model === 'kling' ? klingVariant : undefined,
-                    seedanceVariant: model === 'seedance' ? seedanceVariant : undefined,
-                    duration: model === 'kling' ? klingDuration : seedanceDuration,
-                    aspectRatio: model === 'kling' ? klingAspectRatio : seedanceAspectRatio,
-                    resolution: model === 'seedance' ? seedanceResolution : undefined,
-                    enableSound: model === 'kling' ? klingEnableSound : undefined,
-                    enableAudio: model === 'seedance' ? seedanceEnableAudio : undefined,
+                    model: 'seedance',
+                    seedanceVariant,
+                    duration: seedanceDuration,
+                    aspectRatio: seedanceAspectRatio,
+                    resolution: seedanceResolution,
+                    enableAudio: seedanceEnableAudio,
                     endImageUrl: !isReferenceMode && !isSeedanceTextMode && shouldUseEndFrameForVideo ? scene.generatedEndFrame?.url : undefined,
                     referenceImageUrls: isReferenceMode ? referenceImageUrls : undefined,
                     referenceVideoUrls: isSeedanceReferenceMode && parsedVideoRefUrls.length > 0 ? parsedVideoRefUrls : undefined,
@@ -638,9 +612,7 @@ export function VideoGenerator({
         ? true
         : isSeedanceReferenceMode
             ? (referenceImageUrls.length + parsedVideoRefUrls.length + parsedAudioRefUrls.length) > 0 && !isRefMixOverflow
-            : isKlingReferenceMode
-                ? referenceImageUrls.length > 0
-                : Boolean(effectiveStartFrameUrl);
+            : Boolean(effectiveStartFrameUrl);
 
     return (
         <div className="space-y-5">
@@ -684,7 +656,7 @@ export function VideoGenerator({
                 {isReferenceMode && (
                     <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-900/20 dark:text-indigo-300">
                         <p className="font-medium">
-                            Reference-to-Video 模式（{referenceImageUrls.length}/{isKlingReferenceMode ? KLING_REF_MAX : SEEDANCE_REF_MAX} 張參考圖）
+                            Reference-to-Video 模式（{referenceImageUrls.length}/{SEEDANCE_REF_MAX} 張參考圖）
                         </p>
                         <p className="mt-0.5 text-[11px] opacity-80">
                             自動帶入場景相關的角色 / 商品參考圖，不使用起幀 / 尾幀
@@ -761,14 +733,6 @@ export function VideoGenerator({
                 />
             </div>
 
-            <div className="surface-panel p-4">
-                <ModelSelector
-                    value={model}
-                    onChange={setModel}
-                    disabled={isGenerationLocked}
-                />
-            </div>
-
             <div className="surface-panel space-y-3 p-4">
                 <div className="flex items-center justify-between">
                     <h4 className="text-sm font-medium text-slate-900 dark:text-slate-200">提示詞組合模式</h4>
@@ -831,7 +795,7 @@ export function VideoGenerator({
                         <textarea
                             value={aiComposedPrompt}
                             onChange={(event) => setAiComposedPrompt(event.target.value)}
-                            placeholder="點擊上方按鈕，讓 AI 根據場景與參考規則組合可直接送 Kling/Seedance 的提示詞"
+                            placeholder="點擊上方按鈕，讓 AI 根據場景與參考規則組合可直接送 Seedance 的提示詞"
                             className="w-full resize-none rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground placeholder:text-slate-400 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
                             rows={6}
                             disabled={isGenerationLocked || isComposingPrompt}
@@ -866,13 +830,10 @@ export function VideoGenerator({
                         目前：{isSeedanceTextMode ? 'Text-to-Video 模式' : isReferenceMode ? 'Reference 模式' : '起始幀模式'}
                     </span>
                 </div>
-                <div className={`grid gap-2 ${model === 'seedance' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+                <div className="grid gap-2 sm:grid-cols-3">
                     <button
                         type="button"
-                        onClick={() => {
-                            if (model === 'kling') setKlingVariant('v26');
-                            if (model === 'seedance') setSeedanceVariant('v20_i2v');
-                        }}
+                        onClick={() => setSeedanceVariant('v20_i2v')}
                         disabled={isGenerationLocked}
                         className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
                             !isReferenceMode && !isSeedanceTextMode
@@ -885,10 +846,7 @@ export function VideoGenerator({
                     </button>
                     <button
                         type="button"
-                        onClick={() => {
-                            if (model === 'kling') setKlingVariant('o1_ref');
-                            if (model === 'seedance') setSeedanceVariant('v20_ref');
-                        }}
+                        onClick={() => setSeedanceVariant('v20_ref')}
                         disabled={isGenerationLocked}
                         className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
                             isReferenceMode
@@ -897,23 +855,21 @@ export function VideoGenerator({
                         }`}
                     >
                         <p className="font-medium">Reference 模式（多參考圖→影片）推薦</p>
-                        <p className="mt-0.5 opacity-80">直接帶入角色 / 商品參考圖（最多 {model === 'kling' ? KLING_REF_MAX : SEEDANCE_REF_MAX} 張），對保持角色臉部、商品 logo 一致最有效，且不再需要尾幀。</p>
+                        <p className="mt-0.5 opacity-80">直接帶入角色 / 商品參考圖（最多 {SEEDANCE_REF_MAX} 張），對保持角色臉部、商品 logo 一致最有效，且不再需要尾幀。</p>
                     </button>
-                    {model === 'seedance' && (
-                        <button
-                            type="button"
-                            onClick={() => setSeedanceVariant('v20_t2v')}
-                            disabled={isGenerationLocked}
-                            className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
-                                isSeedanceTextMode
-                                    ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
-                                    : 'border-slate-200 bg-white/60 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:bg-slate-800'
-                            }`}
-                        >
-                            <p className="font-medium">Text-to-Video 模式（純文字）</p>
-                            <p className="mt-0.5 opacity-80">不需要首幀或參考圖，僅由提示詞從零生成影片。適合概念探索或沒有現成素材時。</p>
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        onClick={() => setSeedanceVariant('v20_t2v')}
+                        disabled={isGenerationLocked}
+                        className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                            isSeedanceTextMode
+                                ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
+                                : 'border-slate-200 bg-white/60 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:bg-slate-800'
+                        }`}
+                    >
+                        <p className="font-medium">Text-to-Video 模式（純文字）</p>
+                        <p className="mt-0.5 opacity-80">不需要首幀或參考圖，僅由提示詞從零生成影片。適合概念探索或沒有現成素材時。</p>
+                    </button>
                 </div>
             </div>
 
@@ -1008,7 +964,7 @@ export function VideoGenerator({
                 </div>
             )}
 
-            {model === 'seedance' && onCapabilityUpdated && (
+            {onCapabilityUpdated && (
                 <div className="surface-panel space-y-3 p-4">
                     <div>
                         <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">Seedance 進階能力</h4>
@@ -1130,71 +1086,7 @@ export function VideoGenerator({
 
                 {showAdvanced && (
                     <div className="surface-soft space-y-4 p-4">
-                        {model === 'kling' ? (
-                            <>
-                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    <div className="space-y-2">
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                            Kling 版本
-                                        </label>
-                                        <select
-                                            value={klingVariant}
-                                            onChange={(event) => setKlingVariant(event.target.value as KlingVariant)}
-                                            disabled={isGenerationLocked}
-                                            className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
-                                        >
-                                            <option value="v26">Kling 2.6 Pro（起+尾幀）</option>
-                                            <option value="o3">Kling O3 Pro（起+尾幀）</option>
-                                            <option value="o1">Kling O1（起+尾幀）</option>
-                                            <option value="o1_ref">Kling O1 Reference（多參考圖，最多 7 張）</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                            影片長度
-                                        </label>
-                                        <select
-                                            value={klingDuration}
-                                            onChange={(event) => setKlingDuration(Number(event.target.value) as 5 | 10)}
-                                            disabled={isGenerationLocked}
-                                            className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
-                                        >
-                                            <option value={5}>5 秒</option>
-                                            <option value={10}>10 秒</option>
-                                        </select>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                                            長寬比
-                                        </label>
-                                        <select
-                                            value={klingAspectRatio}
-                                            onChange={(event) => setKlingAspectRatio(event.target.value as '16:9' | '9:16' | '1:1')}
-                                            disabled={isGenerationLocked}
-                                            className="w-full rounded-xl border border-border/80 bg-white/80 px-3 py-2 text-sm text-foreground focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring/30 dark:bg-slate-900/65"
-                                        >
-                                            <option value="16:9">16:9 (橫向)</option>
-                                            <option value="9:16">9:16 (直向)</option>
-                                            <option value="1:1">1:1 (正方形)</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                                    <input
-                                        type="checkbox"
-                                        checked={klingEnableSound}
-                                        onChange={(event) => setKlingEnableSound(event.target.checked)}
-                                        disabled={isGenerationLocked}
-                                        className="h-4 w-4 rounded border-slate-300 dark:border-slate-600"
-                                    />
-                                    啟用音效
-                                </label>
-                            </>
-                        ) : (
-                            <>
+                        <>
                                 <div className="space-y-2">
                                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                                         Seedance 版本
@@ -1284,8 +1176,7 @@ export function VideoGenerator({
                                     />
                                     啟用音訊
                                 </label>
-                            </>
-                        )}
+                        </>
                     </div>
                 )}
             </div>

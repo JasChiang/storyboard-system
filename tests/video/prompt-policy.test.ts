@@ -7,7 +7,7 @@ describe('video prompt policy', () => {
   });
 
   it('keeps prompt unchanged when under hard limit', () => {
-    const result = enforceVideoPromptPolicy('Keep camera static and preserve logo.', 'kling');
+    const result = enforceVideoPromptPolicy('Keep camera static and preserve logo.', 'seedance');
     expect(result.wasTruncated).toBe(false);
     expect(result.prompt).toBe('Keep camera static and preserve logo.');
     expect(result.finalLength).toBe(result.originalLength);
@@ -15,7 +15,7 @@ describe('video prompt policy', () => {
 
   it('truncates long prompt and appends identity lock sentence', () => {
     const longPrompt = 'camera action and environment detail '.repeat(120);
-    const result = enforceVideoPromptPolicy(longPrompt, 'kling');
+    const result = enforceVideoPromptPolicy(longPrompt, 'seedance');
 
     expect(result.wasTruncated).toBe(true);
     expect(result.finalLength).toBeLessThanOrEqual(result.hardLimit);

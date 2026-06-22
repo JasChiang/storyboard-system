@@ -96,7 +96,7 @@ export interface Scene {
 
   // 影片生成模式（影響圖片頁是否還需要尾幀）
   // 'standard'  = image-to-video（需首幀，必要時尾幀）
-  // 'reference' = Kling O1 ref / Seedance 2.0 ref（多圖/多片/多音→影片，不需首尾幀）
+  // 'reference' = Seedance 2.0 ref（多圖/多片/多音→影片，不需首尾幀）
   // 'text'      = Seedance 2.0 text-to-video（純文字生成，連首幀都不需要）
   videoMode?: 'standard' | 'reference' | 'text';
 
@@ -155,7 +155,7 @@ export interface Scene {
   videoPromptDraftNotes?: string; // AI Composer 備註
   generatedVideo?: {
     url: string;
-    model: 'kling' | 'seedance';
+    model: 'seedance';
     prompt: string;
     durationSeconds?: number;
     timestamp: string;
@@ -241,9 +241,8 @@ export interface StyleProfile {
 export type IpTextLogoPolicy = 'lock_visible_text' | 'forbid_new_text';
 
 export interface IpGenerationDefaults {
-  preferredVideoModel?: 'kling' | 'seedance';
+  preferredVideoModel?: 'seedance';
   preferredOutputAspectRatio?: '16:9' | '9:16' | '1:1';
-  preferredKlingDuration?: 5 | 10;
   preferredSeedanceDuration?: number; // 4-12
 }
 

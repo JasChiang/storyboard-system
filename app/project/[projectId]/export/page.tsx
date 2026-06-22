@@ -438,7 +438,7 @@ export default function ExportPage() {
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400">場景 {scene.sceneNumber}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-600 truncate">
-                    {scene.generatedVideo!.model === 'kling' ? 'Kling 2.6 Pro' : 'Seedance 1.5 Pro'}
+                    Seedance 2.0
                   </p>
                 </div>
               ))}

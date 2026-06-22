@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { resolveContinuationSource } from '@/lib/utils/transition';
 import type { ProjectReference, Scene } from '@/lib/types/storyboard';
 
-type VideoModel = 'kling' | 'seedance';
+type VideoModel = 'seedance';
 
 type WorkflowTaskStage = 'video';
 type WorkflowTaskStatus = 'queued' | 'running' | 'completed' | 'failed';
@@ -203,9 +203,9 @@ export default function VideosPage() {
     const nextScenes = currentProject.storyboard.scenes.map((scene) => {
       if (scene.id !== task.sceneId) return scene;
 
-      const model = task.model === 'kling' || task.model === 'seedance'
+      const model = task.model === 'seedance'
         ? task.model
-        : (scene.generatedVideo?.model || 'kling');
+        : (scene.generatedVideo?.model || 'seedance');
       const prompt = task.prompt || scene.generatedVideo?.prompt || '';
       const sameUrl = scene.generatedVideo?.url === trimmedUrl;
       const samePrompt = (scene.generatedVideo?.prompt || '') === prompt;

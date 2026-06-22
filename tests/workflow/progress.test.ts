@@ -32,7 +32,7 @@ function buildProject(): Project {
           },
           generatedVideo: {
             url: '',
-            model: 'kling',
+            model: 'seedance',
             prompt: 'empty-url-video',
             timestamp: new Date().toISOString(),
           },

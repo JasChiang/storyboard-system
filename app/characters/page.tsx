@@ -254,7 +254,7 @@ function CharacterCard({
           <div className="mb-3 flex flex-wrap gap-1.5">
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700 dark:bg-slate-700 dark:text-slate-200">IP v{character.ipProfile.profileVersion}</span>
             <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{character.ipProfile.strictIdentity ? '強一致' : '彈性一致'}</span>
-            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">{character.ipProfile.generationDefaults?.preferredVideoModel === 'seedance' ? 'Seedance' : 'Kling'} 預設</span>
+            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">Seedance 預設</span>
           </div>
         )}
 

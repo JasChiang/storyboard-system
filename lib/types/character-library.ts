@@ -19,9 +19,8 @@ import {
 export type IpTextLogoPolicy = 'lock_visible_text' | 'forbid_new_text';
 
 export interface CharacterGenerationDefaults {
-  preferredVideoModel?: 'kling' | 'seedance';
+  preferredVideoModel?: 'seedance';
   preferredOutputAspectRatio?: '16:9' | '9:16' | '1:1';
-  preferredKlingDuration?: 5 | 10;
   preferredSeedanceDuration?: number; // 4-12
 }
 

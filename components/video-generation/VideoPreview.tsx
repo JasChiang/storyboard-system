@@ -6,7 +6,7 @@ import { Play, Loader2, Film } from 'lucide-react';
 interface VideoPreviewProps {
     videoUrl: string | null;
     prompt?: string;
-    model?: 'kling' | 'seedance';
+    model?: 'seedance';
     isLoading?: boolean;
     onRegenerate?: () => void;
 }
@@ -107,7 +107,7 @@ export function VideoPreview({
                     <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
                         <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">模型</p>
                         <p className="text-sm text-slate-900 dark:text-slate-200">
-                            {model === 'kling' ? 'Kling 2.6 Pro' : 'Seedance 1.5 Pro'}
+                            Seedance 2.0
                         </p>
                     </div>
                 )}

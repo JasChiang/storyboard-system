@@ -19,7 +19,7 @@ export interface UploadedFile {
 }
 
 export interface ComposeVideoPromptInput {
-  model: 'kling' | 'seedance';
+  model: 'seedance';
   scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev' | 'requiresEndFrame' | 'endFrameDescription' | 'viewIntent' | 'referenceViewHints' | 'referencePlan' | 'requiredReferences' | 'charactersUsed' | 'productsUsed'>;
   motionPrompt: string;
   references: ProjectReference[];
@@ -313,9 +313,7 @@ export async function composeVideoPromptWithGemini(
     };
   });
 
-  const modelSpecificRule = input.model === 'kling'
-    ? '8) For Kling: prioritize physically plausible camera inertia and avoid sudden reframing leaps.'
-    : '8) For Seedance: prioritize smooth temporal continuity across all frames and avoid frame flicker.'
+  const modelSpecificRule = '8) For Seedance: prioritize smooth temporal continuity across all frames and avoid frame flicker.'
 
   const systemPrompt = `You are a professional video prompt composer for ${input.model.toUpperCase()} image-to-video generation.
 Return JSON only with keys:
@@ -331,7 +329,7 @@ Rules:
 3) Prioritize identity consistency: geometry/material/logo/text must remain unchanged.
 4) If end frame is available, enforce end-state alignment. If not, avoid fake object motion.
 5) Do not invent new logos/text/brand marks.
-6) Keep output concise (prefer <= 2200 chars for kling, <= 3400 chars for seedance).
+6) Keep output concise (prefer <= 3400 chars for seedance).
 7) The composed prompt must describe one continuous shot only; never include cuts, montage, or scene switches.
 ${modelSpecificRule}
 9) Avoid keyword stuffing like "masterpiece, best quality, 8k, ultra-detailed".

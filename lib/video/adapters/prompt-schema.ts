@@ -5,8 +5,6 @@ export interface VideoPromptInput {
   actionLines: string[];
   /** Identity preservation (concise, one sentence) */
   identityLine?: string;
-  /** Hard negatives — Kling only; Seedance ignores this */
-  negatives?: string[];
 }
 
 function dedupe(lines: string[]): string[] {
@@ -26,7 +24,7 @@ function dedupe(lines: string[]): string[] {
 /**
  * Build a natural-language video prompt from structured input.
  *
- * Output order follows both Kling and Seedance best practices:
+ * Output order follows Seedance best practices:
  *   Action/Motion → Camera → Identity constraint
  *
  * No section labels (like "Subject state:") — just clean sentences.
@@ -49,12 +47,6 @@ export function buildVideoPromptFromParts(input: VideoPromptInput): string {
   // 3. Identity preservation (concise)
   if (input.identityLine?.trim()) {
     parts.push(input.identityLine.trim());
-  }
-
-  // 4. Negatives (Kling only)
-  const negatives = dedupe(input.negatives || []);
-  if (negatives.length > 0) {
-    parts.push(`Avoid: ${negatives.join(', ')}`);
   }
 
   return parts.join('. ').replace(/\.+\s*\./g, '.').replace(/\s+/g, ' ').trim();

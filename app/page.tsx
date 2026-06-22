@@ -96,7 +96,7 @@ export default function Home() {
                 <FeatureCard
                   icon={<Film className="w-6 h-6 text-slate-700 dark:text-slate-300" />}
                   title="動態影片"
-                  description="Kling/Seedance 賦予畫面生命"
+                  description="Seedance 賦予畫面生命"
                   delay={200}
                 />
                 <FeatureCard

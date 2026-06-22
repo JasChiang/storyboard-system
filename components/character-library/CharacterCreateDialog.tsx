@@ -51,9 +51,8 @@ const DEFAULT_IP_PROFILE = {
   textLogoPolicy: 'lock_visible_text' as const,
   immutableRules: [] as string[],
   generationDefaults: {
-    preferredVideoModel: 'kling' as const,
+    preferredVideoModel: 'seedance' as const,
     preferredOutputAspectRatio: '16:9' as const,
-    preferredKlingDuration: 5 as const,
     preferredSeedanceDuration: 5,
   },
 };
@@ -121,17 +120,13 @@ export function CharacterCreateDialog({
   const [immutableRulesText, setImmutableRulesText] = useState(
     (editingCharacter?.ipProfile?.immutableRules || []).join('\n')
   );
-  const [preferredVideoModel, setPreferredVideoModel] = useState<'kling' | 'seedance'>(
+  const [preferredVideoModel, setPreferredVideoModel] = useState<'seedance'>(
     editingCharacter?.ipProfile?.generationDefaults?.preferredVideoModel
     ?? DEFAULT_IP_PROFILE.generationDefaults.preferredVideoModel
   );
   const [preferredOutputAspectRatio, setPreferredOutputAspectRatio] = useState<'16:9' | '9:16' | '1:1'>(
     editingCharacter?.ipProfile?.generationDefaults?.preferredOutputAspectRatio
     ?? DEFAULT_IP_PROFILE.generationDefaults.preferredOutputAspectRatio
-  );
-  const [preferredKlingDuration, setPreferredKlingDuration] = useState<5 | 10>(
-    editingCharacter?.ipProfile?.generationDefaults?.preferredKlingDuration
-    ?? DEFAULT_IP_PROFILE.generationDefaults.preferredKlingDuration
   );
   const [preferredSeedanceDuration, setPreferredSeedanceDuration] = useState<number>(
     editingCharacter?.ipProfile?.generationDefaults?.preferredSeedanceDuration
@@ -172,10 +167,6 @@ export function CharacterCreateDialog({
         editingCharacter.ipProfile?.generationDefaults?.preferredOutputAspectRatio
         ?? DEFAULT_IP_PROFILE.generationDefaults.preferredOutputAspectRatio
       );
-      setPreferredKlingDuration(
-        editingCharacter.ipProfile?.generationDefaults?.preferredKlingDuration
-        ?? DEFAULT_IP_PROFILE.generationDefaults.preferredKlingDuration
-      );
       setPreferredSeedanceDuration(
         editingCharacter.ipProfile?.generationDefaults?.preferredSeedanceDuration
         ?? DEFAULT_IP_PROFILE.generationDefaults.preferredSeedanceDuration
@@ -205,7 +196,6 @@ export function CharacterCreateDialog({
       setImmutableRulesText('');
       setPreferredVideoModel(DEFAULT_IP_PROFILE.generationDefaults.preferredVideoModel);
       setPreferredOutputAspectRatio(DEFAULT_IP_PROFILE.generationDefaults.preferredOutputAspectRatio);
-      setPreferredKlingDuration(DEFAULT_IP_PROFILE.generationDefaults.preferredKlingDuration);
       setPreferredSeedanceDuration(DEFAULT_IP_PROFILE.generationDefaults.preferredSeedanceDuration);
     }
   }, [isOpen, editingCharacter]);
@@ -424,7 +414,6 @@ export function CharacterCreateDialog({
         generationDefaults: {
           preferredVideoModel,
           preferredOutputAspectRatio,
-          preferredKlingDuration,
           preferredSeedanceDuration: Math.max(4, Math.min(12, Math.round(preferredSeedanceDuration || 5))),
         },
       },
@@ -453,7 +442,6 @@ export function CharacterCreateDialog({
     setImmutableRulesText('');
     setPreferredVideoModel(DEFAULT_IP_PROFILE.generationDefaults.preferredVideoModel);
     setPreferredOutputAspectRatio(DEFAULT_IP_PROFILE.generationDefaults.preferredOutputAspectRatio);
-    setPreferredKlingDuration(DEFAULT_IP_PROFILE.generationDefaults.preferredKlingDuration);
     setPreferredSeedanceDuration(DEFAULT_IP_PROFILE.generationDefaults.preferredSeedanceDuration);
     onClose();
   };
@@ -774,18 +762,6 @@ export function CharacterCreateDialog({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium mb-1">預設影片模型</label>
-                      <select
-                        value={preferredVideoModel}
-                        onChange={(e) => setPreferredVideoModel(e.target.value as 'kling' | 'seedance')}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
-                                 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="kling">Kling</option>
-                        <option value="seedance">Seedance</option>
-                      </select>
-                    </div>
-                    <div>
                       <label className="block text-xs font-medium mb-1">預設輸出比例</label>
                       <select
                         value={preferredOutputAspectRatio}
@@ -796,21 +772,6 @@ export function CharacterCreateDialog({
                         <option value="16:9">16:9</option>
                         <option value="9:16">9:16</option>
                         <option value="1:1">1:1</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium mb-1">Kling 預設秒數</label>
-                      <select
-                        value={preferredKlingDuration}
-                        onChange={(e) => setPreferredKlingDuration(Number(e.target.value) as 5 | 10)}
-                        className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg
-                                 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value={5}>5 秒</option>
-                        <option value={10}>10 秒</option>
                       </select>
                     </div>
                     <div>

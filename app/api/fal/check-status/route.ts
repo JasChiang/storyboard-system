@@ -44,7 +44,7 @@ function deriveEndpointFromResponseUrl(responseUrl?: string): string | null {
     if (!responseUrl) return null;
     try {
         const url = new URL(responseUrl);
-        // Example: /fal-ai/kling-video/requests/{id}
+        // Example: /bytedance/seedance-2.0/image-to-video/requests/{id}
         const path = url.pathname.replace(/^\/+/, '');
         const marker = '/requests/';
         const idx = path.indexOf(marker);

@@ -6,7 +6,7 @@ import { API_ERROR_CODES, apiError, apiErrorFromUnknown } from '@/lib/api/errors
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as {
-      model: 'kling' | 'seedance';
+      model: 'seedance';
       scene: Pick<Scene, 'id' | 'sceneNumber' | 'description' | 'cameraMovement' | 'sceneIntent' | 'startComposition' | 'subjectMotion' | 'continuityLock' | 'shotIntent' | 'continuityAnchor' | 'changeFromPrev' | 'requiresEndFrame' | 'endFrameDescription' | 'viewIntent' | 'referenceViewHints' | 'referencePlan' | 'requiredReferences' | 'charactersUsed' | 'productsUsed'>;
       motionPrompt?: string;
       references?: ProjectReference[];

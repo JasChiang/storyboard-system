@@ -432,9 +432,8 @@ export async function POST(req: NextRequest) {
           ? ['Keep face/product silhouette stable', 'Do not redesign wardrobe or visible branding', 'Do not add extra accessories unless explicitly requested']
           : [],
         generationDefaults: {
-          preferredVideoModel: 'kling',
+          preferredVideoModel: 'seedance',
           preferredOutputAspectRatio: '16:9',
-          preferredKlingDuration: 5,
           preferredSeedanceDuration: 5,
         },
       },
