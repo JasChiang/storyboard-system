@@ -11,7 +11,6 @@ describe('continuity memory lines', () => {
           sceneNumber: 1,
           continuityAnchor: '手機握持角度固定',
           continuityLock: 'logo 與材質不變',
-          changeFromPrev: 'N/A',
           requiredReferences: ['<Alice>', '<ProductX>'],
           transitionToNext: { type: 'continuation' },
         },
@@ -20,7 +19,6 @@ describe('continuity memory lines', () => {
           sceneNumber: 2,
           continuityAnchor: '產品仍在畫面右側',
           continuityLock: '',
-          changeFromPrev: '景別由中景推到近景',
           requiredReferences: ['<ProductX>'],
           transitionToNext: { type: 'continuation' },
         },
@@ -29,7 +27,6 @@ describe('continuity memory lines', () => {
           sceneNumber: 3,
           continuityAnchor: '',
           continuityLock: '',
-          changeFromPrev: '',
           requiredReferences: [],
           transitionToNext: { type: 'cut' },
         },
@@ -50,7 +47,6 @@ describe('continuity memory lines', () => {
           sceneNumber: 1,
           continuityAnchor: '臥室空間',
           continuityLock: '主角髮型不變',
-          changeFromPrev: 'N/A',
           requiredReferences: ['<Alice>'],
           transitionToNext: { type: 'cut' },
         },
@@ -59,7 +55,6 @@ describe('continuity memory lines', () => {
           sceneNumber: 2,
           continuityAnchor: '更衣間空間',
           continuityLock: '衣櫥鏡面質感',
-          changeFromPrev: '場景由臥室轉換至更衣室',
           requiredReferences: ['<Closet>'],
           transitionToNext: { type: 'cut' },
         },
@@ -68,7 +63,6 @@ describe('continuity memory lines', () => {
           sceneNumber: 3,
           continuityAnchor: '廚房空間',
           continuityLock: '冰箱霧面黑面板',
-          changeFromPrev: '時間與光影從清晨轉向夜晚',
           requiredReferences: ['<Fridge>'],
           transitionToNext: { type: 'continuation' },
         },
@@ -81,7 +75,7 @@ describe('continuity memory lines', () => {
   it('returns empty when no previous scene exists', () => {
     const lines = buildContinuityMemoryLines(
       { id: 's1', sceneNumber: 1 },
-      [{ id: 's1', sceneNumber: 1, continuityAnchor: '', continuityLock: '', changeFromPrev: 'N/A', requiredReferences: [], transitionToNext: { type: 'cut' } }]
+      [{ id: 's1', sceneNumber: 1, continuityAnchor: '', continuityLock: '', requiredReferences: [], transitionToNext: { type: 'cut' } }]
     );
 
     expect(lines).toEqual([]);
