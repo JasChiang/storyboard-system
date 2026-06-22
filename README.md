@@ -14,7 +14,7 @@
 ## ✨ 主要功能
 
 ### 1. 📝 智慧分鏡腳本 (AI Storyboard Script)
-- **多模型支援**：透過 OpenRouter 介接，預設 `anthropic/claude-3.5-sonnet`，可用 `OPENROUTER_MODEL` 切到 Claude 4.5 Sonnet 等。
+- **多模型支援**：透過 OpenRouter 介接，預設 `anthropic/claude-sonnet-4.6`，可用 `OPENROUTER_MODEL` 切到 `anthropic/claude-opus-4.8` 等。
 - **結構化輸出 contract**：以 JSON Schema 約束輸出，每個 scene 含描述、運鏡、`sceneIntent`、`startComposition`、`continuityLock`、`hookScore`、`videoMode` 等欄位，降低 schema drift。
 - **參考圖一致性注入**：自動辨識上傳的角色／商品／環境／風格參考圖，並以 `<標籤>`（如 `<Alice>`、`<iPhone>`）在腳本中鎖定一致性；自動過濾多餘外觀描述，專注動作與構圖。
 - **影片模式判定 (`videoMode`)**：每鏡自動分類為 `standard`（圖生影，需首幀）／`reference`（多模態參考生影）／`text`（純文字生影）。
@@ -91,11 +91,11 @@ npm run dev
 ### 常用選用變數
 | 變數 | 預設 | 說明 |
 |---|---|---|
-| `OPENROUTER_MODEL` | `anthropic/claude-3.5-sonnet` | 分鏡腳本模型 |
-| `OPENROUTER_VISION_MODEL` | — | 參考圖分析模型 |
+| `OPENROUTER_MODEL` | `anthropic/claude-sonnet-4.6` | 分鏡腳本模型（可改 `anthropic/claude-opus-4.8`） |
+| `OPENROUTER_VISION_MODEL` | `google/gemini-3.5-flash` | 參考圖分析模型 |
 | `FAL_IMAGE_MODEL` | `openai/gpt-image-2` | 圖片生成 endpoint |
 | `FAL_VIDEO_SEEDANCE_MODELS` | 內建預設 | Seedance variant→endpoint JSON 覆寫（key：`v20_i2v` / `v20_i2v_fast` / `v20_ref` / `v20_ref_fast` / `v20_t2v` / `v20_t2v_fast`） |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | 影片分析 + 圖片/影片提示詞合成 |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | 影片分析 + 圖片/影片提示詞合成（Google 直連） |
 | `GEMINI_PROMPT_COMPOSER_MODEL` | 同 `GEMINI_MODEL` | 僅覆寫提示詞合成用的 Gemini 模型 |
 | `APP_ORIGIN` / `NEXT_PUBLIC_APP_ORIGIN` | `http://localhost:3000` | 非預設 origin 時設定 |
 
@@ -148,7 +148,7 @@ storyboard-system/
 
 ## ⚠️ 常見問題
 - **Fal API 錯誤**：確認金鑰額度，並注意 Fal 暫存圖片連結有時效性。
-- **Gemini 429（配額耗盡）**：在 `.env.local` 將 `GEMINI_MODEL` 改為 `gemini-2.5-flash-lite`（較省）或維持 `gemini-2.5-flash`（較高品質）。
+- **Gemini 429（配額耗盡）**：在 `.env.local` 將 `GEMINI_MODEL` 改為 `gemini-3.1-flash-lite`（較省）或維持 `gemini-3.5-flash`（較高品質）。
 - **Blender 腳本錯誤**：腳本專為 **Blender 5.0+** 設計，舊版 (3.x/4.x) 可能因 API 差異無法執行。
 - **Seedance fast 變體只能 720p**：選 fast 時若指定 1080p 會自動降為 720p。
 

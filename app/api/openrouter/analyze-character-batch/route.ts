@@ -306,7 +306,7 @@ export async function POST(request: NextRequest) {
       return apiError(API_ERROR_CODES.SERVER_MISCONFIGURED, '伺服器未設定 OPENROUTER_API_KEY');
     }
 
-    const model = process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.0-flash-001';
+    const model = process.env.OPENROUTER_VISION_MODEL || 'google/gemini-3.5-flash';
     const type = body.type || 'character';
     const name = body.name?.trim() || '';
     const angles = views.map((v) => v.angle);

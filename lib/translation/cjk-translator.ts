@@ -61,7 +61,7 @@ export async function translateCjkRequests(
   const ai = new GoogleGenAI({ apiKey });
   const modelName = model
     || process.env.GEMINI_TRANSLATION_MODEL
-    || 'gemini-2.5-flash-lite';
+    || 'gemini-3.1-flash-lite';
 
   const systemPrompt = `You translate Chinese/Japanese/Korean reference text into concise English for image-generation prompts.
 Rules:

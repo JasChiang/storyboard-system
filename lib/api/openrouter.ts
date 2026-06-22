@@ -635,7 +635,7 @@ export async function generateStoryboardScript(
     };
   };
 
-  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4.6';
   const responseSchema = template.outputSchema as OpenRouterJsonSchema;
   const callJsonCompletion = (messages: OpenRouterMessage[], purpose: string) =>
     callOpenRouterJson<unknown>({
@@ -763,7 +763,7 @@ export async function regenerateStoryboardScene(
   config: OpenRouterConfig,
   references?: ProjectReference[]
 ): Promise<Partial<Scene>> {
-  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4.6';
   const systemPrompt = buildSystemPrompt(template, references);
   const sceneSchema = {
     type: 'object',
@@ -897,7 +897,7 @@ export async function callVisionMulti(
   prompt: string,
   config: OpenRouterConfig & { model?: string }
 ): Promise<{ content: string; model: string }> {
-  const model = config.model || process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.0-flash-001';
+  const model = config.model || process.env.OPENROUTER_VISION_MODEL || 'google/gemini-3.5-flash';
   const imageContent = imageUrls
     .filter((url) => typeof url === 'string' && url.trim())
     .map((url) => ({ type: 'image_url' as const, image_url: { url } }));
@@ -953,7 +953,7 @@ export async function analyzeReferenceImage(
   prompt: string,
   config: OpenRouterConfig
 ): Promise<string> {
-  const model = process.env.OPENROUTER_VISION_MODEL || 'google/gemini-2.0-flash-001';
+  const model = process.env.OPENROUTER_VISION_MODEL || 'google/gemini-3.5-flash';
 
   // 處理 base64 圖片格式
   // OpenRouter 預期 URL 格式或 base64 data URI
@@ -1035,7 +1035,7 @@ export async function generateCharacterProfile(
   input: CharacterProfileGenerationInput,
   config: OpenRouterConfig
 ): Promise<CharacterProfileGenerationResult> {
-  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4.6';
 
   const systemPrompt = `你是品牌素材規格編輯器。請根據多視角分析資料，輸出可直接用於影像生成的一致性設定。
 
@@ -1085,7 +1085,7 @@ export async function reviewStoryboardCreativity(
   scenes: Scene[],
   config: OpenRouterConfig
 ): Promise<CreativeReview> {
-  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4.6';
 
   const systemPrompt = `你是資深廣告導演，專精於分析短影片的 Hook 強度與觀眾留存率。
 
@@ -1174,7 +1174,7 @@ export async function generateHookVariants(
   existingScene1: Partial<Scene>,
   config: OpenRouterConfig
 ): Promise<HookVariant[]> {
-  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4.6';
 
   const systemPrompt = `你是廣告創意導演，專精於短影片開場設計。
 
@@ -1288,7 +1288,7 @@ export async function planIndexTtsVoiceovers(
   input: IndexTtsPlanningInput,
   config: OpenRouterConfig
 ): Promise<IndexTtsScenePlan[]> {
-  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4.6';
   const audioUrl = input.audioUrl.trim();
   const emotionalAudioUrl = input.emotionalAudioUrl?.trim() || '';
   const scenes = input.scenes
@@ -1527,7 +1527,7 @@ export async function suggestElevenLabsMusicPrompts(
   input: ElevenLabsMusicPromptIdeasInput,
   config: OpenRouterConfig
 ): Promise<ElevenLabsMusicPromptIdea[]> {
-  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+  const model = config.model || process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4.6';
   const scenes = input.scenes.filter((scene) => Number.isFinite(scene.sceneNumber) && Number.isFinite(scene.duration));
   if (scenes.length === 0) return [];
 

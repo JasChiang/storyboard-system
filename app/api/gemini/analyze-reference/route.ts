@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Call Gemini Vision
-        const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+        const modelName = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
         const result = await ai.models.generateContent({
             model: modelName,

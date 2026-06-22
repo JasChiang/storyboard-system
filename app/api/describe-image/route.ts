@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
         }
 
         const prompt = PROMPTS_BY_TYPE[type] || PROMPTS_BY_TYPE.character;
-        const model = process.env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+        const model = process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4.6';
 
         const response = await fetch(OPENROUTER_API_URL, {
             method: 'POST',

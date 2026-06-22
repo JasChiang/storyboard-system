@@ -16,9 +16,12 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   'anthropic/claude-3.5-sonnet': { inputPer1M: 3, outputPer1M: 15 },
   'anthropic/claude-3-5-sonnet': { inputPer1M: 3, outputPer1M: 15 },
   'anthropic/claude-sonnet-4.6': { inputPer1M: 3, outputPer1M: 15 },
+  'anthropic/claude-opus-4.8': { inputPer1M: 5, outputPer1M: 25 },
   'anthropic/claude-opus-4': { inputPer1M: 15, outputPer1M: 75 },
   'google/gemini-2.0-flash': { inputPer1M: 0.1, outputPer1M: 0.4 },
   'google/gemini-2.5-flash': { inputPer1M: 0.3, outputPer1M: 2.5 },
+  'google/gemini-3.5-flash': { inputPer1M: 0.3, outputPer1M: 2.5 },
+  'google/gemini-3.1-flash-lite': { inputPer1M: 0.1, outputPer1M: 0.4 },
 };
 
 export interface LlmUsageRecord {

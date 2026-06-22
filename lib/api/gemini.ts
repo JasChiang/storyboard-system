@@ -212,7 +212,7 @@ export async function analyzeVideosForEditing(
 ): Promise<EditingSuggestion> {
   try {
     const ai = new GoogleGenAI({ apiKey: config.apiKey });
-    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const modelName = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
     // 構建影片內容參考
     const processedFiles = await Promise.all(uploadedFiles.map(async (file) => {
@@ -280,8 +280,8 @@ export async function analyzeVideosForEditing(
     if (message.includes('quota') || message.includes('429')) {
       throw new Error(
         `Gemini API 配額已超限。建議解決方案：\\n` +
-        `1. 在 .env.local 中將 GEMINI_MODEL 改為 gemini-2.5-flash-lite\\n` +
-        `2. 或使用 gemini-2.5-flash (更高品質/較高成本)\\n` +
+        `1. 在 .env.local 中將 GEMINI_MODEL 改為 gemini-3.1-flash-lite（較省）\\n` +
+        `2. 或使用 gemini-3.5-flash (更高品質/較高成本)\\n` +
         `3. 或等待配額重置（通常為每日/每分鐘限制）\\n\\n` +
         `原始錯誤: ${message || 'Unknown error'}`
       );
@@ -297,7 +297,7 @@ export async function composeVideoPromptWithGemini(
   config: GeminiConfig
 ): Promise<ComposeVideoPromptResult> {
   const ai = new GoogleGenAI({ apiKey: config.apiKey });
-  const modelName = process.env.GEMINI_PROMPT_COMPOSER_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const modelName = process.env.GEMINI_PROMPT_COMPOSER_MODEL || process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
   const consolidatedRules = buildConsolidatedReferenceRules(input.references || []);
   const referenceContext = consolidatedRules.map((rule) => {
@@ -432,7 +432,7 @@ export async function composeImagePromptWithGemini(
   config: GeminiConfig
 ): Promise<ComposeImagePromptResult> {
   const ai = new GoogleGenAI({ apiKey: config.apiKey });
-  const modelName = process.env.GEMINI_PROMPT_COMPOSER_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const modelName = process.env.GEMINI_PROMPT_COMPOSER_MODEL || process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 
   const consolidatedRules = buildConsolidatedReferenceRules(input.references || []);
   const referenceContext = consolidatedRules.map((rule) => {
